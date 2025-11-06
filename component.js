@@ -1,4 +1,4 @@
-class WebComponents extends HTMLElement {
+class OperatorOnboarding extends HTMLElement {
   constructor() {
     super();
     const shadow = this.attachShadow({ mode: "open" });
@@ -35,4 +35,4 @@ class WebComponents extends HTMLElement {
   }
 }
 
-customElements.define("my-form", MyForm);
+customElements.define("operator-onboarding", OperatorOnboarding);
