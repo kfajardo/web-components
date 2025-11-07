@@ -7,136 +7,1350 @@
  */
 
 class OperatorOnboarding extends HTMLElement {
-  steps = [
-    `
-      <style>
-        form {
-          display: flex;
-          flex-direction: column;
-          width: 200px;
-          gap: 8px;
-          font-family: sans-serif;
-        }
-        input, button {
-          padding: 8px;
-          font-size: 14px;
-        }
-      </style>
-
-      <form id="form">
-        <input type="email" id="email" name="email" placeholder="Email" required />
-        <input type="text" id="firstName" name="firstName" placeholder="First Name" required />
-        <input type="text" name="lastName" placeholder="Last Name" required />
-        <input type="text" name="phoneNumber" placeholder="Phone Number" required />
-        <button type="submit">Next</button>
-      </form>
-    `,
-    `
-      <style>
-        form {
-          display: flex;
-          flex-direction: column;
-          width: 200px;
-          gap: 8px;
-          font-family: sans-serif;
-        }
-        input, button {
-          padding: 8px;
-          font-size: 14px;
-        }
-      </style>
-
-      <form id="form">
-      <input type="text" name="routingNumber" placeholder="Routing Number" required />
-      <input type="text" name="accountNumber" placeholder="Account Number" required />
-      <input type="text" name="accountName" placeholder="Account Name" required />
-        <button type="submit">Next</button>
-      </form>
-    `,
-    `
-      <style>
-        form {
-          display: flex;
-          flex-direction: column;
-          width: 200px;
-          gap: 8px;
-          font-family: sans-serif;
-        }
-        input, button {
-          padding: 8px;
-          font-size: 14px;
-        }
-      </style>
-
-      <form id="form">
-        <input type="text" name="companyName" placeholder="Company Name" required />
-        <input type="text" name="contactName" placeholder="Contact Name" required />
-        <input type="email" name="contactEmail" placeholder="Contact Email" required />
-        <input type="text" name="contactPhone" placeholder="Contact Phone" required />
-        <button type="submit">Next</button>
-      </form>
-    `,
-  ];
-
-  operatorData = {};
-
-  currentStep = 0;
-
   constructor() {
     super();
-    const shadow = this.attachShadow({ mode: "open" });
-
-    shadow.innerHTML = this.steps[this.currentStep];
-
-    const form = shadow.querySelector("#form");
-    form.addEventListener("submit", (e) => this.handleSubmit(e));
+    this.attachShadow({ mode: "open" });
+    
+    // Initialize state
+    this.state = {
+      currentStep: 0,
+      totalSteps: 4,
+      formData: {
+        verification: {
+          businessEmail: ''
+        },
+        businessDetails: {
+          businessName: '',
+          doingBusinessAs: '',
+          businessWebsite: '',
+          businessPhoneNumber: '',
+          businessEmail: '',
+          businessStreet: '',
+          businessCity: '',
+          businessState: '',
+          businessPostalCode: ''
+        },
+        representatives: [],
+        bankDetails: {
+          accountHolderName: '',
+          accountType: 'checking',
+          routingNumber: '',
+          accountNumber: ''
+        }
+      },
+      validationState: {
+        step0: { isValid: false, errors: {} },
+        step1: { isValid: false, errors: {} },
+        step2: { isValid: true, errors: {} },
+        step3: { isValid: false, errors: {} }
+      },
+      completedSteps: new Set(),
+      uiState: {
+        isLoading: false,
+        verificationStatus: null,
+        showErrors: false
+      }
+    };
+    
+    // Step configuration
+    this.STEPS = [
+      {
+        id: 'verification',
+        title: 'Verify Email',
+        description: 'Verify your business email address',
+        canSkip: false
+      },
+      {
+        id: 'business-details',
+        title: 'Business Information',
+        description: 'Provide your business details',
+        canSkip: false
+      },
+      {
+        id: 'representatives',
+        title: 'Business Representatives',
+        description: 'Add business representatives (optional)',
+        canSkip: true
+      },
+      {
+        id: 'bank-details',
+        title: 'Bank Account',
+        description: 'Link your bank account',
+        canSkip: false
+      }
+    ];
+    
+    // US States for dropdown
+    this.US_STATES = [
+      'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA',
+      'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD',
+      'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ',
+      'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC',
+      'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY'
+    ];
+    
+    this.render();
   }
 
-  handleSubmit(e) {
-    e.preventDefault();
-    const form = e.target; // use the form from the event
-    const formData = new FormData(form);
-    const data = Object.fromEntries(formData.entries());
-
-    // console.log("Step:", this.currentStep, "Data:", data); // ✅ now logs correctly
-    this.operatorData = { ...this.operatorData, ...data };
-    this.currentStep += 1;
-
-    // move to next step if any
-    if (this.currentStep < this.steps.length) {
-      this.shadowRoot.innerHTML = this.steps[this.currentStep];
-      const newForm = this.shadowRoot.querySelector("#form");
-      newForm.addEventListener("submit", (e) => this.handleSubmit(e));
-    } else {
-      console.log("All steps completed.");
+  // ==================== VALIDATORS ====================
+  
+  validators = {
+    required: (value, fieldName) => ({
+      isValid: value && value.trim().length > 0,
+      error: `${fieldName} is required`
+    }),
+    
+    email: (value) => ({
+      isValid: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value),
+      error: 'Please enter a valid email address'
+    }),
+    
+    usPhone: (value) => {
+      const cleaned = value.replace(/\D/g, '');
+      return {
+        isValid: cleaned.length === 10,
+        error: 'Please enter a valid 10-digit U.S. phone number'
+      };
+    },
+    
+    routingNumber: (value) => {
+      const cleaned = value.replace(/\D/g, '');
+      return {
+        isValid: cleaned.length === 9,
+        error: 'Routing number must be 9 digits'
+      };
+    },
+    
+    accountNumber: (value) => {
+      const cleaned = value.replace(/\D/g, '');
+      return {
+        isValid: cleaned.length >= 4 && cleaned.length <= 17,
+        error: 'Account number must be 4-17 digits'
+      };
+    },
+    
+    url: (value) => {
+      if (!value) return { isValid: true, error: '' }; // Optional
+      try {
+        new URL(value);
+        return { isValid: true, error: '' };
+      } catch {
+        return { isValid: false, error: 'Please enter a valid URL' };
+      }
+    },
+    
+    postalCode: (value) => {
+      const cleaned = value.replace(/\D/g, '');
+      return {
+        isValid: cleaned.length === 5,
+        error: 'Please enter a valid 5-digit ZIP code'
+      };
     }
+  };
 
-    console.log(this.operatorData);
-
-    this.dispatchEvent(new CustomEvent("formSubmit", { detail: data }));
+  // ==================== STATE MANAGEMENT ====================
+  
+  setState(newState) {
+    this.state = {
+      ...this.state,
+      ...newState,
+      formData: {
+        ...this.state.formData,
+        ...(newState.formData || {})
+      },
+      validationState: {
+        ...this.state.validationState,
+        ...(newState.validationState || {})
+      },
+      uiState: {
+        ...this.state.uiState,
+        ...(newState.uiState || {})
+      }
+    };
+    this.render();
   }
 
-  // * IMPORTANT - gets called when inserted into the document
+  // ==================== VALIDATION ====================
+  
+  validateField(value, validators, fieldName) {
+    for (const validatorName of validators) {
+      const validator = this.validators[validatorName];
+      if (validator) {
+        const result = validator(value, fieldName);
+        if (!result.isValid) {
+          return result.error;
+        }
+      }
+    }
+    return '';
+  }
+  
+  validateCurrentStep() {
+    const stepId = this.STEPS[this.state.currentStep].id;
+    let isValid = true;
+    const errors = {};
+    
+    if (stepId === 'verification') {
+      const email = this.state.formData.verification.businessEmail;
+      const error = this.validateField(email, ['required', 'email'], 'Business Email');
+      if (error) {
+        errors.businessEmail = error;
+        isValid = false;
+      }
+    } else if (stepId === 'business-details') {
+      const data = this.state.formData.businessDetails;
+      const fields = [
+        { name: 'businessName', validators: ['required'], label: 'Business Name' },
+        { name: 'businessWebsite', validators: ['url'], label: 'Business Website' },
+        { name: 'businessPhoneNumber', validators: ['required', 'usPhone'], label: 'Business Phone' },
+        { name: 'businessStreet', validators: ['required'], label: 'Street Address' },
+        { name: 'businessCity', validators: ['required'], label: 'City' },
+        { name: 'businessState', validators: ['required'], label: 'State' },
+        { name: 'businessPostalCode', validators: ['required', 'postalCode'], label: 'ZIP Code' }
+      ];
+      
+      fields.forEach(field => {
+        const error = this.validateField(data[field.name], field.validators, field.label);
+        if (error) {
+          errors[field.name] = error;
+          isValid = false;
+        }
+      });
+    } else if (stepId === 'representatives') {
+      // Validate each representative if any field is filled
+      this.state.formData.representatives.forEach((rep, index) => {
+        const hasAnyValue = Object.values(rep).some(v => 
+          typeof v === 'string' && v.trim() || 
+          (typeof v === 'object' && Object.values(v).some(av => av && av.trim()))
+        );
+        
+        if (hasAnyValue) {
+          const requiredFields = [
+            { name: 'representativeFirstName', validators: ['required'], label: 'First Name' },
+            { name: 'representativeLastName', validators: ['required'], label: 'Last Name' },
+            { name: 'representativeJobTitle', validators: ['required'], label: 'Job Title' },
+            { name: 'representativePhone', validators: ['required', 'usPhone'], label: 'Phone' },
+            { name: 'representativeEmail', validators: ['required', 'email'], label: 'Email' },
+            { name: 'representativeDateOfBirth', validators: ['required'], label: 'Date of Birth' },
+            { name: 'representativeAddress', validators: ['required'], label: 'Address' },
+            { name: 'representativeCity', validators: ['required'], label: 'City' },
+            { name: 'representativeState', validators: ['required'], label: 'State' },
+            { name: 'representativeZip', validators: ['required', 'postalCode'], label: 'ZIP Code' }
+          ];
+          
+          requiredFields.forEach(field => {
+            const error = this.validateField(rep[field.name], field.validators, field.label);
+            if (error) {
+              if (!errors[`rep${index}`]) errors[`rep${index}`] = {};
+              errors[`rep${index}`][field.name] = error;
+              isValid = false;
+            }
+          });
+        }
+      });
+    } else if (stepId === 'bank-details') {
+      const data = this.state.formData.bankDetails;
+      const fields = [
+        { name: 'accountHolderName', validators: ['required'], label: 'Account Holder Name' },
+        { name: 'accountType', validators: ['required'], label: 'Account Type' },
+        { name: 'routingNumber', validators: ['required', 'routingNumber'], label: 'Routing Number' },
+        { name: 'accountNumber', validators: ['required', 'accountNumber'], label: 'Account Number' }
+      ];
+      
+      fields.forEach(field => {
+        const error = this.validateField(data[field.name], field.validators, field.label);
+        if (error) {
+          errors[field.name] = error;
+          isValid = false;
+        }
+      });
+    }
+    
+    this.setState({
+      validationState: {
+        [`step${this.state.currentStep}`]: { isValid, errors }
+      },
+      uiState: { showErrors: !isValid }
+    });
+    
+    return isValid;
+  }
+
+  // ==================== NAVIGATION ====================
+  
+  async goToNextStep() {
+    const stepId = this.STEPS[this.state.currentStep].id;
+    
+    // Special handling for verification step
+    if (stepId === 'verification') {
+      if (!this.validateCurrentStep()) return;
+      await this.handleVerification();
+      return;
+    }
+    
+    // Validate current step
+    if (!this.validateCurrentStep()) return;
+    
+    // Mark step complete
+    const completedSteps = new Set(this.state.completedSteps);
+    completedSteps.add(this.state.currentStep);
+    
+    // Progress to next step
+    if (this.state.currentStep < this.state.totalSteps - 1) {
+      this.setState({
+        currentStep: this.state.currentStep + 1,
+        completedSteps,
+        uiState: { showErrors: false }
+      });
+    } else {
+      this.handleFormCompletion();
+    }
+  }
+  
+  goToPreviousStep() {
+    if (this.state.currentStep > 0) {
+      this.setState({
+        currentStep: this.state.currentStep - 1,
+        uiState: { showErrors: false }
+      });
+    }
+  }
+  
+  goToStep(stepIndex) {
+    if (this.state.completedSteps.has(stepIndex) || stepIndex < this.state.currentStep) {
+      this.setState({
+        currentStep: stepIndex,
+        uiState: { showErrors: false }
+      });
+    }
+  }
+  
+  skipStep() {
+    if (this.STEPS[this.state.currentStep].canSkip) {
+      const completedSteps = new Set(this.state.completedSteps);
+      completedSteps.add(this.state.currentStep);
+      
+      this.setState({
+        currentStep: this.state.currentStep + 1,
+        completedSteps,
+        uiState: { showErrors: false }
+      });
+    }
+  }
+
+  // ==================== ASYNC OPERATIONS ====================
+  
+  async handleVerification() {
+    // Set loading state
+    this.setState({
+      uiState: { isLoading: true, verificationStatus: 'pending' }
+    });
+    
+    // Simulate API call (2 seconds)
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Update verification status
+    this.setState({
+      uiState: { isLoading: false, verificationStatus: 'success' }
+    });
+    
+    // Show success message (1.5 seconds)
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    // Copy email to business details
+    const completedSteps = new Set(this.state.completedSteps);
+    completedSteps.add(0);
+    
+    this.setState({
+      formData: {
+        businessDetails: {
+          ...this.state.formData.businessDetails,
+          businessEmail: this.state.formData.verification.businessEmail
+        }
+      },
+      currentStep: 1,
+      completedSteps,
+      uiState: { verificationStatus: null, showErrors: false }
+    });
+  }
+
+  // ==================== REPRESENTATIVES CRUD ====================
+  
+  addRepresentative() {
+    const newRep = {
+      id: crypto.randomUUID(),
+      representativeFirstName: '',
+      representativeLastName: '',
+      representativeJobTitle: '',
+      representativePhone: '',
+      representativeEmail: '',
+      representativeDateOfBirth: '',
+      representativeAddress: '',
+      representativeCity: '',
+      representativeState: '',
+      representativeZip: ''
+    };
+    
+    this.setState({
+      formData: {
+        representatives: [...this.state.formData.representatives, newRep]
+      }
+    });
+  }
+  
+  removeRepresentative(index) {
+    const representatives = this.state.formData.representatives.filter((_, i) => i !== index);
+    this.setState({
+      formData: { representatives }
+    });
+  }
+  
+  updateRepresentative(index, field, value) {
+    const representatives = [...this.state.formData.representatives];
+    representatives[index] = {
+      ...representatives[index],
+      [field]: value
+    };
+    
+    this.setState({
+      formData: { representatives }
+    });
+  }
+
+  // ==================== UTILITIES ====================
+  
+  formatPhoneNumber(value) {
+    const cleaned = value.replace(/\D/g, '');
+    if (cleaned.length === 10) {
+      return `(${cleaned.slice(0,3)}) ${cleaned.slice(3,6)}-${cleaned.slice(6)}`;
+    }
+    return value;
+  }
+  
+  getFieldError(fieldName, repIndex = null) {
+    if (!this.state.uiState.showErrors) return '';
+    const errors = this.state.validationState[`step${this.state.currentStep}`]?.errors || {};
+    
+    if (repIndex !== null) {
+      return errors[`rep${repIndex}`]?.[fieldName] || '';
+    }
+    
+    return errors[fieldName] || '';
+  }
+
+  // ==================== FORM COMPLETION ====================
+  
+  handleFormCompletion() {
+    const completedSteps = new Set(this.state.completedSteps);
+    completedSteps.add(this.state.currentStep);
+    
+    this.setState({ completedSteps });
+    
+    // Log all form data to console
+    console.log('Form Submission - Complete Data:', {
+      verification: this.state.formData.verification,
+      businessDetails: this.state.formData.businessDetails,
+      representatives: this.state.formData.representatives,
+      bankDetails: this.state.formData.bankDetails
+    });
+    
+    // Emit custom event
+    this.dispatchEvent(new CustomEvent('formComplete', {
+      detail: this.state.formData,
+      bubbles: true,
+      composed: true
+    }));
+  }
+
+  // ==================== RENDERING ====================
+  
+  render() {
+    this.shadowRoot.innerHTML = `
+      ${this.renderStyles()}
+      <div class="onboarding-container">
+        ${this.renderStepperHeader()}
+        ${this.renderCurrentStep()}
+        ${this.renderNavigationFooter()}
+      </div>
+    `;
+    this.attachEventListeners();
+  }
+  
+  renderStyles() {
+    return `
+      <style>
+        * {
+          box-sizing: border-box;
+          margin: 0;
+          padding: 0;
+        }
+        
+        :host {
+          --primary-color: #007bff;
+          --success-color: #28a745;
+          --error-color: #dc3545;
+          --border-color: #ddd;
+          --gray-light: #f8f9fa;
+          --gray-medium: #6c757d;
+          --border-radius: 4px;
+          --spacing-sm: 8px;
+          --spacing-md: 16px;
+          --spacing-lg: 24px;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        }
+        
+        .onboarding-container {
+          max-width: 800px;
+          margin: 0 auto;
+          padding: var(--spacing-lg);
+        }
+        
+        /* Stepper Header */
+        .stepper-header {
+          display: flex;
+          justify-content: space-between;
+          margin-bottom: var(--spacing-lg);
+          position: relative;
+        }
+        
+        .stepper-header::before {
+          content: '';
+          position: absolute;
+          top: 20px;
+          left: 0;
+          right: 0;
+          height: 2px;
+          background: var(--border-color);
+          z-index: 0;
+        }
+        
+        .step-indicator {
+          flex: 1;
+          text-align: center;
+          position: relative;
+          z-index: 1;
+        }
+        
+        .step-indicator.clickable {
+          cursor: pointer;
+        }
+        
+        .step-circle {
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          background: white;
+          border: 2px solid var(--border-color);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin: 0 auto var(--spacing-sm);
+          font-weight: bold;
+          color: var(--gray-medium);
+        }
+        
+        .step-indicator.active .step-circle {
+          border-color: var(--primary-color);
+          color: var(--primary-color);
+          background: var(--primary-color);
+          color: white;
+        }
+        
+        .step-indicator.complete .step-circle {
+          border-color: var(--success-color);
+          background: var(--success-color);
+          color: white;
+        }
+        
+        .step-label {
+          font-size: 12px;
+          color: var(--gray-medium);
+        }
+        
+        .step-indicator.active .step-label {
+          color: var(--primary-color);
+          font-weight: 600;
+        }
+        
+        /* Step Content */
+        .step-content {
+          background: white;
+          padding: var(--spacing-lg);
+          border: 1px solid var(--border-color);
+          border-radius: var(--border-radius);
+          margin-bottom: var(--spacing-lg);
+        }
+        
+        .step-content h2 {
+          margin-bottom: var(--spacing-sm);
+          color: #333;
+        }
+        
+        .step-content > p {
+          color: var(--gray-medium);
+          margin-bottom: var(--spacing-lg);
+        }
+        
+        /* Form Fields */
+        .form-field {
+          margin-bottom: var(--spacing-md);
+        }
+        
+        .form-field label {
+          display: block;
+          margin-bottom: var(--spacing-sm);
+          font-weight: 500;
+          color: #333;
+        }
+        
+        .form-field input,
+        .form-field select {
+          width: 100%;
+          padding: 10px;
+          border: 1px solid var(--border-color);
+          border-radius: var(--border-radius);
+          font-size: 14px;
+        }
+        
+        .form-field input:focus,
+        .form-field select:focus {
+          outline: none;
+          border-color: var(--primary-color);
+        }
+        
+        .form-field input[readonly] {
+          background: var(--gray-light);
+          cursor: not-allowed;
+        }
+        
+        .form-field.has-error input,
+        .form-field.has-error select {
+          border-color: var(--error-color);
+        }
+        
+        .error-message {
+          display: block;
+          color: var(--error-color);
+          font-size: 12px;
+          margin-top: var(--spacing-sm);
+        }
+        
+        .form-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: var(--spacing-md);
+        }
+        
+        .form-grid .full-width {
+          grid-column: 1 / -1;
+        }
+        
+        /* Radio Buttons */
+        .radio-group {
+          display: flex;
+          gap: var(--spacing-md);
+        }
+        
+        .radio-option {
+          display: flex;
+          align-items: center;
+          gap: var(--spacing-sm);
+        }
+        
+        .radio-option input[type="radio"] {
+          width: auto;
+        }
+        
+        /* Representatives */
+        .representative-card {
+          border: 1px solid var(--border-color);
+          border-radius: var(--border-radius);
+          padding: var(--spacing-md);
+          margin-bottom: var(--spacing-md);
+        }
+        
+        .card-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: var(--spacing-md);
+          padding-bottom: var(--spacing-sm);
+          border-bottom: 1px solid var(--border-color);
+        }
+        
+        .card-header h3 {
+          font-size: 16px;
+          color: #333;
+        }
+        
+        .remove-btn {
+          background: none;
+          border: none;
+          color: var(--error-color);
+          cursor: pointer;
+          font-size: 14px;
+          padding: var(--spacing-sm);
+        }
+        
+        .remove-btn:hover {
+          text-decoration: underline;
+        }
+        
+        .add-representative-btn {
+          width: 100%;
+          padding: 12px;
+          background: white;
+          border: 2px dashed var(--border-color);
+          border-radius: var(--border-radius);
+          color: var(--primary-color);
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: 500;
+        }
+        
+        .add-representative-btn:hover {
+          border-color: var(--primary-color);
+          background: var(--gray-light);
+        }
+        
+        /* Navigation Footer */
+        .navigation-footer {
+          display: flex;
+          justify-content: space-between;
+          gap: var(--spacing-md);
+        }
+        
+        .navigation-footer button {
+          padding: 12px 24px;
+          border: none;
+          border-radius: var(--border-radius);
+          font-size: 14px;
+          font-weight: 500;
+          cursor: pointer;
+        }
+        
+        .btn-back {
+          background: white;
+          border: 1px solid var(--border-color);
+          color: #333;
+        }
+        
+        .btn-back:hover {
+          background: var(--gray-light);
+        }
+        
+        .btn-skip {
+          background: white;
+          border: 1px solid var(--border-color);
+          color: var(--gray-medium);
+          margin-left: auto;
+        }
+        
+        .btn-skip:hover {
+          background: var(--gray-light);
+        }
+        
+        .btn-next {
+          background: var(--primary-color);
+          color: white;
+        }
+        
+        .btn-next:hover {
+          background: #0056b3;
+        }
+        
+        .btn-verify {
+          background: var(--primary-color);
+          color: white;
+          padding: 12px 24px;
+          border: none;
+          border-radius: var(--border-radius);
+          font-size: 14px;
+          font-weight: 500;
+          cursor: pointer;
+          margin-top: var(--spacing-md);
+        }
+        
+        .btn-verify:hover {
+          background: #0056b3;
+        }
+        
+        .btn-verify:disabled {
+          background: var(--gray-medium);
+          cursor: not-allowed;
+        }
+        
+        /* Loading & Messages */
+        .loading-spinner {
+          border: 3px solid var(--gray-light);
+          border-top: 3px solid var(--primary-color);
+          border-radius: 50%;
+          width: 40px;
+          height: 40px;
+          animation: spin 1s linear infinite;
+          margin: var(--spacing-md) auto;
+        }
+        
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        
+        .success-message {
+          background: #d4edda;
+          color: #155724;
+          padding: var(--spacing-md);
+          border-radius: var(--border-radius);
+          margin-top: var(--spacing-md);
+          border: 1px solid #c3e6cb;
+        }
+        
+        .empty-state {
+          text-align: center;
+          padding: var(--spacing-lg);
+          color: var(--gray-medium);
+        }
+      </style>
+    `;
+  }
+  
+  renderStepperHeader() {
+    return `
+      <div class="stepper-header">
+        ${this.STEPS.map((step, index) => this.renderStepIndicator(step, index)).join('')}
+      </div>
+    `;
+  }
+  
+  renderStepIndicator(step, index) {
+    const isComplete = this.state.completedSteps.has(index);
+    const isCurrent = this.state.currentStep === index;
+    const isClickable = isComplete || index < this.state.currentStep;
+    
+    return `
+      <div class="step-indicator ${isCurrent ? 'active' : ''} ${isComplete ? 'complete' : ''} ${isClickable ? 'clickable' : ''}"
+           ${isClickable ? `data-step="${index}"` : ''}>
+        <div class="step-circle">
+          ${isComplete ? '✓' : index + 1}
+        </div>
+        <div class="step-label">${step.title}</div>
+      </div>
+    `;
+  }
+  
+  renderCurrentStep() {
+    const stepId = this.STEPS[this.state.currentStep].id;
+    
+    switch(stepId) {
+      case 'verification':
+        return this.renderVerificationStep();
+      case 'business-details':
+        return this.renderBusinessDetailsStep();
+      case 'representatives':
+        return this.renderRepresentativesStep();
+      case 'bank-details':
+        return this.renderBankDetailsStep();
+      default:
+        return '';
+    }
+  }
+  
+  renderVerificationStep() {
+    const { businessEmail } = this.state.formData.verification;
+    const { isLoading, verificationStatus } = this.state.uiState;
+    
+    return `
+      <div class="step-content">
+        <h2>Verify Your Business Email</h2>
+        <p>Enter your business email to get started</p>
+        
+        ${this.renderField({
+          name: 'businessEmail',
+          label: 'Business Email',
+          type: 'email',
+          value: businessEmail,
+          error: this.getFieldError('businessEmail'),
+          placeholder: 'business@example.com'
+        })}
+        
+        ${!isLoading && verificationStatus !== 'success' ? `
+          <button type="button" class="btn-verify">Verify</button>
+        ` : ''}
+        
+        ${verificationStatus === 'success' ? `
+          <div class="success-message">
+            ✓ Operator verified, proceeding to next step...
+          </div>
+        ` : ''}
+        
+        ${isLoading ? '<div class="loading-spinner"></div>' : ''}
+      </div>
+    `;
+  }
+  
+  renderBusinessDetailsStep() {
+    const data = this.state.formData.businessDetails;
+    
+    return `
+      <div class="step-content">
+        <h2>Business Information</h2>
+        <p>Provide your business details</p>
+        
+        <div class="form-grid">
+          ${this.renderField({
+            name: 'businessName',
+            label: 'Business Name *',
+            value: data.businessName,
+            error: this.getFieldError('businessName')
+          })}
+          
+          ${this.renderField({
+            name: 'doingBusinessAs',
+            label: 'Doing Business As (DBA)',
+            value: data.doingBusinessAs
+          })}
+          
+          ${this.renderField({
+            name: 'businessWebsite',
+            label: 'Business Website',
+            type: 'url',
+            value: data.businessWebsite,
+            error: this.getFieldError('businessWebsite'),
+            placeholder: 'https://example.com',
+            className: 'full-width'
+          })}
+          
+          ${this.renderField({
+            name: 'businessPhoneNumber',
+            label: 'Business Phone *',
+            type: 'tel',
+            value: data.businessPhoneNumber,
+            error: this.getFieldError('businessPhoneNumber'),
+            placeholder: '(555) 123-4567',
+            dataFormat: 'phone'
+          })}
+          
+          ${this.renderField({
+            name: 'businessEmail',
+            label: 'Business Email *',
+            type: 'email',
+            value: data.businessEmail,
+            readOnly: true
+          })}
+          
+          ${this.renderField({
+            name: 'businessStreet',
+            label: 'Street Address *',
+            value: data.businessStreet,
+            error: this.getFieldError('businessStreet'),
+            className: 'full-width'
+          })}
+          
+          ${this.renderField({
+            name: 'businessCity',
+            label: 'City *',
+            value: data.businessCity,
+            error: this.getFieldError('businessCity')
+          })}
+          
+          <div class="form-field ${this.getFieldError('businessState') ? 'has-error' : ''}">
+            <label for="businessState">State *</label>
+            <select id="businessState" name="businessState">
+              <option value="">Select State</option>
+              ${this.US_STATES.map(state => `
+                <option value="${state}" ${data.businessState === state ? 'selected' : ''}>${state}</option>
+              `).join('')}
+            </select>
+            ${this.getFieldError('businessState') ? `<span class="error-message">${this.getFieldError('businessState')}</span>` : ''}
+          </div>
+          
+          ${this.renderField({
+            name: 'businessPostalCode',
+            label: 'ZIP Code *',
+            value: data.businessPostalCode,
+            error: this.getFieldError('businessPostalCode'),
+            placeholder: '12345',
+            maxLength: 5
+          })}
+        </div>
+      </div>
+    `;
+  }
+  
+  renderRepresentativesStep() {
+    const representatives = this.state.formData.representatives;
+    
+    return `
+      <div class="step-content">
+        <h2>Business Representatives</h2>
+        <p>Add business representatives (optional)</p>
+        
+        <div class="representatives-list">
+          ${representatives.length === 0 ? `
+            <div class="empty-state">
+              <p>No representatives added yet. Click below to add one.</p>
+            </div>
+          ` : ''}
+          ${representatives.map((rep, index) => this.renderRepresentativeCard(rep, index)).join('')}
+        </div>
+        
+        <button type="button" class="add-representative-btn">
+          + Add Representative
+        </button>
+      </div>
+    `;
+  }
+  
+  renderRepresentativeCard(representative, index) {
+    return `
+      <div class="representative-card" data-index="${index}">
+        <div class="card-header">
+          <h3>Representative ${index + 1}</h3>
+          <button type="button" class="remove-btn" data-index="${index}">Remove</button>
+        </div>
+        <div class="card-body">
+          <div class="form-grid">
+            ${this.renderField({
+              name: 'representativeFirstName',
+              label: 'First Name *',
+              value: representative.representativeFirstName,
+              error: this.getFieldError('representativeFirstName', index),
+              dataRepIndex: index
+            })}
+            
+            ${this.renderField({
+              name: 'representativeLastName',
+              label: 'Last Name *',
+              value: representative.representativeLastName,
+              error: this.getFieldError('representativeLastName', index),
+              dataRepIndex: index
+            })}
+            
+            ${this.renderField({
+              name: 'representativeJobTitle',
+              label: 'Job Title *',
+              value: representative.representativeJobTitle,
+              error: this.getFieldError('representativeJobTitle', index),
+              dataRepIndex: index,
+              className: 'full-width'
+            })}
+            
+            ${this.renderField({
+              name: 'representativePhone',
+              label: 'Phone *',
+              type: 'tel',
+              value: representative.representativePhone,
+              error: this.getFieldError('representativePhone', index),
+              placeholder: '(555) 123-4567',
+              dataRepIndex: index,
+              dataFormat: 'phone'
+            })}
+            
+            ${this.renderField({
+              name: 'representativeEmail',
+              label: 'Email *',
+              type: 'email',
+              value: representative.representativeEmail,
+              error: this.getFieldError('representativeEmail', index),
+              dataRepIndex: index
+            })}
+            
+            ${this.renderField({
+              name: 'representativeDateOfBirth',
+              label: 'Date of Birth *',
+              type: 'date',
+              value: representative.representativeDateOfBirth,
+              error: this.getFieldError('representativeDateOfBirth', index),
+              dataRepIndex: index,
+              className: 'full-width'
+            })}
+            
+            ${this.renderField({
+              name: 'representativeAddress',
+              label: 'Address *',
+              value: representative.representativeAddress,
+              error: this.getFieldError('representativeAddress', index),
+              dataRepIndex: index,
+              className: 'full-width'
+            })}
+            
+            ${this.renderField({
+              name: 'representativeCity',
+              label: 'City *',
+              value: representative.representativeCity,
+              error: this.getFieldError('representativeCity', index),
+              dataRepIndex: index
+            })}
+            
+            <div class="form-field ${this.getFieldError('representativeState', index) ? 'has-error' : ''}">
+              <label for="representativeState-${index}">State *</label>
+              <select id="representativeState-${index}" name="representativeState" data-rep-index="${index}">
+                <option value="">Select State</option>
+                ${this.US_STATES.map(state => `
+                  <option value="${state}" ${representative.representativeState === state ? 'selected' : ''}>${state}</option>
+                `).join('')}
+              </select>
+              ${this.getFieldError('representativeState', index) ? `<span class="error-message">${this.getFieldError('representativeState', index)}</span>` : ''}
+            </div>
+            
+            ${this.renderField({
+              name: 'representativeZip',
+              label: 'ZIP Code *',
+              value: representative.representativeZip,
+              error: this.getFieldError('representativeZip', index),
+              placeholder: '12345',
+              maxLength: 5,
+              dataRepIndex: index
+            })}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+  
+  renderBankDetailsStep() {
+    const data = this.state.formData.bankDetails;
+    
+    return `
+      <div class="step-content">
+        <h2>Bank Account</h2>
+        <p>Link your bank account</p>
+        
+        <div class="form-grid">
+          ${this.renderField({
+            name: 'accountHolderName',
+            label: 'Account Holder Name *',
+            value: data.accountHolderName,
+            error: this.getFieldError('accountHolderName'),
+            className: 'full-width'
+          })}
+          
+          <div class="form-field full-width">
+            <label>Account Type *</label>
+            <div class="radio-group">
+              <div class="radio-option">
+                <input type="radio" id="checking" name="accountType" value="checking" ${data.accountType === 'checking' ? 'checked' : ''}>
+                <label for="checking">Checking</label>
+              </div>
+              <div class="radio-option">
+                <input type="radio" id="savings" name="accountType" value="savings" ${data.accountType === 'savings' ? 'checked' : ''}>
+                <label for="savings">Savings</label>
+              </div>
+            </div>
+          </div>
+          
+          ${this.renderField({
+            name: 'routingNumber',
+            label: 'Routing Number *',
+            value: data.routingNumber,
+            error: this.getFieldError('routingNumber'),
+            placeholder: '123456789',
+            maxLength: 9
+          })}
+          
+          ${this.renderField({
+            name: 'accountNumber',
+            label: 'Account Number *',
+            value: data.accountNumber,
+            error: this.getFieldError('accountNumber'),
+            placeholder: '1234567890'
+          })}
+        </div>
+      </div>
+    `;
+  }
+  
+  renderField({ name, label, type = 'text', value = '', error = '', readOnly = false, placeholder = '', className = '', maxLength = null, dataRepIndex = null, dataFormat = null }) {
+    const fieldClass = `form-field ${error ? 'has-error' : ''} ${className}`;
+    const fieldId = dataRepIndex !== null ? `${name}-${dataRepIndex}` : name;
+    
+    return `
+      <div class="${fieldClass}">
+        <label for="${fieldId}">${label}</label>
+        <input 
+          type="${type}" 
+          id="${fieldId}" 
+          name="${name}" 
+          value="${value}"
+          ${readOnly ? 'readonly' : ''}
+          ${placeholder ? `placeholder="${placeholder}"` : ''}
+          ${maxLength ? `maxlength="${maxLength}"` : ''}
+          ${dataRepIndex !== null ? `data-rep-index="${dataRepIndex}"` : ''}
+          ${dataFormat ? `data-format="${dataFormat}"` : ''}
+        />
+        ${error ? `<span class="error-message">${error}</span>` : ''}
+      </div>
+    `;
+  }
+  
+  renderNavigationFooter() {
+    const isFirstStep = this.state.currentStep === 0;
+    const isLastStep = this.state.currentStep === this.state.totalSteps - 1;
+    const canSkip = this.STEPS[this.state.currentStep].canSkip;
+    const stepId = this.STEPS[this.state.currentStep].id;
+    
+    // Don't show navigation on verification step
+    if (stepId === 'verification') {
+      return '';
+    }
+    
+    return `
+      <div class="navigation-footer">
+        ${!isFirstStep ? '<button type="button" class="btn-back">Back</button>' : ''}
+        ${canSkip ? '<button type="button" class="btn-skip">Skip</button>' : ''}
+        <button type="button" class="btn-next">
+          ${isLastStep ? 'Submit' : 'Next'}
+        </button>
+      </div>
+    `;
+  }
+
+  // ==================== EVENT HANDLING ====================
+  
+  attachEventListeners() {
+    const shadow = this.shadowRoot;
+    
+    // Form inputs - blur validation
+    shadow.querySelectorAll('input, select').forEach(input => {
+      input.addEventListener('blur', (e) => this.handleFieldBlur(e));
+      input.addEventListener('input', (e) => this.handleFieldInput(e));
+    });
+    
+    // Navigation buttons
+    const nextBtn = shadow.querySelector('.btn-next');
+    if (nextBtn) {
+      nextBtn.addEventListener('click', () => this.goToNextStep());
+    }
+    
+    const backBtn = shadow.querySelector('.btn-back');
+    if (backBtn) {
+      backBtn.addEventListener('click', () => this.goToPreviousStep());
+    }
+    
+    const skipBtn = shadow.querySelector('.btn-skip');
+    if (skipBtn) {
+      skipBtn.addEventListener('click', () => this.skipStep());
+    }
+    
+    // Verify button
+    const verifyBtn = shadow.querySelector('.btn-verify');
+    if (verifyBtn) {
+      verifyBtn.addEventListener('click', () => this.goToNextStep());
+    }
+    
+    // Step indicators (for navigation)
+    shadow.querySelectorAll('[data-step]').forEach(indicator => {
+      indicator.addEventListener('click', (e) => {
+        const stepIndex = parseInt(e.currentTarget.dataset.step);
+        this.goToStep(stepIndex);
+      });
+    });
+    
+    // Representative CRUD
+    const addBtn = shadow.querySelector('.add-representative-btn');
+    if (addBtn) {
+      addBtn.addEventListener('click', () => this.addRepresentative());
+    }
+    
+    shadow.querySelectorAll('.remove-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const index = parseInt(e.target.dataset.index);
+        this.removeRepresentative(index);
+      });
+    });
+  }
+  
+  handleFieldBlur(e) {
+    const input = e.target;
+    const name = input.name;
+    const value = input.value;
+    const repIndex = input.dataset.repIndex;
+    
+    // Phone number formatting on blur
+    if (input.dataset.format === 'phone') {
+      input.value = this.formatPhoneNumber(value);
+    }
+    
+    // Update state based on step
+    const stepId = this.STEPS[this.state.currentStep].id;
+    
+    if (stepId === 'verification') {
+      this.setState({
+        formData: {
+          verification: {
+            ...this.state.formData.verification,
+            [name]: input.value
+          }
+        }
+      });
+    } else if (stepId === 'business-details') {
+      this.setState({
+        formData: {
+          businessDetails: {
+            ...this.state.formData.businessDetails,
+            [name]: input.value
+          }
+        }
+      });
+    } else if (stepId === 'representatives' && repIndex !== undefined) {
+      this.updateRepresentative(parseInt(repIndex), name, input.value);
+    } else if (stepId === 'bank-details') {
+      this.setState({
+        formData: {
+          bankDetails: {
+            ...this.state.formData.bankDetails,
+            [name]: input.value
+          }
+        }
+      });
+    }
+  }
+  
+  handleFieldInput(e) {
+    const input = e.target;
+    const name = input.name;
+    const value = input.value;
+    const repIndex = input.dataset.repIndex;
+    
+    // Clear error display when user starts typing
+    if (this.state.uiState.showErrors) {
+      this.state.uiState.showErrors = false;
+    }
+    
+    // Update state in real-time
+    const stepId = this.STEPS[this.state.currentStep].id;
+    
+    if (stepId === 'verification') {
+      this.state.formData.verification[name] = value;
+    } else if (stepId === 'business-details') {
+      this.state.formData.businessDetails[name] = value;
+    } else if (stepId === 'representatives' && repIndex !== undefined) {
+      const idx = parseInt(repIndex);
+      if (this.state.formData.representatives[idx]) {
+        this.state.formData.representatives[idx][name] = value;
+      }
+    } else if (stepId === 'bank-details') {
+      this.state.formData.bankDetails[name] = value;
+    }
+  }
+
+  // ==================== LIFECYCLE METHODS ====================
+  
   connectedCallback() {
-    const currentUrl = window.location.href;
-
-    // You can even extract specific parts:
-    const params = new URLSearchParams(window.location.search);
-    // console.log("Query Params:", params.get("name"));
-
-    const firstName = this.shadowRoot.querySelector("#firstName");
-
-    firstName.value = params.get("name");
+    // Component is added to the DOM
   }
-
-  // * IMPORTANT - gets called when the element is removed from the document.
-  disconnectedCallback() {}
-
-  // * IMPORTANT - gets called when one of the observed attributes changes.
-  attributeChangedCallback(name, oldValue, newValue) {}
-
-  // * IMPORTANT - gets called when the element is moved to a new document
-  adoptedCallback() {}
+  
+  disconnectedCallback() {
+    // Component is removed from the DOM
+  }
+  
+  attributeChangedCallback(name, oldValue, newValue) {
+    // Observed attributes changed
+  }
+  
+  adoptedCallback() {
+    // Component moved to new document
+  }
 }
 
 customElements.define("operator-onboarding", OperatorOnboarding);
