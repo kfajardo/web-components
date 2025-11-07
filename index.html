@@ -1,0 +1,17 @@
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Web Component</title>
+  </head>
+  <body>
+    <h1>Web Component</h1>
+    <operator-onboarding></operator-onboarding>
+    <script src="component.js">
+      const form = document.querySelector("operator-onboarding");
+      form.addEventListener("formSubmit", (e) => {
+       console.log('test')
+      });
+    </script>
+  </body>
+</html>
