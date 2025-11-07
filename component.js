@@ -1428,7 +1428,7 @@ class OperatorOnboarding extends HTMLElement {
           verificationStatus === "success"
             ? `
           <div class="success-message">
-            ✓ Operator verified, proceeding to next step...
+            ✓ WIO verified, proceeding to next step...
           </div>
         `
             : ""
