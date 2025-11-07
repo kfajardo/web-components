@@ -674,11 +674,13 @@ class OperatorOnboarding extends HTMLElement {
       };
     }
 
-    // If wioEmail exists, pre-populate businessEmail
+    // If wioEmail exists, pre-populate verification email for skipping step 0
     if (hasWioEmail) {
       newFormData.verification.businessEmail = data.wioEmail;
-      newFormData.businessDetails.businessEmail =
-        data.businessDetails.businessEmail;
+      // businessDetails.businessEmail is already loaded from data.businessDetails above
+    } else if (newFormData.businessDetails.businessEmail && !newFormData.verification.businessEmail) {
+      // If businessEmail exists in businessDetails but not in verification, copy it
+      newFormData.verification.businessEmail = newFormData.businessDetails.businessEmail;
     }
 
     // Load representatives
