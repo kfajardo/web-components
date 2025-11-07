@@ -15,6 +15,7 @@ class OperatorOnboarding extends HTMLElement {
     this.state = {
       currentStep: 0,
       totalSteps: 4,
+      isSubmitted: false,
       formData: {
         verification: {
           businessEmail: ''
@@ -89,7 +90,15 @@ class OperatorOnboarding extends HTMLElement {
       'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY'
     ];
     
+    // Callback property for onSuccess
+    this.onSuccessCallback = null;
+    
     this.render();
+  }
+  
+  // Static getter for observed attributes
+  static get observedAttributes() {
+    return ['on-success'];
   }
 
   // ==================== VALIDATORS ====================
@@ -444,27 +453,49 @@ class OperatorOnboarding extends HTMLElement {
     const completedSteps = new Set(this.state.completedSteps);
     completedSteps.add(this.state.currentStep);
     
-    this.setState({ completedSteps });
-    
     // Log all form data to console
-    console.log('Form Submission - Complete Data:', {
+    const formData = {
       verification: this.state.formData.verification,
       businessDetails: this.state.formData.businessDetails,
       representatives: this.state.formData.representatives,
       bankDetails: this.state.formData.bankDetails
+    };
+    
+    console.log('Form Submission - Complete Data:', formData);
+    
+    // Update state to show success page
+    this.setState({
+      completedSteps,
+      isSubmitted: true
     });
     
     // Emit custom event
     this.dispatchEvent(new CustomEvent('formComplete', {
-      detail: this.state.formData,
+      detail: formData,
       bubbles: true,
       composed: true
     }));
+    
+    // Call onSuccess callback if provided
+    if (this.onSuccessCallback && typeof this.onSuccessCallback === 'function') {
+      this.onSuccessCallback(formData);
+    }
   }
 
   // ==================== RENDERING ====================
   
   render() {
+    // Show success page if form is submitted
+    if (this.state.isSubmitted) {
+      this.shadowRoot.innerHTML = `
+        ${this.renderStyles()}
+        <div class="onboarding-container">
+          ${this.renderSuccessPage()}
+        </div>
+      `;
+      return;
+    }
+    
     this.shadowRoot.innerHTML = `
       ${this.renderStyles()}
       <div class="onboarding-container">
@@ -809,6 +840,106 @@ class OperatorOnboarding extends HTMLElement {
           text-align: center;
           padding: var(--spacing-lg);
           color: var(--gray-medium);
+        }
+        
+        /* Success Page */
+        .success-container {
+          text-align: center;
+          padding: var(--spacing-lg) 0;
+        }
+        
+        .success-icon {
+          width: 120px;
+          height: 120px;
+          margin: 0 auto var(--spacing-lg);
+          background: linear-gradient(135deg, var(--success-color) 0%, #20c997 100%);
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          animation: successPulse 0.6s ease-out;
+        }
+        
+        @keyframes successPulse {
+          0% {
+            transform: scale(0);
+            opacity: 0;
+          }
+          50% {
+            transform: scale(1.1);
+          }
+          100% {
+            transform: scale(1);
+            opacity: 1;
+          }
+        }
+        
+        .success-icon svg {
+          width: 70px;
+          height: 70px;
+          stroke: white;
+          stroke-width: 3;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+          fill: none;
+          stroke-dasharray: 100;
+          stroke-dashoffset: 100;
+          animation: checkmark 0.6s ease-out 0.3s forwards;
+        }
+        
+        @keyframes checkmark {
+          to {
+            stroke-dashoffset: 0;
+          }
+        }
+        
+        .success-container h2 {
+          color: var(--success-color);
+          margin-bottom: var(--spacing-md);
+          font-size: 32px;
+        }
+        
+        .success-container p {
+          color: var(--gray-medium);
+          font-size: 16px;
+          line-height: 1.6;
+          margin-bottom: var(--spacing-sm);
+        }
+        
+        .success-details {
+          background: var(--gray-light);
+          border-radius: var(--border-radius);
+          padding: var(--spacing-lg);
+          margin: var(--spacing-lg) 0;
+          text-align: left;
+        }
+        
+        .success-details h3 {
+          color: #333;
+          margin-bottom: var(--spacing-md);
+          font-size: 18px;
+        }
+        
+        .detail-item {
+          display: flex;
+          justify-content: space-between;
+          padding: var(--spacing-sm) 0;
+          border-bottom: 1px solid var(--border-color);
+        }
+        
+        .detail-item:last-child {
+          border-bottom: none;
+        }
+        
+        .detail-label {
+          color: var(--gray-medium);
+          font-size: 14px;
+        }
+        
+        .detail-value {
+          color: #333;
+          font-weight: 500;
+          font-size: 14px;
         }
       </style>
     `;
@@ -1204,6 +1335,54 @@ class OperatorOnboarding extends HTMLElement {
       </div>
     `;
   }
+  
+  renderSuccessPage() {
+    const { businessDetails, representatives, bankDetails } = this.state.formData;
+    
+    return `
+      <div class="success-container">
+        <div class="success-icon">
+          <svg viewBox="0 0 52 52">
+            <path d="M14 27l7 7 16-16"/>
+          </svg>
+        </div>
+        
+        <h2>Onboarding Complete! 🎉</h2>
+        <p>Your operator application has been successfully submitted.</p>
+        <p style="margin-top: var(--spacing-lg); color: #333;">
+          <strong>You can now close this dialog.</strong>
+        </p>
+        
+        <div class="success-details">
+          <h3>Submission Summary</h3>
+          <div class="detail-item">
+            <span class="detail-label">Business Name</span>
+            <span class="detail-value">${businessDetails.businessName}</span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-label">Business Email</span>
+            <span class="detail-value">${businessDetails.businessEmail}</span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-label">Phone Number</span>
+            <span class="detail-value">${businessDetails.businessPhoneNumber}</span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-label">Representatives</span>
+            <span class="detail-value">${representatives.length} added</span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-label">Bank Account</span>
+            <span class="detail-value">${bankDetails.accountType === 'checking' ? 'Checking' : 'Savings'} (****${bankDetails.accountNumber.slice(-4)})</span>
+          </div>
+        </div>
+        
+        <p style="font-size: 14px; color: var(--gray-medium); margin-top: var(--spacing-lg);">
+          A confirmation email has been sent to <strong>${businessDetails.businessEmail}</strong>
+        </p>
+      </div>
+    `;
+  }
 
   // ==================== EVENT HANDLING ====================
   
@@ -1232,10 +1411,26 @@ class OperatorOnboarding extends HTMLElement {
       skipBtn.addEventListener('click', () => this.skipStep());
     }
     
-    // Verify button
+    // Verify button - ensure field is captured before validation
     const verifyBtn = shadow.querySelector('.btn-verify');
     if (verifyBtn) {
-      verifyBtn.addEventListener('click', () => this.goToNextStep());
+      verifyBtn.addEventListener('click', () => {
+        // Capture email value from input before validating
+        const emailInput = shadow.querySelector('input[name="businessEmail"]');
+        if (emailInput) {
+          this.setState({
+            formData: {
+              verification: {
+                businessEmail: emailInput.value
+              }
+            }
+          });
+          // Small delay to ensure state is updated before validation
+          setTimeout(() => this.goToNextStep(), 0);
+        } else {
+          this.goToNextStep();
+        }
+      });
     }
     
     // Step indicators (for navigation)
@@ -1345,7 +1540,18 @@ class OperatorOnboarding extends HTMLElement {
   }
   
   attributeChangedCallback(name, oldValue, newValue) {
-    // Observed attributes changed
+    // Handle on-success attribute
+    if (name === 'on-success' && newValue) {
+      // Store the function name, will be called from window scope
+      this.onSuccessCallback = window[newValue];
+    }
+  }
+  
+  // Method to programmatically set onSuccess callback
+  setOnSuccess(callback) {
+    if (typeof callback === 'function') {
+      this.onSuccessCallback = callback;
+    }
   }
   
   adoptedCallback() {

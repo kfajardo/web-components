@@ -88,17 +88,42 @@
     </div>
 
     <div class="component-wrapper">
-      <operator-onboarding></operator-onboarding>
-    </div>
-
-    <div class="console-output" id="consoleOutput">
-      <h3>
-        📋 Form Submission Data <span class="success-badge">Submitted</span>
-      </h3>
-      <pre id="outputData"></pre>
+      <!-- onSuccess callback can be set via attribute -->
+      <operator-onboarding on-success="handleOnboardingSuccess"></operator-onboarding>
     </div>
 
     <!-- Load the component -->
     <script src="component.js"></script>
+    
+    <script>
+      // Define the onSuccess callback in global scope
+      function handleOnboardingSuccess(data) {
+        console.log("✅ onSuccess callback received:", data);
+        alert(`Onboarding complete for ${data.businessDetails.businessName}!\n\nIn a real application, you would close the modal here.`);
+      }
+      
+      // Wait for DOM to be ready
+      document.addEventListener("DOMContentLoaded", () => {
+        const form = document.querySelector("operator-onboarding");
+        
+        // Option 1: Set callback via attribute (function name as string)
+        // Already set in HTML: on-success="handleOnboardingSuccess"
+        
+        // Option 2: Set callback programmatically (alternative approach)
+        // Uncomment to use programmatic approach instead:
+        // form.setOnSuccess((data) => {
+        //   console.log("Programmatic callback:", data);
+        //   alert(`Success! ${data.businessDetails.businessName} is onboarded.`);
+        // });
+        
+        // Also listen for the formComplete event (optional)
+        form.addEventListener("formComplete", (event) => {
+          console.log("Form Complete Event Received:", event.detail);
+        });
+
+        console.log("✅ Operator Onboarding Component Initialized");
+        console.log("📝 Complete the form to see the success page!");
+      });
+    </script>
   </body>
 </html>
