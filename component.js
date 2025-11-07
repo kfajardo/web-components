@@ -10,7 +10,7 @@ class OperatorOnboarding extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
-    
+
     // Initialize state
     this.state = {
       currentStep: 0,
@@ -19,206 +19,251 @@ class OperatorOnboarding extends HTMLElement {
       isFailed: false,
       formData: {
         verification: {
-          businessEmail: ''
+          businessEmail: "",
         },
         businessDetails: {
-          businessName: '',
-          doingBusinessAs: '',
-          businessWebsite: '',
-          businessPhoneNumber: '',
-          businessEmail: '',
-          businessStreet: '',
-          businessCity: '',
-          businessState: '',
-          businessPostalCode: ''
+          businessName: "",
+          doingBusinessAs: "",
+          businessWebsite: "",
+          businessPhoneNumber: "",
+          businessEmail: "",
+          businessStreet: "",
+          businessCity: "",
+          businessState: "",
+          businessPostalCode: "",
         },
         representatives: [],
         bankDetails: {
-          accountHolderName: '',
-          accountType: 'checking',
-          routingNumber: '',
-          accountNumber: ''
-        }
+          accountHolderName: "",
+          accountType: "checking",
+          routingNumber: "",
+          accountNumber: "",
+        },
       },
       validationState: {
         step0: { isValid: false, errors: {} },
         step1: { isValid: false, errors: {} },
         step2: { isValid: true, errors: {} },
-        step3: { isValid: false, errors: {} }
+        step3: { isValid: false, errors: {} },
       },
       completedSteps: new Set(),
       uiState: {
         isLoading: false,
         verificationStatus: null,
         showErrors: false,
-        errorMessage: null
-      }
+        errorMessage: null,
+      },
     };
-    
+
     // Step configuration
     this.STEPS = [
       {
-        id: 'verification',
-        title: 'Verify Email',
-        description: 'Verify your business email address',
-        canSkip: false
+        id: "verification",
+        title: "Verify Email",
+        description: "Verify your business email address",
+        canSkip: false,
       },
       {
-        id: 'business-details',
-        title: 'Business Information',
-        description: 'Provide your business details',
-        canSkip: false
+        id: "business-details",
+        title: "Business Information",
+        description: "Provide your business details",
+        canSkip: false,
       },
       {
-        id: 'representatives',
-        title: 'Business Representatives',
-        description: 'Add business representatives (optional)',
-        canSkip: true
+        id: "representatives",
+        title: "Business Representatives",
+        description: "Add business representatives (optional)",
+        canSkip: true,
       },
       {
-        id: 'bank-details',
-        title: 'Bank Account',
-        description: 'Link your bank account',
-        canSkip: false
-      }
+        id: "bank-details",
+        title: "Bank Account",
+        description: "Link your bank account",
+        canSkip: false,
+      },
     ];
-    
+
     // US States for dropdown
     this.US_STATES = [
-      'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA',
-      'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD',
-      'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ',
-      'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC',
-      'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY'
+      "AL",
+      "AK",
+      "AZ",
+      "AR",
+      "CA",
+      "CO",
+      "CT",
+      "DE",
+      "FL",
+      "GA",
+      "HI",
+      "ID",
+      "IL",
+      "IN",
+      "IA",
+      "KS",
+      "KY",
+      "LA",
+      "ME",
+      "MD",
+      "MA",
+      "MI",
+      "MN",
+      "MS",
+      "MO",
+      "MT",
+      "NE",
+      "NV",
+      "NH",
+      "NJ",
+      "NM",
+      "NY",
+      "NC",
+      "ND",
+      "OH",
+      "OK",
+      "OR",
+      "PA",
+      "RI",
+      "SC",
+      "SD",
+      "TN",
+      "TX",
+      "UT",
+      "VT",
+      "VA",
+      "WA",
+      "WV",
+      "WI",
+      "WY",
     ];
-    
+
     // Internal callback storage
     this._onSuccessCallback = null;
     this._onErrorCallback = null;
     this._initialData = null;
-    
+
     this.render();
   }
-  
+
   // Getter and setter for onSuccess property (for easy framework integration)
   get onSuccess() {
     return this._onSuccessCallback;
   }
-  
+
   set onSuccess(callback) {
-    if (typeof callback === 'function' || callback === null) {
+    if (typeof callback === "function" || callback === null) {
       this._onSuccessCallback = callback;
     }
   }
-  
+
   // Getter and setter for onError property (for error handling)
   get onError() {
     return this._onErrorCallback;
   }
-  
+
   set onError(callback) {
-    if (typeof callback === 'function' || callback === null) {
+    if (typeof callback === "function" || callback === null) {
       this._onErrorCallback = callback;
     }
   }
-  
+
   // Getter and setter for onLoad property (for pre-populating form data)
   get onLoad() {
     return this._initialData;
   }
-  
+
   set onLoad(data) {
-    if (data && typeof data === 'object') {
+    if (data && typeof data === "object") {
       this._initialData = data;
       this.loadInitialData(data);
     }
   }
-  
+
   // Static getter for observed attributes
   static get observedAttributes() {
-    return ['on-success', 'on-error', 'on-load'];
+    return ["on-success", "on-error", "on-load"];
   }
 
   // ==================== VALIDATORS ====================
-  
+
   validators = {
     required: (value, fieldName) => ({
       isValid: value && value.trim().length > 0,
-      error: `${fieldName} is required`
+      error: `${fieldName} is required`,
     }),
-    
+
     email: (value) => ({
       isValid: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value),
-      error: 'Please enter a valid email address'
+      error: "Please enter a valid email address",
     }),
-    
+
     usPhone: (value) => {
-      const cleaned = value.replace(/\D/g, '');
+      const cleaned = value.replace(/\D/g, "");
       return {
         isValid: cleaned.length === 10,
-        error: 'Please enter a valid 10-digit U.S. phone number'
+        error: "Please enter a valid 10-digit U.S. phone number",
       };
     },
-    
+
     routingNumber: (value) => {
-      const cleaned = value.replace(/\D/g, '');
+      const cleaned = value.replace(/\D/g, "");
       return {
         isValid: cleaned.length === 9,
-        error: 'Routing number must be 9 digits'
+        error: "Routing number must be 9 digits",
       };
     },
-    
+
     accountNumber: (value) => {
-      const cleaned = value.replace(/\D/g, '');
+      const cleaned = value.replace(/\D/g, "");
       return {
         isValid: cleaned.length >= 4 && cleaned.length <= 17,
-        error: 'Account number must be 4-17 digits'
+        error: "Account number must be 4-17 digits",
       };
     },
-    
+
     url: (value) => {
-      if (!value) return { isValid: true, error: '' }; // Optional
+      if (!value) return { isValid: true, error: "" }; // Optional
       try {
         new URL(value);
-        return { isValid: true, error: '' };
+        return { isValid: true, error: "" };
       } catch {
-        return { isValid: false, error: 'Please enter a valid URL' };
+        return { isValid: false, error: "Please enter a valid URL" };
       }
     },
-    
+
     postalCode: (value) => {
-      const cleaned = value.replace(/\D/g, '');
+      const cleaned = value.replace(/\D/g, "");
       return {
         isValid: cleaned.length === 5,
-        error: 'Please enter a valid 5-digit ZIP code'
+        error: "Please enter a valid 5-digit ZIP code",
       };
-    }
+    },
   };
 
   // ==================== STATE MANAGEMENT ====================
-  
+
   setState(newState) {
     this.state = {
       ...this.state,
       ...newState,
       formData: {
         ...this.state.formData,
-        ...(newState.formData || {})
+        ...(newState.formData || {}),
       },
       validationState: {
         ...this.state.validationState,
-        ...(newState.validationState || {})
+        ...(newState.validationState || {}),
       },
       uiState: {
         ...this.state.uiState,
-        ...(newState.uiState || {})
-      }
+        ...(newState.uiState || {}),
+      },
     };
     this.render();
   }
 
   // ==================== VALIDATION ====================
-  
+
   validateField(value, validators, fieldName) {
     for (const validatorName of validators) {
       const validator = this.validators[validatorName];
@@ -229,64 +274,138 @@ class OperatorOnboarding extends HTMLElement {
         }
       }
     }
-    return '';
+    return "";
   }
-  
+
   validateCurrentStep() {
     const stepId = this.STEPS[this.state.currentStep].id;
     let isValid = true;
     const errors = {};
-    
-    if (stepId === 'verification') {
+
+    if (stepId === "verification") {
       const email = this.state.formData.verification.businessEmail;
-      const error = this.validateField(email, ['required', 'email'], 'Business Email');
+      const error = this.validateField(
+        email,
+        ["required", "email"],
+        "Business Email"
+      );
       if (error) {
         errors.businessEmail = error;
         isValid = false;
       }
-    } else if (stepId === 'business-details') {
+    } else if (stepId === "business-details") {
       const data = this.state.formData.businessDetails;
       const fields = [
-        { name: 'businessName', validators: ['required'], label: 'Business Name' },
-        { name: 'businessWebsite', validators: ['url'], label: 'Business Website' },
-        { name: 'businessPhoneNumber', validators: ['required', 'usPhone'], label: 'Business Phone' },
-        { name: 'businessStreet', validators: ['required'], label: 'Street Address' },
-        { name: 'businessCity', validators: ['required'], label: 'City' },
-        { name: 'businessState', validators: ['required'], label: 'State' },
-        { name: 'businessPostalCode', validators: ['required', 'postalCode'], label: 'ZIP Code' }
+        {
+          name: "businessName",
+          validators: ["required"],
+          label: "Business Name",
+        },
+        {
+          name: "businessWebsite",
+          validators: ["url"],
+          label: "Business Website",
+        },
+        {
+          name: "businessPhoneNumber",
+          validators: ["required", "usPhone"],
+          label: "Business Phone",
+        },
+        {
+          name: "businessStreet",
+          validators: ["required"],
+          label: "Street Address",
+        },
+        { name: "businessCity", validators: ["required"], label: "City" },
+        { name: "businessState", validators: ["required"], label: "State" },
+        {
+          name: "businessPostalCode",
+          validators: ["required", "postalCode"],
+          label: "ZIP Code",
+        },
       ];
-      
-      fields.forEach(field => {
-        const error = this.validateField(data[field.name], field.validators, field.label);
+
+      fields.forEach((field) => {
+        const error = this.validateField(
+          data[field.name],
+          field.validators,
+          field.label
+        );
         if (error) {
           errors[field.name] = error;
           isValid = false;
         }
       });
-    } else if (stepId === 'representatives') {
+    } else if (stepId === "representatives") {
       // Validate each representative if any field is filled
       this.state.formData.representatives.forEach((rep, index) => {
-        const hasAnyValue = Object.values(rep).some(v => 
-          typeof v === 'string' && v.trim() || 
-          (typeof v === 'object' && Object.values(v).some(av => av && av.trim()))
+        const hasAnyValue = Object.values(rep).some(
+          (v) =>
+            (typeof v === "string" && v.trim()) ||
+            (typeof v === "object" &&
+              Object.values(v).some((av) => av && av.trim()))
         );
-        
+
         if (hasAnyValue) {
           const requiredFields = [
-            { name: 'representativeFirstName', validators: ['required'], label: 'First Name' },
-            { name: 'representativeLastName', validators: ['required'], label: 'Last Name' },
-            { name: 'representativeJobTitle', validators: ['required'], label: 'Job Title' },
-            { name: 'representativePhone', validators: ['required', 'usPhone'], label: 'Phone' },
-            { name: 'representativeEmail', validators: ['required', 'email'], label: 'Email' },
-            { name: 'representativeDateOfBirth', validators: ['required'], label: 'Date of Birth' },
-            { name: 'representativeAddress', validators: ['required'], label: 'Address' },
-            { name: 'representativeCity', validators: ['required'], label: 'City' },
-            { name: 'representativeState', validators: ['required'], label: 'State' },
-            { name: 'representativeZip', validators: ['required', 'postalCode'], label: 'ZIP Code' }
+            {
+              name: "representativeFirstName",
+              validators: ["required"],
+              label: "First Name",
+            },
+            {
+              name: "representativeLastName",
+              validators: ["required"],
+              label: "Last Name",
+            },
+            {
+              name: "representativeJobTitle",
+              validators: ["required"],
+              label: "Job Title",
+            },
+            {
+              name: "representativePhone",
+              validators: ["required", "usPhone"],
+              label: "Phone",
+            },
+            {
+              name: "representativeEmail",
+              validators: ["required", "email"],
+              label: "Email",
+            },
+            {
+              name: "representativeDateOfBirth",
+              validators: ["required"],
+              label: "Date of Birth",
+            },
+            {
+              name: "representativeAddress",
+              validators: ["required"],
+              label: "Address",
+            },
+            {
+              name: "representativeCity",
+              validators: ["required"],
+              label: "City",
+            },
+            {
+              name: "representativeState",
+              validators: ["required"],
+              label: "State",
+            },
+            {
+              name: "representativeZip",
+              validators: ["required", "postalCode"],
+              label: "ZIP Code",
+            },
           ];
-          
-          requiredFields.forEach(field => {
-            const error = this.validateField(rep[field.name], field.validators, field.label);
+
+          requiredFields.forEach((field) => {
+            const error = this.validateField(
+              rep[field.name],
+              field.validators,
+              field.label
+            );
             if (error) {
               if (!errors[`rep${index}`]) errors[`rep${index}`] = {};
               errors[`rep${index}`][field.name] = error;
@@ -295,345 +414,377 @@ class OperatorOnboarding extends HTMLElement {
           });
         }
       });
-    } else if (stepId === 'bank-details') {
+    } else if (stepId === "bank-details") {
       const data = this.state.formData.bankDetails;
       const fields = [
-        { name: 'accountHolderName', validators: ['required'], label: 'Account Holder Name' },
-        { name: 'accountType', validators: ['required'], label: 'Account Type' },
-        { name: 'routingNumber', validators: ['required', 'routingNumber'], label: 'Routing Number' },
-        { name: 'accountNumber', validators: ['required', 'accountNumber'], label: 'Account Number' }
+        {
+          name: "accountHolderName",
+          validators: ["required"],
+          label: "Account Holder Name",
+        },
+        {
+          name: "accountType",
+          validators: ["required"],
+          label: "Account Type",
+        },
+        {
+          name: "routingNumber",
+          validators: ["required", "routingNumber"],
+          label: "Routing Number",
+        },
+        {
+          name: "accountNumber",
+          validators: ["required", "accountNumber"],
+          label: "Account Number",
+        },
       ];
-      
-      fields.forEach(field => {
-        const error = this.validateField(data[field.name], field.validators, field.label);
+
+      fields.forEach((field) => {
+        const error = this.validateField(
+          data[field.name],
+          field.validators,
+          field.label
+        );
         if (error) {
           errors[field.name] = error;
           isValid = false;
         }
       });
     }
-    
+
     this.setState({
       validationState: {
-        [`step${this.state.currentStep}`]: { isValid, errors }
+        [`step${this.state.currentStep}`]: { isValid, errors },
       },
-      uiState: { showErrors: !isValid }
+      uiState: { showErrors: !isValid },
     });
-    
+
     return isValid;
   }
 
   // ==================== NAVIGATION ====================
-  
+
   async goToNextStep() {
     const stepId = this.STEPS[this.state.currentStep].id;
-    
+
     // Special handling for verification step
-    if (stepId === 'verification') {
+    if (stepId === "verification") {
       if (!this.validateCurrentStep()) return;
       await this.handleVerification();
       return;
     }
-    
+
     // Validate current step
     if (!this.validateCurrentStep()) return;
-    
+
     // Mark step complete
     const completedSteps = new Set(this.state.completedSteps);
     completedSteps.add(this.state.currentStep);
-    
+
     // Progress to next step
     if (this.state.currentStep < this.state.totalSteps - 1) {
       this.setState({
         currentStep: this.state.currentStep + 1,
         completedSteps,
-        uiState: { showErrors: false }
+        uiState: { showErrors: false },
       });
     } else {
       this.handleFormCompletion();
     }
   }
-  
+
   goToPreviousStep() {
     if (this.state.currentStep > 0) {
       this.setState({
         currentStep: this.state.currentStep - 1,
-        uiState: { showErrors: false }
+        uiState: { showErrors: false },
       });
     }
   }
-  
+
   goToStep(stepIndex) {
-    if (this.state.completedSteps.has(stepIndex) || stepIndex < this.state.currentStep) {
+    if (
+      this.state.completedSteps.has(stepIndex) ||
+      stepIndex < this.state.currentStep
+    ) {
       this.setState({
         currentStep: stepIndex,
-        uiState: { showErrors: false }
+        uiState: { showErrors: false },
       });
     }
   }
-  
+
   skipStep() {
     if (this.STEPS[this.state.currentStep].canSkip) {
       const completedSteps = new Set(this.state.completedSteps);
       completedSteps.add(this.state.currentStep);
-      
+
       this.setState({
         currentStep: this.state.currentStep + 1,
         completedSteps,
-        uiState: { showErrors: false }
+        uiState: { showErrors: false },
       });
     }
   }
 
   // ==================== ASYNC OPERATIONS ====================
-  
+
   async handleVerification(shouldFail = false) {
     // Set loading state
     this.setState({
-      uiState: { isLoading: true, verificationStatus: 'pending' }
+      uiState: { isLoading: true, verificationStatus: "pending" },
     });
-    
+
     // Simulate API call (2 seconds)
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
     if (shouldFail) {
       // Handle verification failure
       this.handleVerificationFailure();
       return;
     }
-    
+
     // Update verification status
     this.setState({
-      uiState: { isLoading: false, verificationStatus: 'success' }
+      uiState: { isLoading: false, verificationStatus: "success" },
     });
-    
+
     // Show success message (1.5 seconds)
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+
     // Copy email to business details
     const completedSteps = new Set(this.state.completedSteps);
     completedSteps.add(0);
-    
+
     this.setState({
       formData: {
         businessDetails: {
           ...this.state.formData.businessDetails,
-          businessEmail: this.state.formData.verification.businessEmail
-        }
+          businessEmail: this.state.formData.verification.businessEmail,
+        },
       },
       currentStep: 1,
       completedSteps,
-      uiState: { verificationStatus: null, showErrors: false }
+      uiState: { verificationStatus: null, showErrors: false },
     });
   }
-  
+
   handleVerificationFailure() {
     const email = this.state.formData.verification.businessEmail;
     const errorData = {
       email,
-      message: 'This operator email does not have a dedicated WIO yet',
-      timestamp: new Date().toISOString()
+      message: "This operator email does not have a dedicated WIO yet",
+      timestamp: new Date().toISOString(),
     };
-    
+
     // Log error to console
-    console.error('Verification Failed:', errorData);
-    
+    console.error("Verification Failed:", errorData);
+
     // Update state to show failure page
     this.setState({
       isFailed: true,
       uiState: {
         isLoading: false,
-        verificationStatus: 'failed',
-        errorMessage: errorData.message
-      }
+        verificationStatus: "failed",
+        errorMessage: errorData.message,
+      },
     });
-    
+
     // Emit custom error event
-    this.dispatchEvent(new CustomEvent('verificationFailed', {
-      detail: errorData,
-      bubbles: true,
-      composed: true
-    }));
-    
+    this.dispatchEvent(
+      new CustomEvent("verificationFailed", {
+        detail: errorData,
+        bubbles: true,
+        composed: true,
+      })
+    );
+
     // Call onError callback if provided
-    if (this.onError && typeof this.onError === 'function') {
+    if (this.onError && typeof this.onError === "function") {
       this.onError(errorData);
     }
   }
 
   // ==================== REPRESENTATIVES CRUD ====================
-  
+
   addRepresentative() {
     const newRep = {
       id: crypto.randomUUID(),
-      representativeFirstName: '',
-      representativeLastName: '',
-      representativeJobTitle: '',
-      representativePhone: '',
-      representativeEmail: '',
-      representativeDateOfBirth: '',
-      representativeAddress: '',
-      representativeCity: '',
-      representativeState: '',
-      representativeZip: ''
+      representativeFirstName: "",
+      representativeLastName: "",
+      representativeJobTitle: "",
+      representativePhone: "",
+      representativeEmail: "",
+      representativeDateOfBirth: "",
+      representativeAddress: "",
+      representativeCity: "",
+      representativeState: "",
+      representativeZip: "",
     };
-    
+
     this.setState({
       formData: {
-        representatives: [...this.state.formData.representatives, newRep]
-      }
+        representatives: [...this.state.formData.representatives, newRep],
+      },
     });
   }
-  
+
   removeRepresentative(index) {
-    const representatives = this.state.formData.representatives.filter((_, i) => i !== index);
+    const representatives = this.state.formData.representatives.filter(
+      (_, i) => i !== index
+    );
     this.setState({
-      formData: { representatives }
+      formData: { representatives },
     });
   }
-  
+
   updateRepresentative(index, field, value) {
     const representatives = [...this.state.formData.representatives];
     representatives[index] = {
       ...representatives[index],
-      [field]: value
+      [field]: value,
     };
-    
+
     this.setState({
-      formData: { representatives }
+      formData: { representatives },
     });
   }
-  
+
   // ==================== INITIAL DATA LOADING ====================
-  
+
   loadInitialData(data) {
     const newFormData = { ...this.state.formData };
-    
+
     // Check for wioEmail to skip verification step
     const hasWioEmail = data.wioEmail && data.wioEmail.trim().length > 0;
-    
+
     // Load verification data
     if (data.verification) {
       newFormData.verification = {
         ...newFormData.verification,
-        ...data.verification
+        ...data.verification,
       };
     }
-    
+
     // Load business details
     if (data.businessDetails) {
       newFormData.businessDetails = {
         ...newFormData.businessDetails,
-        ...data.businessDetails
+        ...data.businessDetails,
       };
     }
-    
+
     // If wioEmail exists, pre-populate businessEmail
     if (hasWioEmail) {
       newFormData.verification.businessEmail = data.wioEmail;
       newFormData.businessDetails.businessEmail = data.wioEmail;
     }
-    
+
     // Load representatives
     if (data.representatives && Array.isArray(data.representatives)) {
-      newFormData.representatives = data.representatives.map(rep => ({
+      newFormData.representatives = data.representatives.map((rep) => ({
         id: rep.id || crypto.randomUUID(),
-        representativeFirstName: rep.representativeFirstName || '',
-        representativeLastName: rep.representativeLastName || '',
-        representativeJobTitle: rep.representativeJobTitle || '',
-        representativePhone: rep.representativePhone || '',
-        representativeEmail: rep.representativeEmail || '',
-        representativeDateOfBirth: rep.representativeDateOfBirth || '',
-        representativeAddress: rep.representativeAddress || '',
-        representativeCity: rep.representativeCity || '',
-        representativeState: rep.representativeState || '',
-        representativeZip: rep.representativeZip || ''
+        representativeFirstName: rep.representativeFirstName || "",
+        representativeLastName: rep.representativeLastName || "",
+        representativeJobTitle: rep.representativeJobTitle || "",
+        representativePhone: rep.representativePhone || "",
+        representativeEmail: rep.representativeEmail || "",
+        representativeDateOfBirth: rep.representativeDateOfBirth || "",
+        representativeAddress: rep.representativeAddress || "",
+        representativeCity: rep.representativeCity || "",
+        representativeState: rep.representativeState || "",
+        representativeZip: rep.representativeZip || "",
       }));
     }
-    
+
     // Load bank details
     if (data.bankDetails) {
       newFormData.bankDetails = {
         ...newFormData.bankDetails,
-        ...data.bankDetails
+        ...data.bankDetails,
       };
     }
-    
+
     // Update state with loaded data
     const stateUpdate = {
-      formData: newFormData
+      formData: newFormData,
     };
-    
+
     // If wioEmail exists, skip verification step
     if (hasWioEmail) {
       const completedSteps = new Set(this.state.completedSteps);
       completedSteps.add(0); // Mark verification step as completed
-      
+
       stateUpdate.currentStep = 1; // Start at business details step
       stateUpdate.completedSteps = completedSteps;
     }
-    
+
     this.setState(stateUpdate);
   }
 
   // ==================== UTILITIES ====================
-  
+
   formatPhoneNumber(value) {
-    const cleaned = value.replace(/\D/g, '');
+    const cleaned = value.replace(/\D/g, "");
     if (cleaned.length === 10) {
-      return `(${cleaned.slice(0,3)}) ${cleaned.slice(3,6)}-${cleaned.slice(6)}`;
+      return `(${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(
+        6
+      )}`;
     }
     return value;
   }
-  
+
   getFieldError(fieldName, repIndex = null) {
-    if (!this.state.uiState.showErrors) return '';
-    const errors = this.state.validationState[`step${this.state.currentStep}`]?.errors || {};
-    
+    if (!this.state.uiState.showErrors) return "";
+    const errors =
+      this.state.validationState[`step${this.state.currentStep}`]?.errors || {};
+
     if (repIndex !== null) {
-      return errors[`rep${repIndex}`]?.[fieldName] || '';
+      return errors[`rep${repIndex}`]?.[fieldName] || "";
     }
-    
-    return errors[fieldName] || '';
+
+    return errors[fieldName] || "";
   }
 
   // ==================== FORM COMPLETION ====================
-  
+
   handleFormCompletion() {
     const completedSteps = new Set(this.state.completedSteps);
     completedSteps.add(this.state.currentStep);
-    
+
     // Log all form data to console
     const formData = {
       verification: this.state.formData.verification,
       businessDetails: this.state.formData.businessDetails,
       representatives: this.state.formData.representatives,
-      bankDetails: this.state.formData.bankDetails
+      bankDetails: this.state.formData.bankDetails,
     };
-    
-    console.log('Form Submission - Complete Data:', formData);
-    
+
+    console.log("Form Submission - Complete Data:", formData);
+
     // Update state to show success page
     this.setState({
       completedSteps,
-      isSubmitted: true
+      isSubmitted: true,
     });
-    
+
     // Emit custom event
-    this.dispatchEvent(new CustomEvent('formComplete', {
-      detail: formData,
-      bubbles: true,
-      composed: true
-    }));
-    
+    this.dispatchEvent(
+      new CustomEvent("formComplete", {
+        detail: formData,
+        bubbles: true,
+        composed: true,
+      })
+    );
+
     // Call onSuccess callback if provided
-    if (this.onSuccess && typeof this.onSuccess === 'function') {
+    if (this.onSuccess && typeof this.onSuccess === "function") {
       this.onSuccess(formData);
     }
   }
 
   // ==================== RENDERING ====================
-  
+
   render() {
     // Show failure page if verification failed
     if (this.state.isFailed) {
@@ -645,7 +796,7 @@ class OperatorOnboarding extends HTMLElement {
       `;
       return;
     }
-    
+
     // Show success page if form is submitted
     if (this.state.isSubmitted) {
       this.shadowRoot.innerHTML = `
@@ -656,7 +807,7 @@ class OperatorOnboarding extends HTMLElement {
       `;
       return;
     }
-    
+
     this.shadowRoot.innerHTML = `
       ${this.renderStyles()}
       <div class="onboarding-container">
@@ -667,7 +818,7 @@ class OperatorOnboarding extends HTMLElement {
     `;
     this.attachEventListeners();
   }
-  
+
   renderStyles() {
     return `
       <style>
@@ -1205,87 +1356,99 @@ class OperatorOnboarding extends HTMLElement {
       </style>
     `;
   }
-  
+
   renderStepperHeader() {
     return `
       <div class="stepper-header">
-        ${this.STEPS.map((step, index) => this.renderStepIndicator(step, index)).join('')}
+        ${this.STEPS.map((step, index) =>
+          this.renderStepIndicator(step, index)
+        ).join("")}
       </div>
     `;
   }
-  
+
   renderStepIndicator(step, index) {
     const isComplete = this.state.completedSteps.has(index);
     const isCurrent = this.state.currentStep === index;
     const isClickable = isComplete || index < this.state.currentStep;
-    
+
     return `
-      <div class="step-indicator ${isCurrent ? 'active' : ''} ${isComplete ? 'complete' : ''} ${isClickable ? 'clickable' : ''}"
-           ${isClickable ? `data-step="${index}"` : ''}>
+      <div class="step-indicator ${isCurrent ? "active" : ""} ${
+      isComplete ? "complete" : ""
+    } ${isClickable ? "clickable" : ""}"
+           ${isClickable ? `data-step="${index}"` : ""}>
         <div class="step-circle">
-          ${isComplete ? '✓' : index + 1}
+          ${isComplete ? "✓" : index + 1}
         </div>
         <div class="step-label">${step.title}</div>
       </div>
     `;
   }
-  
+
   renderCurrentStep() {
     const stepId = this.STEPS[this.state.currentStep].id;
-    
-    switch(stepId) {
-      case 'verification':
+
+    switch (stepId) {
+      case "verification":
         return this.renderVerificationStep();
-      case 'business-details':
+      case "business-details":
         return this.renderBusinessDetailsStep();
-      case 'representatives':
+      case "representatives":
         return this.renderRepresentativesStep();
-      case 'bank-details':
+      case "bank-details":
         return this.renderBankDetailsStep();
       default:
-        return '';
+        return "";
     }
   }
-  
+
   renderVerificationStep() {
     const { businessEmail } = this.state.formData.verification;
     const { isLoading, verificationStatus } = this.state.uiState;
-    
+
     return `
       <div class="step-content">
         <h2>Verify Your Business Email</h2>
         <p>Enter your business email to get started</p>
         
         ${this.renderField({
-          name: 'businessEmail',
-          label: 'Business Email',
-          type: 'email',
+          name: "businessEmail",
+          label: "Business Email",
+          type: "email",
           value: businessEmail,
-          error: this.getFieldError('businessEmail'),
-          placeholder: 'business@example.com'
+          error: this.getFieldError("businessEmail"),
+          placeholder: "business@example.com",
         })}
         
-        ${!isLoading && verificationStatus !== 'success' ? `
+        ${
+          !isLoading && verificationStatus !== "success"
+            ? `
           <div class="verification-buttons">
             <button type="button" class="btn-verify">Verify</button>
             <button type="button" class="btn-fail">Fail Verify (Demo)</button>
           </div>
-        ` : ''}
+        `
+            : ""
+        }
         
-        ${verificationStatus === 'success' ? `
+        ${
+          verificationStatus === "success"
+            ? `
           <div class="success-message">
             ✓ Operator verified, proceeding to next step...
           </div>
-        ` : ''}
+        `
+            : ""
+        }
         
-        ${isLoading ? '<div class="loading-spinner"></div>' : ''}
+        ${isLoading ? '<div class="loading-spinner"></div>' : ""}
       </div>
     `;
   }
-  
+
   renderBusinessDetailsStep() {
     const data = this.state.formData.businessDetails;
-    
+
     return `
       <div class="step-content">
         <h2>Business Information</h2>
@@ -1293,100 +1456,118 @@ class OperatorOnboarding extends HTMLElement {
         
         <div class="form-grid">
           ${this.renderField({
-            name: 'businessName',
-            label: 'Business Name *',
+            name: "businessName",
+            label: "Business Name *",
             value: data.businessName,
-            error: this.getFieldError('businessName')
+            error: this.getFieldError("businessName"),
           })}
           
           ${this.renderField({
-            name: 'doingBusinessAs',
-            label: 'Doing Business As (DBA)',
-            value: data.doingBusinessAs
+            name: "doingBusinessAs",
+            label: "Doing Business As (DBA)",
+            value: data.doingBusinessAs,
           })}
           
           ${this.renderField({
-            name: 'businessWebsite',
-            label: 'Business Website',
-            type: 'url',
+            name: "businessWebsite",
+            label: "Business Website",
+            type: "url",
             value: data.businessWebsite,
-            error: this.getFieldError('businessWebsite'),
-            placeholder: 'https://example.com',
-            className: 'full-width'
+            error: this.getFieldError("businessWebsite"),
+            placeholder: "https://example.com",
+            className: "full-width",
           })}
           
           ${this.renderField({
-            name: 'businessPhoneNumber',
-            label: 'Business Phone *',
-            type: 'tel',
+            name: "businessPhoneNumber",
+            label: "Business Phone *",
+            type: "tel",
             value: data.businessPhoneNumber,
-            error: this.getFieldError('businessPhoneNumber'),
-            placeholder: '(555) 123-4567',
-            dataFormat: 'phone'
+            error: this.getFieldError("businessPhoneNumber"),
+            placeholder: "(555) 123-4567",
+            dataFormat: "phone",
           })}
           
           ${this.renderField({
-            name: 'businessEmail',
-            label: 'Business Email *',
-            type: 'email',
+            name: "businessEmail",
+            label: "Business Email *",
+            type: "email",
             value: data.businessEmail,
-            readOnly: true
+            readOnly: true,
           })}
           
           ${this.renderField({
-            name: 'businessStreet',
-            label: 'Street Address *',
+            name: "businessStreet",
+            label: "Street Address *",
             value: data.businessStreet,
-            error: this.getFieldError('businessStreet'),
-            className: 'full-width'
+            error: this.getFieldError("businessStreet"),
+            className: "full-width",
           })}
           
           ${this.renderField({
-            name: 'businessCity',
-            label: 'City *',
+            name: "businessCity",
+            label: "City *",
             value: data.businessCity,
-            error: this.getFieldError('businessCity')
+            error: this.getFieldError("businessCity"),
           })}
           
-          <div class="form-field ${this.getFieldError('businessState') ? 'has-error' : ''}">
+          <div class="form-field ${
+            this.getFieldError("businessState") ? "has-error" : ""
+          }">
             <label for="businessState">State *</label>
             <select id="businessState" name="businessState">
               <option value="">Select State</option>
-              ${this.US_STATES.map(state => `
-                <option value="${state}" ${data.businessState === state ? 'selected' : ''}>${state}</option>
-              `).join('')}
+              ${this.US_STATES.map(
+                (state) => `
+                <option value="${state}" ${
+                  data.businessState === state ? "selected" : ""
+                }>${state}</option>
+              `
+              ).join("")}
             </select>
-            ${this.getFieldError('businessState') ? `<span class="error-message">${this.getFieldError('businessState')}</span>` : ''}
+            ${
+              this.getFieldError("businessState")
+                ? `<span class="error-message">${this.getFieldError(
+                    "businessState"
+                  )}</span>`
+                : ""
+            }
           </div>
           
           ${this.renderField({
-            name: 'businessPostalCode',
-            label: 'ZIP Code *',
+            name: "businessPostalCode",
+            label: "ZIP Code *",
             value: data.businessPostalCode,
-            error: this.getFieldError('businessPostalCode'),
-            placeholder: '12345',
-            maxLength: 5
+            error: this.getFieldError("businessPostalCode"),
+            placeholder: "12345",
+            maxLength: 5,
           })}
         </div>
       </div>
     `;
   }
-  
+
   renderRepresentativesStep() {
     const representatives = this.state.formData.representatives;
-    
+
     return `
       <div class="step-content">
         <h2>Business Representatives</h2>
         <p>Add business representatives (optional)</p>
         
         <div class="representatives-list">
-          ${representatives.length === 0 ? `
+          ${
+            representatives.length === 0
+              ? `
             <div class="empty-state">
               <p>No representatives added yet. Click below to add one.</p>
             </div>
-          ` : ''}
-          ${representatives.map((rep, index) => this.renderRepresentativeCard(rep, index)).join('')}
+          `
+              : ""
+          }
+          ${representatives
+            .map((rep, index) => this.renderRepresentativeCard(rep, index))
+            .join("")}
         </div>
         
         <button type="button" class="add-representative-btn">
@@ -1395,7 +1576,7 @@ class OperatorOnboarding extends HTMLElement {
       </div>
     `;
   }
-  
+
   renderRepresentativeCard(representative, index) {
     return `
       <div class="representative-card" data-index="${index}">
@@ -1406,106 +1587,123 @@ class OperatorOnboarding extends HTMLElement {
         <div class="card-body">
           <div class="form-grid">
             ${this.renderField({
-              name: 'representativeFirstName',
-              label: 'First Name *',
+              name: "representativeFirstName",
+              label: "First Name *",
               value: representative.representativeFirstName,
-              error: this.getFieldError('representativeFirstName', index),
-              dataRepIndex: index
+              error: this.getFieldError("representativeFirstName", index),
+              dataRepIndex: index,
             })}
             
             ${this.renderField({
-              name: 'representativeLastName',
-              label: 'Last Name *',
+              name: "representativeLastName",
+              label: "Last Name *",
               value: representative.representativeLastName,
-              error: this.getFieldError('representativeLastName', index),
-              dataRepIndex: index
+              error: this.getFieldError("representativeLastName", index),
+              dataRepIndex: index,
             })}
             
             ${this.renderField({
-              name: 'representativeJobTitle',
-              label: 'Job Title *',
+              name: "representativeJobTitle",
+              label: "Job Title *",
               value: representative.representativeJobTitle,
-              error: this.getFieldError('representativeJobTitle', index),
+              error: this.getFieldError("representativeJobTitle", index),
               dataRepIndex: index,
-              className: 'full-width'
+              className: "full-width",
             })}
             
             ${this.renderField({
-              name: 'representativePhone',
-              label: 'Phone *',
-              type: 'tel',
+              name: "representativePhone",
+              label: "Phone *",
+              type: "tel",
               value: representative.representativePhone,
-              error: this.getFieldError('representativePhone', index),
-              placeholder: '(555) 123-4567',
+              error: this.getFieldError("representativePhone", index),
+              placeholder: "(555) 123-4567",
               dataRepIndex: index,
-              dataFormat: 'phone'
+              dataFormat: "phone",
             })}
             
             ${this.renderField({
-              name: 'representativeEmail',
-              label: 'Email *',
-              type: 'email',
+              name: "representativeEmail",
+              label: "Email *",
+              type: "email",
               value: representative.representativeEmail,
-              error: this.getFieldError('representativeEmail', index),
-              dataRepIndex: index
+              error: this.getFieldError("representativeEmail", index),
+              dataRepIndex: index,
             })}
             
             ${this.renderField({
-              name: 'representativeDateOfBirth',
-              label: 'Date of Birth *',
-              type: 'date',
+              name: "representativeDateOfBirth",
+              label: "Date of Birth *",
+              type: "date",
               value: representative.representativeDateOfBirth,
-              error: this.getFieldError('representativeDateOfBirth', index),
+              error: this.getFieldError("representativeDateOfBirth", index),
               dataRepIndex: index,
-              className: 'full-width'
+              className: "full-width",
             })}
             
             ${this.renderField({
-              name: 'representativeAddress',
-              label: 'Address *',
+              name: "representativeAddress",
+              label: "Address *",
               value: representative.representativeAddress,
-              error: this.getFieldError('representativeAddress', index),
+              error: this.getFieldError("representativeAddress", index),
               dataRepIndex: index,
-              className: 'full-width'
+              className: "full-width",
             })}
             
             ${this.renderField({
-              name: 'representativeCity',
-              label: 'City *',
+              name: "representativeCity",
+              label: "City *",
               value: representative.representativeCity,
-              error: this.getFieldError('representativeCity', index),
-              dataRepIndex: index
+              error: this.getFieldError("representativeCity", index),
+              dataRepIndex: index,
             })}
             
-            <div class="form-field ${this.getFieldError('representativeState', index) ? 'has-error' : ''}">
+            <div class="form-field ${
+              this.getFieldError("representativeState", index)
+                ? "has-error"
+                : ""
+            }">
               <label for="representativeState-${index}">State *</label>
               <select id="representativeState-${index}" name="representativeState" data-rep-index="${index}">
                 <option value="">Select State</option>
-                ${this.US_STATES.map(state => `
-                  <option value="${state}" ${representative.representativeState === state ? 'selected' : ''}>${state}</option>
-                `).join('')}
+                ${this.US_STATES.map(
+                  (state) => `
+                  <option value="${state}" ${
+                    representative.representativeState === state
+                      ? "selected"
+                      : ""
+                  }>${state}</option>
+                `
+                ).join("")}
               </select>
-              ${this.getFieldError('representativeState', index) ? `<span class="error-message">${this.getFieldError('representativeState', index)}</span>` : ''}
+              ${
+                this.getFieldError("representativeState", index)
+                  ? `<span class="error-message">${this.getFieldError(
+                      "representativeState",
+                      index
+                    )}</span>`
+                  : ""
+              }
             </div>
             
             ${this.renderField({
-              name: 'representativeZip',
-              label: 'ZIP Code *',
+              name: "representativeZip",
+              label: "ZIP Code *",
               value: representative.representativeZip,
-              error: this.getFieldError('representativeZip', index),
-              placeholder: '12345',
+              error: this.getFieldError("representativeZip", index),
+              placeholder: "12345",
               maxLength: 5,
-              dataRepIndex: index
+              dataRepIndex: index,
             })}
           </div>
         </div>
       </div>
     `;
   }
-  
+
   renderBankDetailsStep() {
     const data = this.state.formData.bankDetails;
-    
+
     return `
       <div class="step-content">
         <h2>Bank Account</h2>
@@ -1513,52 +1711,68 @@ class OperatorOnboarding extends HTMLElement {
         
         <div class="form-grid">
           ${this.renderField({
-            name: 'accountHolderName',
-            label: 'Account Holder Name *',
+            name: "accountHolderName",
+            label: "Account Holder Name *",
             value: data.accountHolderName,
-            error: this.getFieldError('accountHolderName'),
-            className: 'full-width'
+            error: this.getFieldError("accountHolderName"),
+            className: "full-width",
           })}
           
           <div class="form-field full-width">
             <label>Account Type *</label>
             <div class="radio-group">
               <div class="radio-option">
-                <input type="radio" id="checking" name="accountType" value="checking" ${data.accountType === 'checking' ? 'checked' : ''}>
+                <input type="radio" id="checking" name="accountType" value="checking" ${
+                  data.accountType === "checking" ? "checked" : ""
+                }>
                 <label for="checking">Checking</label>
               </div>
               <div class="radio-option">
-                <input type="radio" id="savings" name="accountType" value="savings" ${data.accountType === 'savings' ? 'checked' : ''}>
+                <input type="radio" id="savings" name="accountType" value="savings" ${
+                  data.accountType === "savings" ? "checked" : ""
+                }>
                 <label for="savings">Savings</label>
               </div>
             </div>
           </div>
           
           ${this.renderField({
-            name: 'routingNumber',
-            label: 'Routing Number *',
+            name: "routingNumber",
+            label: "Routing Number *",
             value: data.routingNumber,
-            error: this.getFieldError('routingNumber'),
-            placeholder: '123456789',
-            maxLength: 9
+            error: this.getFieldError("routingNumber"),
+            placeholder: "123456789",
+            maxLength: 9,
           })}
           
           ${this.renderField({
-            name: 'accountNumber',
-            label: 'Account Number *',
+            name: "accountNumber",
+            label: "Account Number *",
             value: data.accountNumber,
-            error: this.getFieldError('accountNumber'),
-            placeholder: '1234567890'
+            error: this.getFieldError("accountNumber"),
+            placeholder: "1234567890",
           })}
         </div>
       </div>
     `;
   }
-  
-  renderField({ name, label, type = 'text', value = '', error = '', readOnly = false, placeholder = '', className = '', maxLength = null, dataRepIndex = null, dataFormat = null }) {
-    const fieldClass = `form-field ${error ? 'has-error' : ''} ${className}`;
+
+  renderField({
+    name,
+    label,
+    type = "text",
+    value = "",
+    error = "",
+    readOnly = false,
+    placeholder = "",
+    className = "",
+    maxLength = null,
+    dataRepIndex = null,
+    dataFormat = null,
+  }) {
+    const fieldClass = `form-field ${error ? "has-error" : ""} ${className}`;
     const fieldId = dataRepIndex !== null ? `${name}-${dataRepIndex}` : name;
-    
+
     return `
       <div class="${fieldClass}">
         <label for="${fieldId}">${label}</label>
@@ -1567,42 +1781,47 @@ class OperatorOnboarding extends HTMLElement {
           id="${fieldId}" 
           name="${name}" 
           value="${value}"
-          ${readOnly ? 'readonly' : ''}
-          ${placeholder ? `placeholder="${placeholder}"` : ''}
-          ${maxLength ? `maxlength="${maxLength}"` : ''}
-          ${dataRepIndex !== null ? `data-rep-index="${dataRepIndex}"` : ''}
-          ${dataFormat ? `data-format="${dataFormat}"` : ''}
+          ${readOnly ? "readonly" : ""}
+          ${placeholder ? `placeholder="${placeholder}"` : ""}
+          ${maxLength ? `maxlength="${maxLength}"` : ""}
+          ${dataRepIndex !== null ? `data-rep-index="${dataRepIndex}"` : ""}
+          ${dataFormat ? `data-format="${dataFormat}"` : ""}
         />
-        ${error ? `<span class="error-message">${error}</span>` : ''}
+        ${error ? `<span class="error-message">${error}</span>` : ""}
       </div>
     `;
   }
-  
+
   renderNavigationFooter() {
     const isFirstStep = this.state.currentStep === 0;
     const isLastStep = this.state.currentStep === this.state.totalSteps - 1;
     const canSkip = this.STEPS[this.state.currentStep].canSkip;
     const stepId = this.STEPS[this.state.currentStep].id;
-    
+
     // Don't show navigation on verification step
-    if (stepId === 'verification') {
-      return '';
+    if (stepId === "verification") {
+      return "";
     }
-    
+
     return `
       <div class="navigation-footer">
-        ${!isFirstStep ? '<button type="button" class="btn-back">Back</button>' : ''}
-        ${canSkip ? '<button type="button" class="btn-skip">Skip</button>' : ''}
+        ${
+          !isFirstStep
+            ? '<button type="button" class="btn-back">Back</button>'
+            : ""
+        }
+        ${canSkip ? '<button type="button" class="btn-skip">Skip</button>' : ""}
         <button type="button" class="btn-next">
-          ${isLastStep ? 'Submit' : 'Next'}
+          ${isLastStep ? "Submit" : "Next"}
         </button>
       </div>
     `;
   }
-  
+
   renderSuccessPage() {
-    const { businessDetails, representatives, bankDetails } = this.state.formData;
-    
+    const { businessDetails, representatives, bankDetails } =
+      this.state.formData;
+
     return `
       <div class="success-container">
         <div class="success-icon">
@@ -1629,7 +1848,9 @@ class OperatorOnboarding extends HTMLElement {
           </div>
           <div class="detail-item">
             <span class="detail-label">Phone Number</span>
-            <span class="detail-value">${businessDetails.businessPhoneNumber}</span>
+            <span class="detail-value">${
+              businessDetails.businessPhoneNumber
+            }</span>
           </div>
           <div class="detail-item">
             <span class="detail-label">Representatives</span>
@@ -1637,21 +1858,25 @@ class OperatorOnboarding extends HTMLElement {
           </div>
           <div class="detail-item">
             <span class="detail-label">Bank Account</span>
-            <span class="detail-value">${bankDetails.accountType === 'checking' ? 'Checking' : 'Savings'} (****${bankDetails.accountNumber.slice(-4)})</span>
+            <span class="detail-value">${
+              bankDetails.accountType === "checking" ? "Checking" : "Savings"
+            } (****${bankDetails.accountNumber.slice(-4)})</span>
           </div>
         </div>
         
         <p style="font-size: 14px; color: var(--gray-medium); margin-top: var(--spacing-lg);">
-          A confirmation email has been sent to <strong>${businessDetails.businessEmail}</strong>
+          A confirmation email has been sent to <strong>${
+            businessDetails.businessEmail
+          }</strong>
         </p>
       </div>
     `;
   }
-  
+
   renderFailurePage() {
     const { businessEmail } = this.state.formData.verification;
     const { errorMessage } = this.state.uiState;
-    
+
     return `
       <div class="error-container">
         <div class="error-icon">
@@ -1667,7 +1892,10 @@ class OperatorOnboarding extends HTMLElement {
         <div class="error-details">
           <h3>Error Details</h3>
           <p><strong>Email:</strong> ${businessEmail}</p>
-          <p><strong>Issue:</strong> ${errorMessage || 'This operator email does not have an associated WIO yet'}</p>
+          <p><strong>Issue:</strong> ${
+            errorMessage ||
+            "This operator email does not have an associated WIO yet"
+          }</p>
           <p style="margin-top: var(--spacing-md);">
             Please ensure you have a valid WIO associated with this email address before attempting to onboard as an operator.
           </p>
@@ -1681,45 +1909,45 @@ class OperatorOnboarding extends HTMLElement {
   }
 
   // ==================== EVENT HANDLING ====================
-  
+
   attachEventListeners() {
     const shadow = this.shadowRoot;
-    
+
     // Form inputs - blur validation
-    shadow.querySelectorAll('input, select').forEach(input => {
-      input.addEventListener('blur', (e) => this.handleFieldBlur(e));
-      input.addEventListener('input', (e) => this.handleFieldInput(e));
+    shadow.querySelectorAll("input, select").forEach((input) => {
+      input.addEventListener("blur", (e) => this.handleFieldBlur(e));
+      input.addEventListener("input", (e) => this.handleFieldInput(e));
     });
-    
+
     // Navigation buttons
-    const nextBtn = shadow.querySelector('.btn-next');
+    const nextBtn = shadow.querySelector(".btn-next");
     if (nextBtn) {
-      nextBtn.addEventListener('click', () => this.goToNextStep());
+      nextBtn.addEventListener("click", () => this.goToNextStep());
     }
-    
-    const backBtn = shadow.querySelector('.btn-back');
+
+    const backBtn = shadow.querySelector(".btn-back");
     if (backBtn) {
-      backBtn.addEventListener('click', () => this.goToPreviousStep());
+      backBtn.addEventListener("click", () => this.goToPreviousStep());
     }
-    
-    const skipBtn = shadow.querySelector('.btn-skip');
+
+    const skipBtn = shadow.querySelector(".btn-skip");
     if (skipBtn) {
-      skipBtn.addEventListener('click', () => this.skipStep());
+      skipBtn.addEventListener("click", () => this.skipStep());
     }
-    
+
     // Verify button - ensure field is captured before validation
-    const verifyBtn = shadow.querySelector('.btn-verify');
+    const verifyBtn = shadow.querySelector(".btn-verify");
     if (verifyBtn) {
-      verifyBtn.addEventListener('click', () => {
+      verifyBtn.addEventListener("click", () => {
         // Capture email value from input before validating
         const emailInput = shadow.querySelector('input[name="businessEmail"]');
         if (emailInput) {
           this.setState({
             formData: {
               verification: {
-                businessEmail: emailInput.value
-              }
-            }
+                businessEmail: emailInput.value,
+              },
+            },
           });
           // Small delay to ensure state is updated before validation
           setTimeout(() => this.goToNextStep(), 0);
@@ -1728,152 +1956,152 @@ class OperatorOnboarding extends HTMLElement {
         }
       });
     }
-    
+
     // Fail Verify button - for demo purposes
-    const failBtn = shadow.querySelector('.btn-fail');
+    const failBtn = shadow.querySelector(".btn-fail");
     if (failBtn) {
-      failBtn.addEventListener('click', async () => {
+      failBtn.addEventListener("click", async () => {
         // Capture email value from input before validating
         const emailInput = shadow.querySelector('input[name="businessEmail"]');
         if (emailInput) {
           this.setState({
             formData: {
               verification: {
-                businessEmail: emailInput.value
-              }
-            }
+                businessEmail: emailInput.value,
+              },
+            },
           });
         }
-        
+
         // Validate the field first
         if (!this.validateCurrentStep()) return;
-        
+
         // Trigger failure verification
         await this.handleVerification(true);
       });
     }
-    
+
     // Step indicators (for navigation)
-    shadow.querySelectorAll('[data-step]').forEach(indicator => {
-      indicator.addEventListener('click', (e) => {
+    shadow.querySelectorAll("[data-step]").forEach((indicator) => {
+      indicator.addEventListener("click", (e) => {
         const stepIndex = parseInt(e.currentTarget.dataset.step);
         this.goToStep(stepIndex);
       });
     });
-    
+
     // Representative CRUD
-    const addBtn = shadow.querySelector('.add-representative-btn');
+    const addBtn = shadow.querySelector(".add-representative-btn");
     if (addBtn) {
-      addBtn.addEventListener('click', () => this.addRepresentative());
+      addBtn.addEventListener("click", () => this.addRepresentative());
     }
-    
-    shadow.querySelectorAll('.remove-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
+
+    shadow.querySelectorAll(".remove-btn").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
         const index = parseInt(e.target.dataset.index);
         this.removeRepresentative(index);
       });
     });
   }
-  
+
   handleFieldBlur(e) {
     const input = e.target;
     const name = input.name;
     const value = input.value;
     const repIndex = input.dataset.repIndex;
-    
+
     // Phone number formatting on blur
-    if (input.dataset.format === 'phone') {
+    if (input.dataset.format === "phone") {
       input.value = this.formatPhoneNumber(value);
     }
-    
+
     // Update state based on step
     const stepId = this.STEPS[this.state.currentStep].id;
-    
-    if (stepId === 'verification') {
+
+    if (stepId === "verification") {
       this.setState({
         formData: {
           verification: {
             ...this.state.formData.verification,
-            [name]: input.value
-          }
-        }
+            [name]: input.value,
+          },
+        },
       });
-    } else if (stepId === 'business-details') {
+    } else if (stepId === "business-details") {
       this.setState({
         formData: {
           businessDetails: {
             ...this.state.formData.businessDetails,
-            [name]: input.value
-          }
-        }
+            [name]: input.value,
+          },
+        },
       });
-    } else if (stepId === 'representatives' && repIndex !== undefined) {
+    } else if (stepId === "representatives" && repIndex !== undefined) {
       this.updateRepresentative(parseInt(repIndex), name, input.value);
-    } else if (stepId === 'bank-details') {
+    } else if (stepId === "bank-details") {
       this.setState({
         formData: {
           bankDetails: {
             ...this.state.formData.bankDetails,
-            [name]: input.value
-          }
-        }
+            [name]: input.value,
+          },
+        },
       });
     }
   }
-  
+
   handleFieldInput(e) {
     const input = e.target;
     const name = input.name;
     const value = input.value;
     const repIndex = input.dataset.repIndex;
-    
+
     // Clear error display when user starts typing
     if (this.state.uiState.showErrors) {
       this.state.uiState.showErrors = false;
     }
-    
+
     // Update state in real-time
     const stepId = this.STEPS[this.state.currentStep].id;
-    
-    if (stepId === 'verification') {
+
+    if (stepId === "verification") {
       this.state.formData.verification[name] = value;
-    } else if (stepId === 'business-details') {
+    } else if (stepId === "business-details") {
       this.state.formData.businessDetails[name] = value;
-    } else if (stepId === 'representatives' && repIndex !== undefined) {
+    } else if (stepId === "representatives" && repIndex !== undefined) {
       const idx = parseInt(repIndex);
       if (this.state.formData.representatives[idx]) {
         this.state.formData.representatives[idx][name] = value;
       }
-    } else if (stepId === 'bank-details') {
+    } else if (stepId === "bank-details") {
       this.state.formData.bankDetails[name] = value;
     }
   }
 
   // ==================== LIFECYCLE METHODS ====================
-  
+
   connectedCallback() {
     // Component is added to the DOM
   }
-  
+
   disconnectedCallback() {
     // Component is removed from the DOM
   }
-  
+
   attributeChangedCallback(name, oldValue, newValue) {
     // Handle on-success attribute
-    if (name === 'on-success' && newValue) {
+    if (name === "on-success" && newValue) {
       // Use the setter to assign the callback from window scope
       this.onSuccess = window[newValue];
     }
-    
+
     // Handle on-error attribute
-    if (name === 'on-error' && newValue) {
+    if (name === "on-error" && newValue) {
       // Use the setter to assign the callback from window scope
       this.onError = window[newValue];
     }
-    
+
     // Handle on-load attribute (expects JSON string or global variable name)
-    if (name === 'on-load' && newValue) {
+    if (name === "on-load" && newValue) {
       try {
         // Try to parse as JSON first
         const data = JSON.parse(newValue);
@@ -1886,7 +2114,7 @@ class OperatorOnboarding extends HTMLElement {
       }
     }
   }
-  
+
   adoptedCallback() {
     // Component moved to new document
   }
