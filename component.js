@@ -90,10 +90,21 @@ class OperatorOnboarding extends HTMLElement {
       'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY'
     ];
     
-    // Callback property for onSuccess
-    this.onSuccessCallback = null;
+    // Internal callback storage
+    this._onSuccessCallback = null;
     
     this.render();
+  }
+  
+  // Getter and setter for onSuccess property (for easy framework integration)
+  get onSuccess() {
+    return this._onSuccessCallback;
+  }
+  
+  set onSuccess(callback) {
+    if (typeof callback === 'function' || callback === null) {
+      this._onSuccessCallback = callback;
+    }
   }
   
   // Static getter for observed attributes
@@ -477,8 +488,8 @@ class OperatorOnboarding extends HTMLElement {
     }));
     
     // Call onSuccess callback if provided
-    if (this.onSuccessCallback && typeof this.onSuccessCallback === 'function') {
-      this.onSuccessCallback(formData);
+    if (this.onSuccess && typeof this.onSuccess === 'function') {
+      this.onSuccess(formData);
     }
   }
 
@@ -1542,15 +1553,8 @@ class OperatorOnboarding extends HTMLElement {
   attributeChangedCallback(name, oldValue, newValue) {
     // Handle on-success attribute
     if (name === 'on-success' && newValue) {
-      // Store the function name, will be called from window scope
-      this.onSuccessCallback = window[newValue];
-    }
-  }
-  
-  // Method to programmatically set onSuccess callback
-  setOnSuccess(callback) {
-    if (typeof callback === 'function') {
-      this.onSuccessCallback = callback;
+      // Use the setter to assign the callback from window scope
+      this.onSuccess = window[newValue];
     }
   }
   
