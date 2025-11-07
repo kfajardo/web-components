@@ -677,7 +677,8 @@ class OperatorOnboarding extends HTMLElement {
     // If wioEmail exists, pre-populate businessEmail
     if (hasWioEmail) {
       newFormData.verification.businessEmail = data.wioEmail;
-      newFormData.businessDetails.businessEmail = data.wioEmail;
+      newFormData.businessDetails.businessEmail =
+        data.businessDetails.businessEmail;
     }
 
     // Load representatives
@@ -1493,7 +1494,7 @@ class OperatorOnboarding extends HTMLElement {
             label: "Business Email *",
             type: "email",
             value: data.businessEmail,
-            readOnly: true,
+            readOnly: false,
           })}
           
           ${this.renderField({
