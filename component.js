@@ -552,17 +552,11 @@ class OperatorOnboarding extends HTMLElement {
     // Show success message (1.5 seconds)
     await new Promise((resolve) => setTimeout(resolve, 1500));
 
-    // Copy email to business details
+    // Mark step as complete and proceed to next step
     const completedSteps = new Set(this.state.completedSteps);
     completedSteps.add(0);
 
     this.setState({
-      formData: {
-        businessDetails: {
-          ...this.state.formData.businessDetails,
-          businessEmail: this.state.formData.verification.businessEmail,
-        },
-      },
       currentStep: 1,
       completedSteps,
       uiState: { verificationStatus: null, showErrors: false },
@@ -677,11 +671,7 @@ class OperatorOnboarding extends HTMLElement {
     // If wioEmail exists, pre-populate verification email for skipping step 0
     if (hasWioEmail) {
       newFormData.verification.businessEmail = data.wioEmail;
-      // businessDetails.businessEmail is already loaded from data.businessDetails above
-    } else if (newFormData.businessDetails.businessEmail && !newFormData.verification.businessEmail) {
-      // If businessEmail exists in businessDetails but not in verification, copy it
-      newFormData.verification.businessEmail = newFormData.businessDetails.businessEmail;
-    }
+    } 
 
     // Load representatives
     if (data.representatives && Array.isArray(data.representatives)) {
@@ -1411,8 +1401,8 @@ class OperatorOnboarding extends HTMLElement {
 
     return `
       <div class="step-content">
-        <h2>Verify Your Business Email</h2>
-        <p>Enter your business email to get started</p>
+        <h2>Verify WIO Email</h2>
+        <p>Enter your WIO's email to get started</p>
         
         ${this.renderField({
           name: "businessEmail",
@@ -2124,3 +2114,48 @@ class OperatorOnboarding extends HTMLElement {
 }
 
 customElements.define("operator-onboarding", OperatorOnboarding);
+
+/**
+ * Standalone function to verify if an operator exists
+ * This can be used to check operator status before rendering the onboarding form
+ *
+ * @param {string} operatorId - The operator ID to verify
+ * @param {boolean} mockResult - Mock result for testing (true = verified, false = not verified)
+ * @returns {boolean} - Returns true if operator is verified, false otherwise
+ *
+ * @example
+ * // Check if operator is verified
+ * const isVerified = verifyOperator('OP123456', true);
+ * if (isVerified) {
+ *   // Show onboarding form
+ * } else {
+ *   // Show error message
+ * }
+ */
+function verifyOperator(operatorId, mockResult) {
+  if (!operatorId || typeof operatorId !== 'string') {
+    console.error('verifyOperator: operatorId must be a non-empty string');
+    return false;
+  }
+
+  if (typeof mockResult !== 'boolean') {
+    console.error('verifyOperator: mockResult must be a boolean');
+    return false;
+  }
+
+  // Log verification attempt
+  console.log(`Verifying operator: ${operatorId}`, { result: mockResult });
+
+  // Return the mock result
+  return mockResult;
+}
+
+// Export for module usage (if using ES modules)
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { OperatorOnboarding, verifyOperator };
+}
+
+// Also make available globally for script tag usage
+if (typeof window !== 'undefined') {
+  window.verifyOperator = verifyOperator;
+}

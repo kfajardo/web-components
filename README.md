@@ -349,7 +349,117 @@ The component returns a complete data object:
 
 ### Methods
 
-No public methods needed - use property assignment instead.
+| Method | Parameters | Returns | Description |
+|--------|------------|---------|-------------|
+| `verifyOperator(operatorId, mockResult)` | `operatorId: string`, `mockResult: boolean` | `boolean` | Standalone function to verify if an operator exists. Used to conditionally render the onboarding form. |
+
+---
+
+## Operator Verification
+
+The `verifyOperator` function allows you to check if an operator should be shown the onboarding form before rendering it.
+
+### Usage
+
+```javascript
+// Basic usage
+const isVerified = verifyOperator('OP123456', true);
+
+if (isVerified) {
+  // Show the onboarding form
+  document.getElementById('onboarding-container').innerHTML = `
+    <operator-onboarding></operator-onboarding>
+  `;
+} else {
+  // Show error message
+  document.getElementById('onboarding-container').innerHTML = `
+    <div class="error">Operator not found or not eligible for onboarding.</div>
+  `;
+}
+```
+
+### React Example
+
+```jsx
+import { useState, useEffect } from 'react';
+
+function OnboardingPage({ operatorId }) {
+  const [isVerified, setIsVerified] = useState(false);
+  const [isChecking, setIsChecking] = useState(true);
+  
+  useEffect(() => {
+    // In a real app, you'd call your API here
+    // For demo purposes, using the mock function
+    const verified = window.verifyOperator(operatorId, true);
+    setIsVerified(verified);
+    setIsChecking(false);
+  }, [operatorId]);
+  
+  if (isChecking) {
+    return <div>Checking operator status...</div>;
+  }
+  
+  if (!isVerified) {
+    return (
+      <div className="error">
+        <h2>Access Denied</h2>
+        <p>This operator is not eligible for onboarding.</p>
+      </div>
+    );
+  }
+  
+  return (
+    <div className="onboarding-container">
+      <operator-onboarding />
+    </div>
+  );
+}
+```
+
+### Vue Example
+
+```vue
+<template>
+  <div v-if="isChecking">Checking operator status...</div>
+  <div v-else-if="!isVerified" class="error">
+    <h2>Access Denied</h2>
+    <p>This operator is not eligible for onboarding.</p>
+  </div>
+  <div v-else>
+    <operator-onboarding></operator-onboarding>
+  </div>
+</template>
+
+<script>
+export default {
+  props: ['operatorId'],
+  data() {
+    return {
+      isVerified: false,
+      isChecking: true
+    };
+  },
+  mounted() {
+    // In a real app, call your API here
+    this.isVerified = window.verifyOperator(this.operatorId, true);
+    this.isChecking = false;
+  }
+};
+</script>
+```
+
+### Parameters
+
+- `operatorId` (string, required): The operator ID to verify
+- `mockResult` (boolean, required): Mock result for testing
+  - `true`: Operator is verified (show onboarding form)
+  - `false`: Operator is not verified (show error message)
+
+### Returns
+
+- `boolean`: `true` if operator is verified, `false` otherwise
+
+**Note:** In production, replace `mockResult` with an actual API call to your backend to verify the operator.
 
 ---
 
