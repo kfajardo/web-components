@@ -124,9 +124,9 @@ class OperatorOnboarding extends HTMLElement {
     const params = new URLSearchParams(window.location.search);
     // console.log("Query Params:", params.get("name"));
 
-    const email = this.shadowRoot.querySelector("#firstName");
+    const firstName = this.shadowRoot.querySelector("#firstName");
 
-    email.value = params.get("name");
+    firstName.value = params.get("name");
   }
 
   // * IMPORTANT - gets called when the element is removed from the document.
