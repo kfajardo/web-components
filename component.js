@@ -567,7 +567,7 @@ class OperatorOnboarding extends HTMLElement {
     const email = this.state.formData.verification.businessEmail;
     const errorData = {
       email,
-      message: "This operator email does not have a dedicated WIO yet",
+      message: "This email is not a valid WIO email.",
       timestamp: new Date().toISOString(),
     };
 
@@ -1880,17 +1880,17 @@ class OperatorOnboarding extends HTMLElement {
         </div>
         
         <h2>Verification Failed</h2>
-        <p>This operator cannot be onboarded currently.</p>
+        <p>This WIO email could not be verified.</p>
         
         <div class="error-details">
           <h3>Error Details</h3>
           <p><strong>Email:</strong> ${businessEmail}</p>
           <p><strong>Issue:</strong> ${
             errorMessage ||
-            "This operator email does not have an associated WIO yet"
+            "This WIO email does not exist in our system."
           }</p>
           <p style="margin-top: var(--spacing-md);">
-            Please ensure you have a valid WIO associated with this email address before attempting to onboard as an operator.
+            Please ensure you have a valid WIO associated with this email address before attempting to onboard an operator.
           </p>
         </div>
         
