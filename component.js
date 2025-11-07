@@ -16,6 +16,7 @@ class OperatorOnboarding extends HTMLElement {
       currentStep: 0,
       totalSteps: 4,
       isSubmitted: false,
+      isFailed: false,
       formData: {
         verification: {
           businessEmail: ''
@@ -49,7 +50,8 @@ class OperatorOnboarding extends HTMLElement {
       uiState: {
         isLoading: false,
         verificationStatus: null,
-        showErrors: false
+        showErrors: false,
+        errorMessage: null
       }
     };
     
@@ -92,6 +94,8 @@ class OperatorOnboarding extends HTMLElement {
     
     // Internal callback storage
     this._onSuccessCallback = null;
+    this._onErrorCallback = null;
+    this._initialData = null;
     
     this.render();
   }
@@ -107,9 +111,32 @@ class OperatorOnboarding extends HTMLElement {
     }
   }
   
+  // Getter and setter for onError property (for error handling)
+  get onError() {
+    return this._onErrorCallback;
+  }
+  
+  set onError(callback) {
+    if (typeof callback === 'function' || callback === null) {
+      this._onErrorCallback = callback;
+    }
+  }
+  
+  // Getter and setter for onLoad property (for pre-populating form data)
+  get onLoad() {
+    return this._initialData;
+  }
+  
+  set onLoad(data) {
+    if (data && typeof data === 'object') {
+      this._initialData = data;
+      this.loadInitialData(data);
+    }
+  }
+  
   // Static getter for observed attributes
   static get observedAttributes() {
-    return ['on-success'];
+    return ['on-success', 'on-error', 'on-load'];
   }
 
   // ==================== VALIDATORS ====================
@@ -360,7 +387,7 @@ class OperatorOnboarding extends HTMLElement {
 
   // ==================== ASYNC OPERATIONS ====================
   
-  async handleVerification() {
+  async handleVerification(shouldFail = false) {
     // Set loading state
     this.setState({
       uiState: { isLoading: true, verificationStatus: 'pending' }
@@ -368,6 +395,12 @@ class OperatorOnboarding extends HTMLElement {
     
     // Simulate API call (2 seconds)
     await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    if (shouldFail) {
+      // Handle verification failure
+      this.handleVerificationFailure();
+      return;
+    }
     
     // Update verification status
     this.setState({
@@ -392,6 +425,40 @@ class OperatorOnboarding extends HTMLElement {
       completedSteps,
       uiState: { verificationStatus: null, showErrors: false }
     });
+  }
+  
+  handleVerificationFailure() {
+    const email = this.state.formData.verification.businessEmail;
+    const errorData = {
+      email,
+      message: 'This operator email does not have a dedicated WIO yet',
+      timestamp: new Date().toISOString()
+    };
+    
+    // Log error to console
+    console.error('Verification Failed:', errorData);
+    
+    // Update state to show failure page
+    this.setState({
+      isFailed: true,
+      uiState: {
+        isLoading: false,
+        verificationStatus: 'failed',
+        errorMessage: errorData.message
+      }
+    });
+    
+    // Emit custom error event
+    this.dispatchEvent(new CustomEvent('verificationFailed', {
+      detail: errorData,
+      bubbles: true,
+      composed: true
+    }));
+    
+    // Call onError callback if provided
+    if (this.onError && typeof this.onError === 'function') {
+      this.onError(errorData);
+    }
   }
 
   // ==================== REPRESENTATIVES CRUD ====================
@@ -435,6 +502,78 @@ class OperatorOnboarding extends HTMLElement {
     this.setState({
       formData: { representatives }
     });
+  }
+  
+  // ==================== INITIAL DATA LOADING ====================
+  
+  loadInitialData(data) {
+    const newFormData = { ...this.state.formData };
+    
+    // Check for wioEmail to skip verification step
+    const hasWioEmail = data.wioEmail && data.wioEmail.trim().length > 0;
+    
+    // Load verification data
+    if (data.verification) {
+      newFormData.verification = {
+        ...newFormData.verification,
+        ...data.verification
+      };
+    }
+    
+    // Load business details
+    if (data.businessDetails) {
+      newFormData.businessDetails = {
+        ...newFormData.businessDetails,
+        ...data.businessDetails
+      };
+    }
+    
+    // If wioEmail exists, pre-populate businessEmail
+    if (hasWioEmail) {
+      newFormData.verification.businessEmail = data.wioEmail;
+      newFormData.businessDetails.businessEmail = data.wioEmail;
+    }
+    
+    // Load representatives
+    if (data.representatives && Array.isArray(data.representatives)) {
+      newFormData.representatives = data.representatives.map(rep => ({
+        id: rep.id || crypto.randomUUID(),
+        representativeFirstName: rep.representativeFirstName || '',
+        representativeLastName: rep.representativeLastName || '',
+        representativeJobTitle: rep.representativeJobTitle || '',
+        representativePhone: rep.representativePhone || '',
+        representativeEmail: rep.representativeEmail || '',
+        representativeDateOfBirth: rep.representativeDateOfBirth || '',
+        representativeAddress: rep.representativeAddress || '',
+        representativeCity: rep.representativeCity || '',
+        representativeState: rep.representativeState || '',
+        representativeZip: rep.representativeZip || ''
+      }));
+    }
+    
+    // Load bank details
+    if (data.bankDetails) {
+      newFormData.bankDetails = {
+        ...newFormData.bankDetails,
+        ...data.bankDetails
+      };
+    }
+    
+    // Update state with loaded data
+    const stateUpdate = {
+      formData: newFormData
+    };
+    
+    // If wioEmail exists, skip verification step
+    if (hasWioEmail) {
+      const completedSteps = new Set(this.state.completedSteps);
+      completedSteps.add(0); // Mark verification step as completed
+      
+      stateUpdate.currentStep = 1; // Start at business details step
+      stateUpdate.completedSteps = completedSteps;
+    }
+    
+    this.setState(stateUpdate);
   }
 
   // ==================== UTILITIES ====================
@@ -496,6 +635,17 @@ class OperatorOnboarding extends HTMLElement {
   // ==================== RENDERING ====================
   
   render() {
+    // Show failure page if verification failed
+    if (this.state.isFailed) {
+      this.shadowRoot.innerHTML = `
+        ${this.renderStyles()}
+        <div class="onboarding-container">
+          ${this.renderFailurePage()}
+        </div>
+      `;
+      return;
+    }
+    
     // Show success page if form is submitted
     if (this.state.isSubmitted) {
       this.shadowRoot.innerHTML = `
@@ -534,7 +684,9 @@ class OperatorOnboarding extends HTMLElement {
           --border-color: #ddd;
           --gray-light: #f8f9fa;
           --gray-medium: #6c757d;
-          --border-radius: 4px;
+          --border-radius: 12px;
+          --border-radius-sm: 8px;
+          --border-radius-lg: 16px;
           --spacing-sm: 8px;
           --spacing-md: 16px;
           --spacing-lg: 24px;
@@ -619,7 +771,7 @@ class OperatorOnboarding extends HTMLElement {
           background: white;
           padding: var(--spacing-lg);
           border: 1px solid var(--border-color);
-          border-radius: var(--border-radius);
+          border-radius: var(--border-radius-lg);
           margin-bottom: var(--spacing-lg);
         }
         
@@ -650,7 +802,7 @@ class OperatorOnboarding extends HTMLElement {
           width: 100%;
           padding: 10px;
           border: 1px solid var(--border-color);
-          border-radius: var(--border-radius);
+          border-radius: var(--border-radius-sm);
           font-size: 14px;
         }
         
@@ -706,7 +858,7 @@ class OperatorOnboarding extends HTMLElement {
         /* Representatives */
         .representative-card {
           border: 1px solid var(--border-color);
-          border-radius: var(--border-radius);
+          border-radius: var(--border-radius-lg);
           padding: var(--spacing-md);
           margin-bottom: var(--spacing-md);
         }
@@ -853,6 +1005,104 @@ class OperatorOnboarding extends HTMLElement {
           color: var(--gray-medium);
         }
         
+        /* Error/Failure Styles */
+        .error-container {
+          text-align: center;
+          padding: var(--spacing-lg) 0;
+        }
+        
+        .error-icon {
+          width: 120px;
+          height: 120px;
+          margin: 0 auto var(--spacing-lg);
+          background: linear-gradient(135deg, var(--error-color) 0%, #c82333 100%);
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          animation: errorPulse 0.6s ease-out;
+        }
+        
+        @keyframes errorPulse {
+          0% {
+            transform: scale(0);
+            opacity: 0;
+          }
+          50% {
+            transform: scale(1.1);
+          }
+          100% {
+            transform: scale(1);
+            opacity: 1;
+          }
+        }
+        
+        .error-icon svg {
+          width: 70px;
+          height: 70px;
+          stroke: white;
+          stroke-width: 3;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+          fill: none;
+        }
+        
+        .error-container h2 {
+          color: var(--error-color);
+          margin-bottom: var(--spacing-md);
+          font-size: 32px;
+        }
+        
+        .error-container p {
+          color: var(--gray-medium);
+          font-size: 16px;
+          line-height: 1.6;
+          margin-bottom: var(--spacing-sm);
+        }
+        
+        .error-details {
+          background: #f8d7da;
+          border: 1px solid #f5c6cb;
+          border-radius: var(--border-radius-lg);
+          padding: var(--spacing-lg);
+          margin: var(--spacing-lg) 0;
+          text-align: left;
+        }
+        
+        .error-details h3 {
+          color: var(--error-color);
+          margin-bottom: var(--spacing-md);
+          font-size: 18px;
+        }
+        
+        .error-details p {
+          color: #721c24;
+          margin-bottom: var(--spacing-sm);
+        }
+        
+        .btn-fail {
+          background: var(--error-color);
+          color: white;
+          padding: 12px 24px;
+          border: none;
+          border-radius: var(--border-radius);
+          font-size: 14px;
+          font-weight: 500;
+          cursor: pointer;
+          margin-top: var(--spacing-md);
+          margin-left: var(--spacing-sm);
+        }
+        
+        .btn-fail:hover {
+          background: #c82333;
+        }
+        
+        .verification-buttons {
+          display: flex;
+          gap: var(--spacing-sm);
+          margin-top: var(--spacing-md);
+        }
+        
         /* Success Page */
         .success-container {
           text-align: center;
@@ -919,7 +1169,7 @@ class OperatorOnboarding extends HTMLElement {
         
         .success-details {
           background: var(--gray-light);
-          border-radius: var(--border-radius);
+          border-radius: var(--border-radius-lg);
           padding: var(--spacing-lg);
           margin: var(--spacing-lg) 0;
           text-align: left;
@@ -1016,7 +1266,10 @@ class OperatorOnboarding extends HTMLElement {
         })}
         
         ${!isLoading && verificationStatus !== 'success' ? `
-          <button type="button" class="btn-verify">Verify</button>
+          <div class="verification-buttons">
+            <button type="button" class="btn-verify">Verify</button>
+            <button type="button" class="btn-fail">Fail Verify (Demo)</button>
+          </div>
         ` : ''}
         
         ${verificationStatus === 'success' ? `
@@ -1394,6 +1647,38 @@ class OperatorOnboarding extends HTMLElement {
       </div>
     `;
   }
+  
+  renderFailurePage() {
+    const { businessEmail } = this.state.formData.verification;
+    const { errorMessage } = this.state.uiState;
+    
+    return `
+      <div class="error-container">
+        <div class="error-icon">
+          <svg viewBox="0 0 52 52">
+            <circle cx="26" cy="26" r="25" fill="none"/>
+            <path d="M16 16 L36 36 M36 16 L16 36"/>
+          </svg>
+        </div>
+        
+        <h2>Verification Failed</h2>
+        <p>This operator cannot be onboarded currently.</p>
+        
+        <div class="error-details">
+          <h3>Error Details</h3>
+          <p><strong>Email:</strong> ${businessEmail}</p>
+          <p><strong>Issue:</strong> ${errorMessage || 'This operator email does not have an associated WIO yet'}</p>
+          <p style="margin-top: var(--spacing-md);">
+            Please ensure you have a valid WIO associated with this email address before attempting to onboard as an operator.
+          </p>
+        </div>
+        
+        <p style="margin-top: var(--spacing-lg); color: #333;">
+          <strong>You can now close this dialog.</strong>
+        </p>
+      </div>
+    `;
+  }
 
   // ==================== EVENT HANDLING ====================
   
@@ -1441,6 +1726,30 @@ class OperatorOnboarding extends HTMLElement {
         } else {
           this.goToNextStep();
         }
+      });
+    }
+    
+    // Fail Verify button - for demo purposes
+    const failBtn = shadow.querySelector('.btn-fail');
+    if (failBtn) {
+      failBtn.addEventListener('click', async () => {
+        // Capture email value from input before validating
+        const emailInput = shadow.querySelector('input[name="businessEmail"]');
+        if (emailInput) {
+          this.setState({
+            formData: {
+              verification: {
+                businessEmail: emailInput.value
+              }
+            }
+          });
+        }
+        
+        // Validate the field first
+        if (!this.validateCurrentStep()) return;
+        
+        // Trigger failure verification
+        await this.handleVerification(true);
       });
     }
     
@@ -1555,6 +1864,26 @@ class OperatorOnboarding extends HTMLElement {
     if (name === 'on-success' && newValue) {
       // Use the setter to assign the callback from window scope
       this.onSuccess = window[newValue];
+    }
+    
+    // Handle on-error attribute
+    if (name === 'on-error' && newValue) {
+      // Use the setter to assign the callback from window scope
+      this.onError = window[newValue];
+    }
+    
+    // Handle on-load attribute (expects JSON string or global variable name)
+    if (name === 'on-load' && newValue) {
+      try {
+        // Try to parse as JSON first
+        const data = JSON.parse(newValue);
+        this.onLoad = data;
+      } catch (e) {
+        // If not JSON, try to get from window scope (global variable)
+        if (window[newValue]) {
+          this.onLoad = window[newValue];
+        }
+      }
     }
   }
   

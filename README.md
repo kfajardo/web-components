@@ -28,6 +28,66 @@ When submitted, form data is automatically logged to console and success page is
 
 ---
 
+## Pre-populating Form Data
+
+### Method 1: Direct Property Assignment (Recommended)
+
+```javascript
+const component = document.querySelector('operator-onboarding');
+
+// Pre-populate with existing data
+component.onLoad = {
+  verification: {
+    businessEmail: 'existing@company.com'
+  },
+  businessDetails: {
+    businessName: 'Acme Corp',
+    businessPhoneNumber: '5551234567',
+    businessStreet: '123 Main St',
+    businessCity: 'San Francisco',
+    businessState: 'CA',
+    businessPostalCode: '94105'
+  },
+  representatives: [
+    {
+      representativeFirstName: 'John',
+      representativeLastName: 'Doe',
+      representativeEmail: 'john@company.com'
+      // ... other fields
+    }
+  ],
+  bankDetails: {
+    accountHolderName: 'Acme Corp',
+    accountType: 'checking',
+    routingNumber: '123456789',
+    accountNumber: '987654321'
+  }
+};
+```
+
+### Method 2: HTML Attribute with JSON
+
+```html
+<operator-onboarding on-load='{"businessDetails":{"businessName":"Acme Corp"}}'></operator-onboarding>
+```
+
+### Method 3: HTML Attribute with Global Variable
+
+```html
+<script>
+  const initialData = {
+    businessDetails: {
+      businessName: 'Acme Corp',
+      businessEmail: 'test@company.com'
+    }
+  };
+</script>
+
+<operator-onboarding on-load="initialData"></operator-onboarding>
+```
+
+---
+
 ## Advanced Usage with Callbacks
 
 ### Method 1: Direct Property Assignment (Recommended for Frameworks)
@@ -272,12 +332,14 @@ The component returns a complete data object:
 | Property | Type | Description |
 |----------|------|-------------|
 | `onSuccess` | `Function` | Callback function called when form is successfully submitted. Receives complete form data as parameter. |
+| `onLoad` | `Object` | Pre-populate form fields with initial data. Accepts partial or complete form data object. |
 
 ### Attributes
 
 | Attribute | Type | Description |
 |-----------|------|-------------|
 | `on-success` | `String` | Name of global function to call on success. |
+| `on-load` | `String` | JSON string or name of global variable containing initial form data. |
 
 ### Events
 
@@ -288,6 +350,80 @@ The component returns a complete data object:
 ### Methods
 
 No public methods needed - use property assignment instead.
+
+---
+
+## Complete Example: Edit Mode
+
+Pre-populate form for editing existing operator:
+
+```javascript
+// Fetch existing operator data
+fetch('/api/operators/123')
+  .then(res => res.json())
+  .then(existingData => {
+    const component = document.querySelector('operator-onboarding');
+    
+    // Pre-populate with existing data
+    component.onLoad = existingData;
+    
+    // Handle updates
+    component.onSuccess = (updatedData) => {
+      fetch('/api/operators/123', {
+        method: 'PUT',
+        body: JSON.stringify(updatedData)
+      })
+      .then(() => {
+        console.log('Operator updated!');
+        closeModal();
+      });
+    };
+  });
+```
+
+### React Example with Pre-populated Data
+
+```jsx
+function EditOperatorModal({ operatorId, isOpen, onClose }) {
+  const componentRef = useRef(null);
+  const [initialData, setInitialData] = useState(null);
+  
+  useEffect(() => {
+    if (isOpen && operatorId) {
+      // Fetch existing operator data
+      fetch(`/api/operators/${operatorId}`)
+        .then(res => res.json())
+        .then(data => setInitialData(data));
+    }
+  }, [isOpen, operatorId]);
+  
+  useEffect(() => {
+    if (componentRef.current) {
+      // Set initial data
+      if (initialData) {
+        componentRef.current.onLoad = initialData;
+      }
+      
+      // Set success handler
+      componentRef.current.onSuccess = (updatedData) => {
+        fetch(`/api/operators/${operatorId}`, {
+          method: 'PUT',
+          body: JSON.stringify(updatedData)
+        });
+        onClose();
+      };
+    }
+  }, [initialData, operatorId, onClose]);
+  
+  if (!isOpen) return null;
+  
+  return (
+    <div className="modal">
+      <operator-onboarding ref={componentRef} />
+    </div>
+  );
+}
+```
 
 ---
 
