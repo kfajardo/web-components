@@ -17,6 +17,7 @@ class OperatorOnboarding extends HTMLElement {
       totalSteps: 5,
       isSubmitted: false,
       isFailed: false,
+      isSubmissionFailed: false,
       verificationSkipped: false, // Track if verification was skipped via onLoad
       formData: {
         verification: {
@@ -834,9 +835,18 @@ class OperatorOnboarding extends HTMLElement {
 
   // ==================== FORM COMPLETION ====================
 
-  handleFormCompletion() {
+  async handleFormCompletion(shouldFail = false) {
     const completedSteps = new Set(this.state.completedSteps);
     completedSteps.add(this.state.currentStep);
+
+    // Show loading state
+    this.setState({
+      completedSteps,
+      uiState: { isLoading: true },
+    });
+
+    // Simulate processing (2 seconds)
+    await new Promise((resolve) => setTimeout(resolve, 2000));
 
     // Log all form data to console
     const formData = {
@@ -849,10 +859,16 @@ class OperatorOnboarding extends HTMLElement {
 
     console.log("Form Submission - Complete Data:", formData);
 
+    if (shouldFail) {
+      // Handle submission failure
+      this.handleSubmissionFailure(formData);
+      return;
+    }
+
     // Update state to show success page
     this.setState({
-      completedSteps,
       isSubmitted: true,
+      uiState: { isLoading: false },
     });
 
     // Emit custom event
@@ -870,9 +886,62 @@ class OperatorOnboarding extends HTMLElement {
     }
   }
 
+  handleSubmissionFailure(formData) {
+    const errorData = {
+      formData,
+      message: "Form submission failed. Please try again.",
+      timestamp: new Date().toISOString(),
+    };
+
+    // Log error to console
+    console.error("Submission Failed:", errorData);
+
+    // Update state to show failure page
+    this.setState({
+      isSubmissionFailed: true,
+      uiState: {
+        ...this.state.uiState,
+        isLoading: false,
+        errorMessage: errorData.message,
+        showErrors: false,
+      },
+    });
+
+    // Emit custom error event
+    this.dispatchEvent(
+      new CustomEvent("submissionFailed", {
+        detail: errorData,
+        bubbles: true,
+        composed: true,
+      })
+    );
+
+    // Call onError callback if provided
+    if (this.onError && typeof this.onError === "function") {
+      this.onError(errorData);
+    }
+  }
+
   // ==================== RENDERING ====================
 
   render() {
+    // Show loading during submission (check this FIRST before other states)
+    if (this.state.uiState.isLoading && this.state.currentStep === this.state.totalSteps - 1) {
+      this.shadowRoot.innerHTML = `
+        ${this.renderStyles()}
+        <div class="onboarding-container">
+          <div class="step-content" style="text-align: center; padding: calc(var(--spacing-lg) * 2);">
+            <h2>Submitting Your Application...</h2>
+            <p style="color: var(--gray-medium); margin-bottom: var(--spacing-lg);">
+              Please wait while we process your information.
+            </p>
+            <div class="loading-spinner"></div>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
     // Show failure page if verification failed
     if (this.state.isFailed) {
       this.shadowRoot.innerHTML = `
@@ -882,6 +951,18 @@ class OperatorOnboarding extends HTMLElement {
         </div>
       `;
       this.attachFailurePageListeners();
+      return;
+    }
+
+    // Show submission failure page
+    if (this.state.isSubmissionFailed) {
+      this.shadowRoot.innerHTML = `
+        ${this.renderStyles()}
+        <div class="onboarding-container">
+          ${this.renderSubmissionFailurePage()}
+        </div>
+      `;
+      this.attachSubmissionFailureListeners();
       return;
     }
 
@@ -1944,6 +2025,7 @@ class OperatorOnboarding extends HTMLElement {
         <button type="button" class="btn-next">
           ${isLastStep ? "Submit" : "Next"}
         </button>
+        ${isLastStep ? '<button type="button" class="btn-fail-submit" style="margin-left: var(--spacing-sm); background: var(--error-color);">Fail Submit (Demo)</button>' : ""}
       </div>
     `;
   }
@@ -2050,7 +2132,75 @@ class OperatorOnboarding extends HTMLElement {
     `;
   }
 
+  renderSubmissionFailurePage() {
+    const { errorMessage } = this.state.uiState;
+
+    return `
+      <div class="error-container">
+        <div class="error-icon">
+          <svg viewBox="0 0 52 52">
+            <circle cx="26" cy="26" r="25" fill="none"/>
+            <path d="M16 16 L36 36 M36 16 L16 36"/>
+          </svg>
+        </div>
+        
+        <h2>Submission Failed</h2>
+        <p>Your onboarding submission could not be processed.</p>
+        
+        <div class="error-details">
+          <h3>Error Details</h3>
+          <p><strong>Issue:</strong> ${
+            errorMessage || "The submission failed due to a server error."
+          }</p>
+          <p style="margin-top: var(--spacing-md);">
+            Please try submitting again. If the problem persists, contact support.
+          </p>
+        </div>
+        
+        <div style="margin-top: var(--spacing-lg); display: flex; gap: var(--spacing-sm); justify-content: center;">
+          <button type="button" class="btn-resubmit" style="
+            padding: 12px 24px;
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: var(--border-radius);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+          ">Resubmit</button>
+        </div>
+        
+        <p style="margin-top: var(--spacing-md); font-size: 12px; color: var(--gray-medium);">
+          Or you can close this dialog.
+        </p>
+      </div>
+    `;
+  }
+
   // ==================== EVENT HANDLING ====================
+
+  attachSubmissionFailureListeners() {
+    const shadow = this.shadowRoot;
+
+    // Resubmit button (on submission failure page)
+    const resubmitBtn = shadow.querySelector(".btn-resubmit");
+    if (resubmitBtn) {
+      resubmitBtn.addEventListener("click", async () => {
+        // Call onError callback with resubmit action
+        if (this.onError && typeof this.onError === "function") {
+          this.onError({ action: "resubmit", formData: this.state.formData });
+        }
+        
+        // For now, just reset to last step
+        // TODO: Implement actual resubmission logic
+        this.setState({
+          isSubmissionFailed: false,
+          currentStep: this.state.totalSteps - 1,
+          uiState: { showErrors: false, errorMessage: null },
+        });
+      });
+    }
+  }
 
   attachFailurePageListeners() {
     const shadow = this.shadowRoot;
@@ -2130,6 +2280,18 @@ class OperatorOnboarding extends HTMLElement {
 
         // Trigger failure verification
         await this.handleVerification(true);
+      });
+    }
+
+    // Fail Submit button - for demo purposes
+    const failSubmitBtn = shadow.querySelector(".btn-fail-submit");
+    if (failSubmitBtn) {
+      failSubmitBtn.addEventListener("click", async () => {
+        // Validate the field first
+        if (!this.validateCurrentStep()) return;
+
+        // Trigger failure submission
+        await this.handleFormCompletion(true);
       });
     }
 
