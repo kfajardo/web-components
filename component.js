@@ -19,7 +19,7 @@ class OperatorOnboarding extends HTMLElement {
       isFailed: false,
       formData: {
         verification: {
-          businessEmail: "",
+          wioEmail: "",
         },
         businessDetails: {
           businessName: "",
@@ -59,8 +59,8 @@ class OperatorOnboarding extends HTMLElement {
     this.STEPS = [
       {
         id: "verification",
-        title: "Verify Email",
-        description: "Verify your business email address",
+        title: "Verify WIO",
+        description: "Verify WIO email address",
         canSkip: false,
       },
       {
@@ -223,12 +223,42 @@ class OperatorOnboarding extends HTMLElement {
 
     url: (value) => {
       if (!value) return { isValid: true, error: "" }; // Optional
-      try {
-        new URL(value);
-        return { isValid: true, error: "" };
-      } catch {
-        return { isValid: false, error: "Please enter a valid URL" };
+
+      // Trim whitespace
+      const trimmed = value.trim();
+      if (!trimmed) return { isValid: true, error: "" };
+
+      // Pattern for basic domain validation
+      // Accepts: domain.com, www.domain.com, subdomain.domain.com
+      const domainPattern = /^(?:[a-zA-Z0-9-]+\.)*[a-zA-Z0-9-]+\.[a-zA-Z]{2,}$/;
+
+      // Check if it's already a full URL
+      if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+        try {
+          new URL(trimmed);
+          return { isValid: true, error: "", normalizedValue: trimmed };
+        } catch {
+          return { isValid: false, error: "Please enter a valid URL" };
+        }
       }
+
+      // Check if it matches domain pattern (without protocol)
+      if (domainPattern.test(trimmed)) {
+        // Auto-normalize by adding https://
+        const normalized = `https://${trimmed}`;
+        try {
+          new URL(normalized); // Validate the normalized URL
+          return { isValid: true, error: "", normalizedValue: normalized };
+        } catch {
+          return { isValid: false, error: "Please enter a valid URL" };
+        }
+      }
+
+      return {
+        isValid: false,
+        error:
+          "Please enter a valid URL (e.g., example.com, www.example.com, or https://example.com)",
+      };
     },
 
     postalCode: (value) => {
@@ -283,14 +313,14 @@ class OperatorOnboarding extends HTMLElement {
     const errors = {};
 
     if (stepId === "verification") {
-      const email = this.state.formData.verification.businessEmail;
+      const email = this.state.formData.verification.wioEmail;
       const error = this.validateField(
         email,
         ["required", "email"],
-        "Business Email"
+        "WIO Email"
       );
       if (error) {
-        errors.businessEmail = error;
+        errors.wioEmail = error;
         isValid = false;
       }
     } else if (stepId === "business-details") {
@@ -310,6 +340,11 @@ class OperatorOnboarding extends HTMLElement {
           name: "businessPhoneNumber",
           validators: ["required", "usPhone"],
           label: "Business Phone",
+        },
+        {
+          name: "businessEmail",
+          validators: ["required", "businessEmail"],
+          label: "Business Email",
         },
         {
           name: "businessStreet",
@@ -564,7 +599,7 @@ class OperatorOnboarding extends HTMLElement {
   }
 
   handleVerificationFailure() {
-    const email = this.state.formData.verification.businessEmail;
+    const email = this.state.formData.verification.wioEmail;
     const errorData = {
       email,
       message: "This email is not a valid WIO email.",
@@ -670,8 +705,8 @@ class OperatorOnboarding extends HTMLElement {
 
     // If wioEmail exists, pre-populate verification email for skipping step 0
     if (hasWioEmail) {
-      newFormData.verification.businessEmail = data.wioEmail;
-    } 
+      newFormData.verification.wioEmail = data.wioEmail;
+    }
 
     // Load representatives
     if (data.representatives && Array.isArray(data.representatives)) {
@@ -822,8 +857,8 @@ class OperatorOnboarding extends HTMLElement {
         }
         
         :host {
-          --primary-color: #007bff;
-          --success-color: #28a745;
+          --primary-color: #325240;
+          --success-color: #325240;
           --error-color: #dc3545;
           --border-color: #ddd;
           --gray-light: #f8f9fa;
@@ -838,9 +873,22 @@ class OperatorOnboarding extends HTMLElement {
         }
         
         .onboarding-container {
-          max-width: 800px;
+          max-width: 900px;
           margin: 0 auto;
           padding: var(--spacing-lg);
+        }
+        
+        /* Logo inside form */
+        .form-logo {
+          text-align: center;
+          margin-bottom: var(--spacing-lg);
+          padding-bottom: var(--spacing-lg);
+          border-bottom: 1px solid var(--border-color);
+        }
+        
+        .form-logo img {
+          max-width: 140px;
+          height: auto;
         }
         
         /* Stepper Header */
@@ -913,10 +961,11 @@ class OperatorOnboarding extends HTMLElement {
         /* Step Content */
         .step-content {
           background: white;
-          padding: var(--spacing-lg);
+          padding: calc(var(--spacing-lg) * 1.5);
           border: 1px solid var(--border-color);
           border-radius: var(--border-radius-lg);
           margin-bottom: var(--spacing-lg);
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
         }
         
         .step-content h2 {
@@ -939,6 +988,12 @@ class OperatorOnboarding extends HTMLElement {
           margin-bottom: var(--spacing-sm);
           font-weight: 500;
           color: #333;
+        }
+        
+        /* Red asterisk for required fields */
+        .required-asterisk {
+          color: var(--error-color);
+          font-weight: bold;
         }
         
         .form-field input,
@@ -1110,7 +1165,7 @@ class OperatorOnboarding extends HTMLElement {
         }
         
         .btn-verify:hover {
-          background: #0056b3;
+          background: #325240e6;
         }
         
         .btn-verify:disabled {
@@ -1396,21 +1451,24 @@ class OperatorOnboarding extends HTMLElement {
   }
 
   renderVerificationStep() {
-    const { businessEmail } = this.state.formData.verification;
+    const { wioEmail } = this.state.formData.verification;
     const { isLoading, verificationStatus } = this.state.uiState;
 
     return `
       <div class="step-content">
+        <div class="form-logo">
+          <img src="https://bisonpaywell.com/lovable-uploads/28831244-e8b3-4e7b-8dbb-c016f9f9d54f.png" alt="Logo" />
+        </div>
         <h2>Verify WIO Email</h2>
         <p>Enter your WIO's email to get started</p>
         
         ${this.renderField({
-          name: "businessEmail",
-          label: "Business Email",
+          name: "wioEmail",
+          label: "WIO Email *",
           type: "email",
-          value: businessEmail,
-          error: this.getFieldError("businessEmail"),
-          placeholder: "business@example.com",
+          value: wioEmail,
+          error: this.getFieldError("wioEmail"),
+          placeholder: "wio@example.com",
         })}
         
         ${
@@ -1444,6 +1502,9 @@ class OperatorOnboarding extends HTMLElement {
 
     return `
       <div class="step-content">
+        <div class="form-logo">
+          <img src="https://bisonpaywell.com/lovable-uploads/28831244-e8b3-4e7b-8dbb-c016f9f9d54f.png" alt="Logo" />
+        </div>
         <h2>Business Information</h2>
         <p>Provide your business details</p>
         
@@ -1486,6 +1547,7 @@ class OperatorOnboarding extends HTMLElement {
             label: "Business Email *",
             type: "email",
             value: data.businessEmail,
+            error: this.getFieldError("businessEmail"),
             readOnly: false,
           })}
           
@@ -1507,7 +1569,7 @@ class OperatorOnboarding extends HTMLElement {
           <div class="form-field ${
             this.getFieldError("businessState") ? "has-error" : ""
           }">
-            <label for="businessState">State *</label>
+            <label for="businessState">State <span class="required-asterisk">*</span></label>
             <select id="businessState" name="businessState">
               <option value="">Select State</option>
               ${this.US_STATES.map(
@@ -1545,6 +1607,9 @@ class OperatorOnboarding extends HTMLElement {
 
     return `
       <div class="step-content">
+        <div class="form-logo">
+          <img src="https://bisonpaywell.com/lovable-uploads/28831244-e8b3-4e7b-8dbb-c016f9f9d54f.png" alt="Logo" />
+        </div>
         <h2>Business Representatives</h2>
         <p>Add business representatives (optional)</p>
         
@@ -1656,7 +1721,7 @@ class OperatorOnboarding extends HTMLElement {
                 ? "has-error"
                 : ""
             }">
-              <label for="representativeState-${index}">State *</label>
+              <label for="representativeState-${index}">State <span class="required-asterisk">*</span></label>
               <select id="representativeState-${index}" name="representativeState" data-rep-index="${index}">
                 <option value="">Select State</option>
                 ${this.US_STATES.map(
@@ -1699,6 +1764,9 @@ class OperatorOnboarding extends HTMLElement {
 
     return `
       <div class="step-content">
+        <div class="form-logo">
+          <img src="https://bisonpaywell.com/lovable-uploads/28831244-e8b3-4e7b-8dbb-c016f9f9d54f.png" alt="Logo" />
+        </div>
         <h2>Bank Account</h2>
         <p>Link your bank account</p>
         
@@ -1712,7 +1780,7 @@ class OperatorOnboarding extends HTMLElement {
           })}
           
           <div class="form-field full-width">
-            <label>Account Type *</label>
+            <label>Account Type <span class="required-asterisk">*</span></label>
             <div class="radio-group">
               <div class="radio-option">
                 <input type="radio" id="checking" name="accountType" value="checking" ${
@@ -1768,11 +1836,14 @@ class OperatorOnboarding extends HTMLElement {
 
     return `
       <div class="${fieldClass}">
-        <label for="${fieldId}">${label}</label>
-        <input 
-          type="${type}" 
-          id="${fieldId}" 
-          name="${name}" 
+        <label for="${fieldId}">${label.replace(
+      " *",
+      ' <span class="required-asterisk">*</span>'
+    )}</label>
+        <input
+          type="${type}"
+          id="${fieldId}"
+          name="${name}"
           value="${value}"
           ${readOnly ? "readonly" : ""}
           ${placeholder ? `placeholder="${placeholder}"` : ""}
@@ -1867,7 +1938,7 @@ class OperatorOnboarding extends HTMLElement {
   }
 
   renderFailurePage() {
-    const { businessEmail } = this.state.formData.verification;
+    const { wioEmail } = this.state.formData.verification;
     const { errorMessage } = this.state.uiState;
 
     return `
@@ -1884,10 +1955,9 @@ class OperatorOnboarding extends HTMLElement {
         
         <div class="error-details">
           <h3>Error Details</h3>
-          <p><strong>Email:</strong> ${businessEmail}</p>
+          <p><strong>Email:</strong> ${wioEmail}</p>
           <p><strong>Issue:</strong> ${
-            errorMessage ||
-            "This WIO email does not exist in our system."
+            errorMessage || "This WIO email does not exist in our system."
           }</p>
           <p style="margin-top: var(--spacing-md);">
             Please ensure you have a valid WIO associated with this email address before attempting to onboard an operator.
@@ -1933,12 +2003,12 @@ class OperatorOnboarding extends HTMLElement {
     if (verifyBtn) {
       verifyBtn.addEventListener("click", () => {
         // Capture email value from input before validating
-        const emailInput = shadow.querySelector('input[name="businessEmail"]');
+        const emailInput = shadow.querySelector('input[name="wioEmail"]');
         if (emailInput) {
           this.setState({
             formData: {
               verification: {
-                businessEmail: emailInput.value,
+                wioEmail: emailInput.value,
               },
             },
           });
@@ -1955,12 +2025,12 @@ class OperatorOnboarding extends HTMLElement {
     if (failBtn) {
       failBtn.addEventListener("click", async () => {
         // Capture email value from input before validating
-        const emailInput = shadow.querySelector('input[name="businessEmail"]');
+        const emailInput = shadow.querySelector('input[name="wioEmail"]');
         if (emailInput) {
           this.setState({
             formData: {
               verification: {
-                businessEmail: emailInput.value,
+                wioEmail: emailInput.value,
               },
             },
           });
@@ -2007,6 +2077,14 @@ class OperatorOnboarding extends HTMLElement {
       input.value = this.formatPhoneNumber(value);
     }
 
+    // URL normalization on blur
+    if (input.type === "url" && value) {
+      const validationResult = this.validators.url(value);
+      if (validationResult.isValid && validationResult.normalizedValue) {
+        input.value = validationResult.normalizedValue;
+      }
+    }
+
     // Update state based on step
     const stepId = this.STEPS[this.state.currentStep].id;
 
@@ -2048,11 +2126,6 @@ class OperatorOnboarding extends HTMLElement {
     const value = input.value;
     const repIndex = input.dataset.repIndex;
 
-    // Clear error display when user starts typing
-    if (this.state.uiState.showErrors) {
-      this.state.uiState.showErrors = false;
-    }
-
     // Update state in real-time
     const stepId = this.STEPS[this.state.currentStep].id;
 
@@ -2067,6 +2140,141 @@ class OperatorOnboarding extends HTMLElement {
       }
     } else if (stepId === "bank-details") {
       this.state.formData.bankDetails[name] = value;
+    }
+
+    // Real-time validation: validate the field and update error state
+    const stepKey = `step${this.state.currentStep}`;
+    
+    // Initialize errors object if it doesn't exist
+    if (!this.state.validationState[stepKey]) {
+      this.state.validationState[stepKey] = { isValid: true, errors: {} };
+    }
+    if (!this.state.validationState[stepKey].errors) {
+      this.state.validationState[stepKey].errors = {};
+    }
+    
+    // Only validate if showErrors is true (after first submit attempt)
+    if (this.state.uiState.showErrors) {
+      // Get field configuration for validation
+      let validators = [];
+      let fieldLabel = name;
+      
+      if (stepId === "verification") {
+        if (name === "wioEmail") {
+          validators = ["required", "email"];
+          fieldLabel = "WIO Email";
+        }
+      } else if (stepId === "business-details") {
+        const fieldConfigs = {
+          businessName: { validators: ["required"], label: "Business Name" },
+          businessWebsite: { validators: ["url"], label: "Business Website" },
+          businessPhoneNumber: { validators: ["required", "usPhone"], label: "Business Phone" },
+          businessEmail: { validators: ["required", "email"], label: "Business Email" },
+          businessStreet: { validators: ["required"], label: "Street Address" },
+          businessCity: { validators: ["required"], label: "City" },
+          businessState: { validators: ["required"], label: "State" },
+          businessPostalCode: { validators: ["required", "postalCode"], label: "ZIP Code" },
+        };
+        if (fieldConfigs[name]) {
+          validators = fieldConfigs[name].validators;
+          fieldLabel = fieldConfigs[name].label;
+        }
+      } else if (stepId === "representatives" && repIndex !== undefined) {
+        const fieldConfigs = {
+          representativeFirstName: { validators: ["required"], label: "First Name" },
+          representativeLastName: { validators: ["required"], label: "Last Name" },
+          representativeJobTitle: { validators: ["required"], label: "Job Title" },
+          representativePhone: { validators: ["required", "usPhone"], label: "Phone" },
+          representativeEmail: { validators: ["required", "email"], label: "Email" },
+          representativeDateOfBirth: { validators: ["required"], label: "Date of Birth" },
+          representativeAddress: { validators: ["required"], label: "Address" },
+          representativeCity: { validators: ["required"], label: "City" },
+          representativeState: { validators: ["required"], label: "State" },
+          representativeZip: { validators: ["required", "postalCode"], label: "ZIP Code" },
+        };
+        if (fieldConfigs[name]) {
+          validators = fieldConfigs[name].validators;
+          fieldLabel = fieldConfigs[name].label;
+        }
+      } else if (stepId === "bank-details") {
+        const fieldConfigs = {
+          accountHolderName: { validators: ["required"], label: "Account Holder Name" },
+          accountType: { validators: ["required"], label: "Account Type" },
+          routingNumber: { validators: ["required", "routingNumber"], label: "Routing Number" },
+          accountNumber: { validators: ["required", "accountNumber"], label: "Account Number" },
+        };
+        if (fieldConfigs[name]) {
+          validators = fieldConfigs[name].validators;
+          fieldLabel = fieldConfigs[name].label;
+        }
+      }
+
+      // Validate the field
+      if (validators.length > 0) {
+        const error = this.validateField(value, validators, fieldLabel);
+        
+        if (repIndex !== undefined) {
+          // Handle representative field errors
+          const repKey = `rep${repIndex}`;
+          if (!this.state.validationState[stepKey].errors[repKey]) {
+            this.state.validationState[stepKey].errors[repKey] = {};
+          }
+          
+          if (error) {
+            this.state.validationState[stepKey].errors[repKey][name] = error;
+          } else {
+            delete this.state.validationState[stepKey].errors[repKey][name];
+            // If no more errors for this rep, remove the rep key
+            if (Object.keys(this.state.validationState[stepKey].errors[repKey]).length === 0) {
+              delete this.state.validationState[stepKey].errors[repKey];
+            }
+          }
+        } else {
+          // Handle regular field errors
+          if (error) {
+            this.state.validationState[stepKey].errors[name] = error;
+          } else {
+            delete this.state.validationState[stepKey].errors[name];
+          }
+        }
+        
+        // Update error message in DOM without full re-render
+        this.updateFieldErrorDisplay(input, error);
+      }
+    }
+  }
+
+  updateFieldErrorDisplay(input, error) {
+    // Find the parent form-field div
+    const formField = input.closest('.form-field');
+    if (!formField) return;
+
+    // Update has-error class
+    if (error) {
+      formField.classList.add('has-error');
+    } else {
+      formField.classList.remove('has-error');
+    }
+
+    // Find or create error message element
+    let errorSpan = formField.querySelector('.error-message');
+    
+    if (error) {
+      if (errorSpan) {
+        // Update existing error message
+        errorSpan.textContent = error;
+      } else {
+        // Create new error message
+        errorSpan = document.createElement('span');
+        errorSpan.className = 'error-message';
+        errorSpan.textContent = error;
+        formField.appendChild(errorSpan);
+      }
+    } else {
+      // Remove error message if exists
+      if (errorSpan) {
+        errorSpan.remove();
+      }
     }
   }
 
@@ -2133,13 +2341,13 @@ customElements.define("operator-onboarding", OperatorOnboarding);
  * }
  */
 function verifyOperator(operatorId, mockResult) {
-  if (!operatorId || typeof operatorId !== 'string') {
-    console.error('verifyOperator: operatorId must be a non-empty string');
+  if (!operatorId || typeof operatorId !== "string") {
+    console.error("verifyOperator: operatorId must be a non-empty string");
     return false;
   }
 
-  if (typeof mockResult !== 'boolean') {
-    console.error('verifyOperator: mockResult must be a boolean');
+  if (typeof mockResult !== "boolean") {
+    console.error("verifyOperator: mockResult must be a boolean");
     return false;
   }
 
@@ -2151,11 +2359,11 @@ function verifyOperator(operatorId, mockResult) {
 }
 
 // Export for module usage (if using ES modules)
-if (typeof module !== 'undefined' && module.exports) {
+if (typeof module !== "undefined" && module.exports) {
   module.exports = { OperatorOnboarding, verifyOperator };
 }
 
 // Also make available globally for script tag usage
-if (typeof window !== 'undefined') {
+if (typeof window !== "undefined") {
   window.verifyOperator = verifyOperator;
 }
