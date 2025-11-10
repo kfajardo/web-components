@@ -2996,12 +2996,48 @@ function verifyWIO(wioEmail, mockResult) {
   return mockResult;
 }
 
+/**
+ * Standalone function to verify an operator email
+ * This can be used to check operator email status
+ *
+ * @param {string} operatorEmail - The operator email address to verify
+ * @param {boolean} mockResult - Mock result for testing (true = verified, false = not verified)
+ * @returns {boolean} - Returns true if operator email is verified, false otherwise
+ *
+ * @example
+ * // Check if operator email is verified
+ * const isVerified = verifyOperator('operator@example.com', true);
+ * if (isVerified) {
+ *   // Proceed with operation
+ * } else {
+ *   // Show error message
+ * }
+ */
+function verifyOperator(operatorEmail, mockResult) {
+  if (!operatorEmail || typeof operatorEmail !== "string") {
+    console.error("verifyOperator: operatorEmail must be a non-empty string");
+    return false;
+  }
+
+  if (typeof mockResult !== "boolean") {
+    console.error("verifyOperator: mockResult must be a boolean");
+    return false;
+  }
+
+  // Log verification attempt
+  console.log(`Verifying operator email: ${operatorEmail}`, { result: mockResult });
+
+  // Return the mock result
+  return mockResult;
+}
+
 // Export for module usage (if using ES modules)
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { OperatorOnboarding, verifyWIO };
+  module.exports = { OperatorOnboarding, verifyWIO, verifyOperator };
 }
 
 // Also make available globally for script tag usage
 if (typeof window !== "undefined") {
   window.verifyWIO = verifyWIO;
+  window.verifyOperator = verifyOperator;
 }
