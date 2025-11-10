@@ -14,10 +14,11 @@ class OperatorOnboarding extends HTMLElement {
     // Initialize state
     this.state = {
       currentStep: 0,
-      totalSteps: 5,
+      totalSteps: 4, // Business, Representatives, Underwriting, Bank (verification is pre-stepper)
       isSubmitted: false,
       isFailed: false,
       isSubmissionFailed: false,
+      isVerified: false, // Track if WIO verification is complete
       verificationSkipped: false, // Track if verification was skipped via onLoad
       formData: {
         verification: {
@@ -48,11 +49,11 @@ class OperatorOnboarding extends HTMLElement {
         },
       },
       validationState: {
-        step0: { isValid: false, errors: {} },
-        step1: { isValid: false, errors: {} },
-        step2: { isValid: true, errors: {} },
-        step3: { isValid: true, errors: {} }, // Underwriting step - set to true if optional
-        step4: { isValid: false, errors: {} },
+        verification: { isValid: false, errors: {} }, // Pre-stepper validation
+        step0: { isValid: false, errors: {} }, // Business Details
+        step1: { isValid: true, errors: {} }, // Representatives (optional)
+        step2: { isValid: false, errors: {} }, // Bank Details
+        step3: { isValid: true, errors: {} }, // Underwriting (optional)
       },
       completedSteps: new Set(),
       uiState: {
@@ -63,14 +64,8 @@ class OperatorOnboarding extends HTMLElement {
       },
     };
 
-    // Step configuration
+    // Step configuration (Verification is now pre-stepper)
     this.STEPS = [
-      {
-        id: "verification",
-        title: "Verification",
-        description: "Verify WIO email address",
-        canSkip: false,
-      },
       {
         id: "business-details",
         title: "Business",
@@ -308,6 +303,49 @@ class OperatorOnboarding extends HTMLElement {
 
   // ==================== VALIDATION ====================
 
+  validateStep(stepIdentifier) {
+    // Handle both step index (number) and step id (string)
+    let step;
+    let stepKey;
+    
+    if (typeof stepIdentifier === 'number') {
+      step = this.STEPS[stepIdentifier];
+      stepKey = `step${stepIdentifier}`;
+    } else if (stepIdentifier === 'verification') {
+      // Special case for verification (pre-stepper)
+      step = { id: 'verification', fields: ['wioEmail'] };
+      stepKey = 'verification';
+    } else {
+      step = this.STEPS.find(s => s.id === stepIdentifier);
+      stepKey = stepIdentifier;
+    }
+    
+    if (!step) return false;
+    
+    let isValid = true;
+    const errors = {};
+    
+    // Validation logic for verification step
+    if (step.id === "verification") {
+      const email = this.state.formData.verification.wioEmail;
+      const error = this.validateField(email, ["required", "email"], "WIO Email");
+      if (error) {
+        errors.wioEmail = error;
+        isValid = false;
+      }
+    }
+    
+    // Update validation state
+    this.setState({
+      validationState: {
+        [stepKey]: { isValid, errors },
+      },
+      uiState: { showErrors: !isValid },
+    });
+    
+    return isValid;
+  }
+
   validateField(value, validators, fieldName) {
     for (const validatorName of validators) {
       const validator = this.validators[validatorName];
@@ -536,15 +574,6 @@ class OperatorOnboarding extends HTMLElement {
   // ==================== NAVIGATION ====================
 
   async goToNextStep() {
-    const stepId = this.STEPS[this.state.currentStep].id;
-
-    // Special handling for verification step
-    if (stepId === "verification") {
-      if (!this.validateCurrentStep()) return;
-      await this.handleVerification();
-      return;
-    }
-
     // Validate current step
     if (!this.validateCurrentStep()) return;
 
@@ -615,22 +644,19 @@ class OperatorOnboarding extends HTMLElement {
       return;
     }
 
-    // Update verification status
+    // Update verification status to success
     this.setState({
       uiState: { isLoading: false, verificationStatus: "success" },
     });
 
-    // Show success message (1.5 seconds)
+    // Show "Proceeding to onboarding" message (1.5 seconds)
     await new Promise((resolve) => setTimeout(resolve, 1500));
 
-    // Mark step as complete and proceed to next step
-    const completedSteps = new Set(this.state.completedSteps);
-    completedSteps.add(0);
-
+    // Mark as verified and proceed to stepper form
     this.setState({
-      currentStep: 1,
-      completedSteps,
-      uiState: { verificationStatus: null, showErrors: false },
+      isVerified: true,
+      currentStep: 0, // Start at first step of stepper (Business Details)
+      uiState: { verificationStatus: null, showErrors: false, isLoading: false },
     });
   }
 
@@ -675,6 +701,7 @@ class OperatorOnboarding extends HTMLElement {
     this.setState({
       currentStep: 0,
       isFailed: false,
+      isVerified: false, // Stay in pre-stepper verification
       uiState: {
         isLoading: false,
         verificationStatus: null,
@@ -682,6 +709,101 @@ class OperatorOnboarding extends HTMLElement {
         errorMessage: null,
       },
     });
+  }
+
+  // Attach event listeners for standalone verification form
+  attachVerificationListeners() {
+    const shadow = this.shadowRoot;
+    
+    // Handle verification form submission
+    const verifyButton = shadow.querySelector('[data-action="verify"]');
+    if (verifyButton) {
+      verifyButton.addEventListener("click", () => {
+        // Capture email value from input
+        const emailInput = shadow.querySelector('input[name="wioEmail"]');
+        if (emailInput) {
+          this.setState({
+            formData: {
+              verification: {
+                wioEmail: emailInput.value,
+              },
+            },
+          });
+        }
+        
+        // Validate the verification step
+        const isValid = this.validateStep("verification");
+        if (isValid) {
+          this.handleVerification(false);
+        } else {
+          this.setState({
+            uiState: { showErrors: true },
+          });
+        }
+      });
+    }
+
+    // Handle fail verification button (for demo)
+    const failButton = shadow.querySelector('[data-action="fail-verify"]');
+    if (failButton) {
+      failButton.addEventListener("click", () => {
+        // Capture email value from input
+        const emailInput = shadow.querySelector('input[name="wioEmail"]');
+        if (emailInput) {
+          this.setState({
+            formData: {
+              verification: {
+                wioEmail: emailInput.value,
+              },
+            },
+          });
+        }
+        
+        // Validate the verification step
+        const isValid = this.validateStep("verification");
+        if (isValid) {
+          this.handleVerification(true);
+        } else {
+          this.setState({
+            uiState: { showErrors: true },
+          });
+        }
+      });
+    }
+
+    // Handle field input for verification step
+    const wioEmailInput = shadow.querySelector('[name="wioEmail"]');
+    if (wioEmailInput) {
+      wioEmailInput.addEventListener("input", (e) => {
+        // Update state in real-time
+        this.state.formData.verification.wioEmail = e.target.value;
+        
+        // Real-time validation if showErrors is true
+        if (this.state.uiState.showErrors) {
+          const error = this.validateField(e.target.value, ["required", "email"], "WIO Email");
+          
+          // Initialize validation state if needed
+          if (!this.state.validationState.verification) {
+            this.state.validationState.verification = { isValid: true, errors: {} };
+          }
+          
+          if (error) {
+            this.state.validationState.verification.errors.wioEmail = error;
+          } else {
+            delete this.state.validationState.verification.errors.wioEmail;
+          }
+          
+          // Update error message in DOM without full re-render
+          this.updateFieldErrorDisplay(e.target, error);
+        }
+      });
+      
+      wioEmailInput.addEventListener("blur", () => {
+        this.setState({
+          uiState: { showErrors: true },
+        });
+      });
+    }
   }
 
   // ==================== REPRESENTATIVES CRUD ====================
@@ -794,19 +916,27 @@ class OperatorOnboarding extends HTMLElement {
     // Update state with loaded data
     const stateUpdate = {
       formData: newFormData,
+      verificationSkipped: hasWioEmail, // Mark that verification will be auto-skipped
     };
 
-    // If wioEmail exists, skip verification step
+    // If wioEmail exists, trigger automatic verification
     if (hasWioEmail) {
-      const completedSteps = new Set(this.state.completedSteps);
-      completedSteps.add(0); // Mark verification step as completed
-
-      stateUpdate.currentStep = 1; // Start at business details step
-      stateUpdate.completedSteps = completedSteps;
-      stateUpdate.verificationSkipped = true; // Mark that verification was skipped
+      stateUpdate.isVerified = false; // Ensure we show verification UI
+      stateUpdate.uiState = {
+        isLoading: true,
+        verificationStatus: "pending",
+      };
     }
 
     this.setState(stateUpdate);
+
+    // Trigger automatic verification if wioEmail was provided
+    if (hasWioEmail) {
+      // Small delay to allow UI to render loading state
+      setTimeout(() => {
+        this.handleVerification(false); // false = success, can be changed for testing
+      }, 100);
+    }
   }
 
   // ==================== UTILITIES ====================
@@ -823,6 +953,14 @@ class OperatorOnboarding extends HTMLElement {
 
   getFieldError(fieldName, repIndex = null) {
     if (!this.state.uiState.showErrors) return "";
+    
+    // For verification step (pre-stepper)
+    if (!this.state.isVerified) {
+      const errors = this.state.validationState.verification?.errors || {};
+      return errors[fieldName] || "";
+    }
+    
+    // For stepper steps
     const errors =
       this.state.validationState[`step${this.state.currentStep}`]?.errors || {};
 
@@ -925,23 +1063,6 @@ class OperatorOnboarding extends HTMLElement {
   // ==================== RENDERING ====================
 
   render() {
-    // Show loading during submission (check this FIRST before other states)
-    if (this.state.uiState.isLoading && this.state.currentStep === this.state.totalSteps - 1) {
-      this.shadowRoot.innerHTML = `
-        ${this.renderStyles()}
-        <div class="onboarding-container">
-          <div class="step-content" style="text-align: center; padding: calc(var(--spacing-lg) * 2);">
-            <h2>Submitting Your Application...</h2>
-            <p style="color: var(--gray-medium); margin-bottom: var(--spacing-lg);">
-              Please wait while we process your information.
-            </p>
-            <div class="loading-spinner"></div>
-          </div>
-        </div>
-      `;
-      return;
-    }
-
     // Show failure page if verification failed
     if (this.state.isFailed) {
       this.shadowRoot.innerHTML = `
@@ -977,6 +1098,36 @@ class OperatorOnboarding extends HTMLElement {
       return;
     }
 
+    // Show loading during submission
+    if (this.state.uiState.isLoading && this.state.isVerified) {
+      this.shadowRoot.innerHTML = `
+        ${this.renderStyles()}
+        <div class="onboarding-container">
+          <div class="step-content" style="text-align: center; padding: calc(var(--spacing-lg) * 2);">
+            <h2>Submitting Your Application...</h2>
+            <p style="color: var(--gray-medium); margin-bottom: var(--spacing-lg);">
+              Please wait while we process your information.
+            </p>
+            <div class="loading-spinner"></div>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    // If NOT verified, show standalone verification flow
+    if (!this.state.isVerified) {
+      this.shadowRoot.innerHTML = `
+        ${this.renderStyles()}
+        <div class="onboarding-container">
+          ${this.renderVerificationStep()}
+        </div>
+      `;
+      this.attachVerificationListeners();
+      return;
+    }
+
+    // If verified, show main stepper form
     this.shadowRoot.innerHTML = `
       ${this.renderStyles()}
       <div class="onboarding-container">
@@ -1578,62 +1729,131 @@ class OperatorOnboarding extends HTMLElement {
     const stepId = this.STEPS[this.state.currentStep].id;
 
     switch (stepId) {
-      case "verification":
-        return this.renderVerificationStep();
       case "business-details":
         return this.renderBusinessDetailsStep();
       case "representatives":
         return this.renderRepresentativesStep();
       case "bank-details":
         return this.renderBankDetailsStep();
+      case "underwriting":
+        return this.renderUnderwritingStep();
       default:
         return "";
     }
   }
 
-  renderVerificationStep() {
-    const { wioEmail } = this.state.formData.verification;
-    const { isLoading, verificationStatus } = this.state.uiState;
+  renderUnderwritingStep() {
+    const data = this.state.formData.underwriting;
+
+    /**
+     * DEVELOPER GUIDE: Adding Underwriting Fields
+     *
+     * To add fields to this step, follow these steps:
+     *
+     * 1. ADD FIELD TO STATE (line ~38-42):
+     *    In the constructor's formData.underwriting object, add your field:
+     *    underwriting: {
+     *      yourFieldName: "",  // Add your field here
+     *    }
+     *
+     * 2. ADD VALIDATION (in validateCurrentStep method, around line 471):
+     *    Add validation for underwriting fields
+     *
+     * 3. ADD FIELD HANDLING IN handleFieldInput (around line 2409):
+     *    Already implemented - will handle your fields automatically
+     *
+     * 4. ADD FIELD HANDLING IN handleFieldBlur (around line 2369):
+     *    Already implemented - will handle your fields automatically
+     *
+     * 5. ADD REAL-TIME VALIDATION CONFIG (in handleFieldInput, around line 2501):
+     *    Add your field validation configuration
+     *
+     * 6. RENDER FIELDS BELOW:
+     *    Use this.renderField() to add input fields in the form grid below
+     */
 
     return `
       <div class="step-content">
         <div class="form-logo">
           <img src="https://bisonpaywell.com/lovable-uploads/28831244-e8b3-4e7b-8dbb-c016f9f9d54f.png" alt="Logo" />
         </div>
+        <h2>Underwriting</h2>
+        <p>Underwriting information</p>
+        
+        <div class="form-grid">
+          <div class="empty-state full-width">
+            <p>Underwriting fields will be added here by the developer.</p>
+            <p style="font-size: 12px; color: var(--gray-medium); margin-top: var(--spacing-sm);">
+              See renderUnderwritingStep() method for implementation guide.
+            </p>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  renderVerificationStep() {
+    const { wioEmail } = this.state.formData.verification;
+    const errors = this.state.validationState.verification?.errors || {};
+    const showErrors = this.state.uiState.showErrors;
+    const { isLoading, verificationStatus } = this.state.uiState;
+
+    // Show loading screen during verification
+    if (isLoading) {
+      return `
+        <div class="step-content" style="text-align: center; padding: calc(var(--spacing-lg) * 2);">
+          <div class="form-logo">
+            <img src="https://bisonpaywell.com/lovable-uploads/28831244-e8b3-4e7b-8dbb-c016f9f9d54f.png" alt="Logo" />
+          </div>
+          <h2>Verifying WIO Email...</h2>
+          <p style="color: var(--gray-medium); margin-bottom: var(--spacing-lg);">
+            Please wait while we verify: <strong>${wioEmail || 'your email'}</strong>
+          </p>
+          <div class="loading-spinner"></div>
+        </div>
+      `;
+    }
+
+    // Show success message before transitioning to stepper
+    if (verificationStatus === "success") {
+      return `
+        <div class="success-container">
+          <div class="success-icon">
+            <svg viewBox="0 0 52 52">
+              <path d="M14 27l7 7 16-16"/>
+            </svg>
+          </div>
+          <h2>Verification Successful!</h2>
+          <p>Proceeding to onboarding...</p>
+        </div>
+      `;
+    }
+
+    // Show standalone verification form
+    return `
+      <div class="step-content">
+        <div class="form-logo">
+          <img src="https://bisonpaywell.com/lovable-uploads/28831244-e8b3-4e7b-8dbb-c016f9f9d54f.png" alt="Logo" />
+        </div>
         <h2>Verify WIO Email</h2>
-        <p>Enter your WIO's email to get started</p>
+        <p>Enter your WIO email address to begin the operator onboarding process.</p>
         
-        ${this.renderField({
-          name: "wioEmail",
-          label: "WIO Email *",
-          type: "email",
-          value: wioEmail,
-          error: this.getFieldError("wioEmail"),
-          placeholder: "wio@example.com",
-        })}
+        <div class="form-field ${showErrors && errors.wioEmail ? "has-error" : ""}">
+          <label for="wioEmail">WIO Email <span class="required-asterisk">*</span></label>
+          <input
+            type="email"
+            id="wioEmail"
+            name="wioEmail"
+            value="${wioEmail}"
+            placeholder="your.email@company.com"
+          />
+          ${showErrors && errors.wioEmail ? `<span class="error-message">${errors.wioEmail}</span>` : ""}
+        </div>
         
-        ${
-          !isLoading && verificationStatus !== "success"
-            ? `
-          <div class="verification-buttons">
-            <button type="button" class="btn-verify">Verify</button>
-            <button type="button" class="btn-fail">Fail Verify (Demo)</button>
-          </div>
-        `
-            : ""
-        }
-        
-        ${
-          verificationStatus === "success"
-            ? `
-          <div class="success-message">
-            ✓ WIO verified, proceeding to next step...
-          </div>
-        `
-            : ""
-        }
-        
-        ${isLoading ? '<div class="loading-spinner"></div>' : ""}
+        <div class="verification-buttons">
+          <button type="button" class="btn-verify" data-action="verify">Verify Email</button>
+          <button type="button" class="btn-fail" data-action="fail-verify">Fail Verify (Demo)</button>
+        </div>
       </div>
     `;
   }
@@ -2002,19 +2222,10 @@ class OperatorOnboarding extends HTMLElement {
     const isFirstStep = this.state.currentStep === 0;
     const isLastStep = this.state.currentStep === this.state.totalSteps - 1;
     const canSkip = this.STEPS[this.state.currentStep].canSkip;
-    const stepId = this.STEPS[this.state.currentStep].id;
 
-    // Don't show navigation on verification step
-    if (stepId === "verification") {
-      return "";
-    }
-
-    // Hide back button if:
-    // 1. We're on first step, OR
-    // 2. We're on step 1 (Business) and verification was skipped via onLoad
-    const showBack =
-      !isFirstStep &&
-      !(this.state.currentStep === 1 && this.state.verificationSkipped);
+    // Hide back button if we're on first step (Business Details)
+    // Since verification is now pre-stepper, there's nothing to go back to
+    const showBack = !isFirstStep;
 
     return `
       <div class="navigation-footer">
