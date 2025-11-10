@@ -27,6 +27,7 @@ class OperatorOnboarding extends HTMLElement {
         businessDetails: {
           businessName: "",
           doingBusinessAs: "",
+          ein: "",
           businessWebsite: "",
           businessPhoneNumber: "",
           businessEmail: "",
@@ -230,6 +231,14 @@ class OperatorOnboarding extends HTMLElement {
       };
     },
 
+    ein: (value) => {
+      const cleaned = value.replace(/\D/g, "");
+      return {
+        isValid: cleaned.length === 9,
+        error: "EIN must be 9 digits",
+      };
+    },
+
     url: (value) => {
       if (!value) return { isValid: true, error: "" }; // Optional
 
@@ -387,6 +396,11 @@ class OperatorOnboarding extends HTMLElement {
           name: "doingBusinessAs",
           validators: ["required"],
           label: "Doing Business As (DBA)",
+        },
+        {
+          name: "ein",
+          validators: ["required", "ein"],
+          label: "EIN",
         },
         {
           name: "businessWebsite",
@@ -718,7 +732,8 @@ class OperatorOnboarding extends HTMLElement {
     // Handle verification form submission
     const verifyButton = shadow.querySelector('[data-action="verify"]');
     if (verifyButton) {
-      verifyButton.addEventListener("click", () => {
+      verifyButton.addEventListener("mousedown", (e) => {
+        e.preventDefault(); // Prevent blur from interfering
         // Capture email value from input
         const emailInput = shadow.querySelector('input[name="wioEmail"]');
         if (emailInput) {
@@ -746,7 +761,8 @@ class OperatorOnboarding extends HTMLElement {
     // Handle fail verification button (for demo)
     const failButton = shadow.querySelector('[data-action="fail-verify"]');
     if (failButton) {
-      failButton.addEventListener("click", () => {
+      failButton.addEventListener("mousedown", (e) => {
+        e.preventDefault(); // Prevent blur from interfering
         // Capture email value from input
         const emailInput = shadow.querySelector('input[name="wioEmail"]');
         if (emailInput) {
@@ -942,13 +958,37 @@ class OperatorOnboarding extends HTMLElement {
   // ==================== UTILITIES ====================
 
   formatPhoneNumber(value) {
+    // Remove all non-digits
     const cleaned = value.replace(/\D/g, "");
-    if (cleaned.length === 10) {
-      return `(${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(
-        6
-      )}`;
+    
+    // Limit to 10 digits
+    const limited = cleaned.slice(0, 10);
+    
+    // Format progressively as (XXX) XXX-XXXX
+    if (limited.length === 0) {
+      return "";
+    } else if (limited.length <= 3) {
+      return limited;
+    } else if (limited.length <= 6) {
+      return `(${limited.slice(0, 3)}) ${limited.slice(3)}`;
+    } else {
+      return `(${limited.slice(0, 3)}) ${limited.slice(3, 6)}-${limited.slice(6)}`;
     }
-    return value;
+  }
+
+  formatEIN(value) {
+    // Remove all non-digits
+    const cleaned = value.replace(/\D/g, "");
+    
+    // Limit to 9 digits
+    const limited = cleaned.slice(0, 9);
+    
+    // Format as XX-XXXXXXX
+    if (limited.length <= 2) {
+      return limited;
+    } else {
+      return `${limited.slice(0, 2)}-${limited.slice(2)}`;
+    }
   }
 
   getFieldError(fieldName, repIndex = null) {
@@ -1885,6 +1925,17 @@ class OperatorOnboarding extends HTMLElement {
           })}
           
           ${this.renderField({
+            name: "ein",
+            label: "EIN *",
+            value: data.ein,
+            error: this.getFieldError("ein"),
+            placeholder: "12-3456789",
+            maxLength: 10,
+            dataFormat: "ein",
+            className: "full-width",
+          })}
+          
+          ${this.renderField({
             name: "businessWebsite",
             label: "Business Website",
             type: "url",
@@ -2396,7 +2447,8 @@ class OperatorOnboarding extends HTMLElement {
     // Resubmit button (on submission failure page)
     const resubmitBtn = shadow.querySelector(".btn-resubmit");
     if (resubmitBtn) {
-      resubmitBtn.addEventListener("click", async () => {
+      resubmitBtn.addEventListener("mousedown", async (e) => {
+        e.preventDefault(); // Prevent blur from interfering
         // Call onError callback with resubmit action
         if (this.onError && typeof this.onError === "function") {
           this.onError({ action: "resubmit", formData: this.state.formData });
@@ -2419,7 +2471,10 @@ class OperatorOnboarding extends HTMLElement {
     // Back to verification button (on failure page)
     const backToVerificationBtn = shadow.querySelector(".btn-back-to-verification");
     if (backToVerificationBtn) {
-      backToVerificationBtn.addEventListener("click", () => this.resetToVerification());
+      backToVerificationBtn.addEventListener("mousedown", (e) => {
+        e.preventDefault(); // Prevent blur from interfering
+        this.resetToVerification();
+      });
     }
   }
 
@@ -2432,26 +2487,36 @@ class OperatorOnboarding extends HTMLElement {
       input.addEventListener("input", (e) => this.handleFieldInput(e));
     });
 
-    // Navigation buttons
+    // Navigation buttons - use mousedown to prevent blur interference
     const nextBtn = shadow.querySelector(".btn-next");
     if (nextBtn) {
-      nextBtn.addEventListener("click", () => this.goToNextStep());
+      nextBtn.addEventListener("mousedown", (e) => {
+        e.preventDefault(); // Prevent blur from interfering
+        this.goToNextStep();
+      });
     }
 
     const backBtn = shadow.querySelector(".btn-back");
     if (backBtn) {
-      backBtn.addEventListener("click", () => this.goToPreviousStep());
+      backBtn.addEventListener("mousedown", (e) => {
+        e.preventDefault(); // Prevent blur from interfering
+        this.goToPreviousStep();
+      });
     }
 
     const skipBtn = shadow.querySelector(".btn-skip");
     if (skipBtn) {
-      skipBtn.addEventListener("click", () => this.skipStep());
+      skipBtn.addEventListener("mousedown", (e) => {
+        e.preventDefault(); // Prevent blur from interfering
+        this.skipStep();
+      });
     }
 
     // Verify button - ensure field is captured before validation
     const verifyBtn = shadow.querySelector(".btn-verify");
     if (verifyBtn) {
-      verifyBtn.addEventListener("click", () => {
+      verifyBtn.addEventListener("mousedown", (e) => {
+        e.preventDefault(); // Prevent blur from interfering
         // Capture email value from input before validating
         const emailInput = shadow.querySelector('input[name="wioEmail"]');
         if (emailInput) {
@@ -2473,7 +2538,8 @@ class OperatorOnboarding extends HTMLElement {
     // Fail Verify button - for demo purposes
     const failBtn = shadow.querySelector(".btn-fail");
     if (failBtn) {
-      failBtn.addEventListener("click", async () => {
+      failBtn.addEventListener("mousedown", async (e) => {
+        e.preventDefault(); // Prevent blur from interfering
         // Capture email value from input before validating
         const emailInput = shadow.querySelector('input[name="wioEmail"]');
         if (emailInput) {
@@ -2497,7 +2563,8 @@ class OperatorOnboarding extends HTMLElement {
     // Fail Submit button - for demo purposes
     const failSubmitBtn = shadow.querySelector(".btn-fail-submit");
     if (failSubmitBtn) {
-      failSubmitBtn.addEventListener("click", async () => {
+      failSubmitBtn.addEventListener("mousedown", async (e) => {
+        e.preventDefault(); // Prevent blur from interfering
         // Validate the field first
         if (!this.validateCurrentStep()) return;
 
@@ -2514,14 +2581,18 @@ class OperatorOnboarding extends HTMLElement {
       });
     });
 
-    // Representative CRUD
+    // Representative CRUD - use mousedown to prevent blur interference
     const addBtn = shadow.querySelector(".add-representative-btn");
     if (addBtn) {
-      addBtn.addEventListener("click", () => this.addRepresentative());
+      addBtn.addEventListener("mousedown", (e) => {
+        e.preventDefault(); // Prevent blur from interfering
+        this.addRepresentative();
+      });
     }
 
     shadow.querySelectorAll(".remove-btn").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
+      btn.addEventListener("mousedown", (e) => {
+        e.preventDefault(); // Prevent blur from interfering
         const index = parseInt(e.target.dataset.index);
         this.removeRepresentative(index);
       });
@@ -2537,6 +2608,11 @@ class OperatorOnboarding extends HTMLElement {
     // Phone number formatting on blur
     if (input.dataset.format === "phone") {
       input.value = this.formatPhoneNumber(value);
+    }
+
+    // EIN formatting on blur
+    if (input.dataset.format === "ein") {
+      input.value = this.formatEIN(value);
     }
 
     // URL normalization on blur
@@ -2595,8 +2671,41 @@ class OperatorOnboarding extends HTMLElement {
   handleFieldInput(e) {
     const input = e.target;
     const name = input.name;
-    const value = input.value;
+    let value = input.value;
     const repIndex = input.dataset.repIndex;
+
+    // Apply real-time formatting for EIN
+    if (input.dataset.format === "ein") {
+      const cursorPosition = input.selectionStart;
+      const oldValue = value;
+      value = this.formatEIN(value);
+      input.value = value;
+      
+      // Adjust cursor position after formatting
+      if (oldValue.length < value.length) {
+        // If a hyphen was added, move cursor after it
+        input.setSelectionRange(cursorPosition + 1, cursorPosition + 1);
+      } else {
+        input.setSelectionRange(cursorPosition, cursorPosition);
+      }
+    }
+
+    // Apply real-time formatting for phone numbers
+    if (input.dataset.format === "phone") {
+      const cursorPosition = input.selectionStart;
+      const oldValue = value;
+      value = this.formatPhoneNumber(value);
+      input.value = value;
+      
+      // Adjust cursor position after formatting
+      const diff = value.length - oldValue.length;
+      if (diff > 0) {
+        // Characters were added (formatting), move cursor forward
+        input.setSelectionRange(cursorPosition + diff, cursorPosition + diff);
+      } else {
+        input.setSelectionRange(cursorPosition, cursorPosition);
+      }
+    }
 
     // Update state in real-time
     const stepId = this.STEPS[this.state.currentStep].id;
@@ -2643,6 +2752,7 @@ class OperatorOnboarding extends HTMLElement {
         const fieldConfigs = {
           businessName: { validators: ["required"], label: "Business Name" },
           doingBusinessAs: { validators: ["required"], label: "Doing Business As (DBA)" },
+          ein: { validators: ["required", "ein"], label: "EIN" },
           businessWebsite: { validators: ["url"], label: "Business Website" },
           businessPhoneNumber: {
             validators: ["required", "usPhone"],
@@ -2852,35 +2962,35 @@ class OperatorOnboarding extends HTMLElement {
 customElements.define("operator-onboarding", OperatorOnboarding);
 
 /**
- * Standalone function to verify if an operator exists
- * This can be used to check operator status before rendering the onboarding form
+ * Standalone function to verify a WIO email
+ * This can be used to check WIO email status before rendering the onboarding form
  *
- * @param {string} operatorId - The operator ID to verify
+ * @param {string} wioEmail - The WIO email address to verify
  * @param {boolean} mockResult - Mock result for testing (true = verified, false = not verified)
- * @returns {boolean} - Returns true if operator is verified, false otherwise
+ * @returns {boolean} - Returns true if WIO email is verified, false otherwise
  *
  * @example
- * // Check if operator is verified
- * const isVerified = verifyOperator('OP123456', true);
+ * // Check if WIO email is verified
+ * const isVerified = verifyWIO('wio@example.com', true);
  * if (isVerified) {
  *   // Show onboarding form
  * } else {
  *   // Show error message
  * }
  */
-function verifyOperator(operatorId, mockResult) {
-  if (!operatorId || typeof operatorId !== "string") {
-    console.error("verifyOperator: operatorId must be a non-empty string");
+function verifyWIO(wioEmail, mockResult) {
+  if (!wioEmail || typeof wioEmail !== "string") {
+    console.error("verifyWIO: wioEmail must be a non-empty string");
     return false;
   }
 
   if (typeof mockResult !== "boolean") {
-    console.error("verifyOperator: mockResult must be a boolean");
+    console.error("verifyWIO: mockResult must be a boolean");
     return false;
   }
 
   // Log verification attempt
-  console.log(`Verifying operator: ${operatorId}`, { result: mockResult });
+  console.log(`Verifying WIO email: ${wioEmail}`, { result: mockResult });
 
   // Return the mock result
   return mockResult;
@@ -2888,10 +2998,10 @@ function verifyOperator(operatorId, mockResult) {
 
 // Export for module usage (if using ES modules)
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { OperatorOnboarding, verifyOperator };
+  module.exports = { OperatorOnboarding, verifyWIO };
 }
 
 // Also make available globally for script tag usage
 if (typeof window !== "undefined") {
-  window.verifyOperator = verifyOperator;
+  window.verifyWIO = verifyWIO;
 }
