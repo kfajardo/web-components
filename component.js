@@ -14,9 +14,10 @@ class OperatorOnboarding extends HTMLElement {
     // Initialize state
     this.state = {
       currentStep: 0,
-      totalSteps: 4,
+      totalSteps: 5,
       isSubmitted: false,
       isFailed: false,
+      verificationSkipped: false, // Track if verification was skipped via onLoad
       formData: {
         verification: {
           wioEmail: "",
@@ -33,6 +34,11 @@ class OperatorOnboarding extends HTMLElement {
           businessPostalCode: "",
         },
         representatives: [],
+        underwriting: {
+          // TODO: Add underwriting fields here as needed
+          // Example: industryType: "",
+          // Example: estimatedMonthlyRevenue: "",
+        },
         bankDetails: {
           accountHolderName: "",
           accountType: "checking",
@@ -44,7 +50,8 @@ class OperatorOnboarding extends HTMLElement {
         step0: { isValid: false, errors: {} },
         step1: { isValid: false, errors: {} },
         step2: { isValid: true, errors: {} },
-        step3: { isValid: false, errors: {} },
+        step3: { isValid: true, errors: {} }, // Underwriting step - set to true if optional
+        step4: { isValid: false, errors: {} },
       },
       completedSteps: new Set(),
       uiState: {
@@ -59,19 +66,19 @@ class OperatorOnboarding extends HTMLElement {
     this.STEPS = [
       {
         id: "verification",
-        title: "Verify WIO",
+        title: "Verification",
         description: "Verify WIO email address",
         canSkip: false,
       },
       {
         id: "business-details",
-        title: "Business Information",
+        title: "Business",
         description: "Provide your business details",
         canSkip: false,
       },
       {
         id: "representatives",
-        title: "Business Representatives",
+        title: "Representatives",
         description: "Add business representatives (optional)",
         canSkip: true,
       },
@@ -79,6 +86,12 @@ class OperatorOnboarding extends HTMLElement {
         id: "bank-details",
         title: "Bank Account",
         description: "Link your bank account",
+        canSkip: false,
+      },
+      {
+        id: "underwriting",
+        title: "Underwriting",
+        description: "Underwriting information",
         canSkip: false,
       },
     ];
@@ -332,6 +345,11 @@ class OperatorOnboarding extends HTMLElement {
           label: "Business Name",
         },
         {
+          name: "doingBusinessAs",
+          validators: ["required"],
+          label: "Doing Business As (DBA)",
+        },
+        {
           name: "businessWebsite",
           validators: ["url"],
           label: "Business Website",
@@ -343,7 +361,7 @@ class OperatorOnboarding extends HTMLElement {
         },
         {
           name: "businessEmail",
-          validators: ["required", "businessEmail"],
+          validators: ["required", "email"],
           label: "Business Email",
         },
         {
@@ -449,6 +467,23 @@ class OperatorOnboarding extends HTMLElement {
           });
         }
       });
+    } else if (stepId === "underwriting") {
+      // TODO: Add underwriting field validation here
+      // Example:
+      // const data = this.state.formData.underwriting;
+      // const fields = [
+      //   { name: "industryType", validators: ["required"], label: "Industry Type" },
+      // ];
+      // fields.forEach((field) => {
+      //   const error = this.validateField(data[field.name], field.validators, field.label);
+      //   if (error) {
+      //     errors[field.name] = error;
+      //     isValid = false;
+      //   }
+      // });
+
+      // For now, mark as valid since no fields are required yet
+      isValid = true;
     } else if (stepId === "bank-details") {
       const data = this.state.formData.bankDetails;
       const fields = [
@@ -634,6 +669,20 @@ class OperatorOnboarding extends HTMLElement {
     }
   }
 
+  resetToVerification() {
+    // Reset the failure state and return to verification step
+    this.setState({
+      currentStep: 0,
+      isFailed: false,
+      uiState: {
+        isLoading: false,
+        verificationStatus: null,
+        showErrors: false,
+        errorMessage: null,
+      },
+    });
+  }
+
   // ==================== REPRESENTATIVES CRUD ====================
 
   addRepresentative() {
@@ -725,6 +774,14 @@ class OperatorOnboarding extends HTMLElement {
       }));
     }
 
+    // Load underwriting
+    if (data.underwriting) {
+      newFormData.underwriting = {
+        ...newFormData.underwriting,
+        ...data.underwriting,
+      };
+    }
+
     // Load bank details
     if (data.bankDetails) {
       newFormData.bankDetails = {
@@ -745,6 +802,7 @@ class OperatorOnboarding extends HTMLElement {
 
       stateUpdate.currentStep = 1; // Start at business details step
       stateUpdate.completedSteps = completedSteps;
+      stateUpdate.verificationSkipped = true; // Mark that verification was skipped
     }
 
     this.setState(stateUpdate);
@@ -785,6 +843,7 @@ class OperatorOnboarding extends HTMLElement {
       verification: this.state.formData.verification,
       businessDetails: this.state.formData.businessDetails,
       representatives: this.state.formData.representatives,
+      underwriting: this.state.formData.underwriting,
       bankDetails: this.state.formData.bankDetails,
     };
 
@@ -822,6 +881,7 @@ class OperatorOnboarding extends HTMLElement {
           ${this.renderFailurePage()}
         </div>
       `;
+      this.attachFailurePageListeners();
       return;
     }
 
@@ -1518,8 +1578,9 @@ class OperatorOnboarding extends HTMLElement {
           
           ${this.renderField({
             name: "doingBusinessAs",
-            label: "Doing Business As (DBA)",
+            label: "Doing Business As (DBA) *",
             value: data.doingBusinessAs,
+            error: this.getFieldError("doingBusinessAs"),
           })}
           
           ${this.renderField({
@@ -1867,12 +1928,17 @@ class OperatorOnboarding extends HTMLElement {
       return "";
     }
 
+    // Hide back button if:
+    // 1. We're on first step, OR
+    // 2. We're on step 1 (Business) and verification was skipped via onLoad
+    const showBack =
+      !isFirstStep &&
+      !(this.state.currentStep === 1 && this.state.verificationSkipped);
+
     return `
       <div class="navigation-footer">
         ${
-          !isFirstStep
-            ? '<button type="button" class="btn-back">Back</button>'
-            : ""
+          showBack ? '<button type="button" class="btn-back">Back</button>' : ""
         }
         ${canSkip ? '<button type="button" class="btn-skip">Skip</button>' : ""}
         <button type="button" class="btn-next">
@@ -1964,14 +2030,37 @@ class OperatorOnboarding extends HTMLElement {
           </p>
         </div>
         
-        <p style="margin-top: var(--spacing-lg); color: #333;">
-          <strong>You can now close this dialog.</strong>
+        <div style="margin-top: var(--spacing-lg); display: flex; gap: var(--spacing-sm); justify-content: center;">
+          <button type="button" class="btn-back-to-verification" style="
+            padding: 12px 24px;
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: var(--border-radius);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+          ">Try Again</button>
+        </div>
+        
+        <p style="margin-top: var(--spacing-md); font-size: 12px; color: var(--gray-medium);">
+          Or you can close this dialog.
         </p>
       </div>
     `;
   }
 
   // ==================== EVENT HANDLING ====================
+
+  attachFailurePageListeners() {
+    const shadow = this.shadowRoot;
+
+    // Back to verification button (on failure page)
+    const backToVerificationBtn = shadow.querySelector(".btn-back-to-verification");
+    if (backToVerificationBtn) {
+      backToVerificationBtn.addEventListener("click", () => this.resetToVerification());
+    }
+  }
 
   attachEventListeners() {
     const shadow = this.shadowRoot;
@@ -2108,6 +2197,16 @@ class OperatorOnboarding extends HTMLElement {
       });
     } else if (stepId === "representatives" && repIndex !== undefined) {
       this.updateRepresentative(parseInt(repIndex), name, input.value);
+    } else if (stepId === "underwriting") {
+      // TODO: Add underwriting field handling here when fields are added
+      this.setState({
+        formData: {
+          underwriting: {
+            ...this.state.formData.underwriting,
+            [name]: input.value,
+          },
+        },
+      });
     } else if (stepId === "bank-details") {
       this.setState({
         formData: {
@@ -2138,13 +2237,16 @@ class OperatorOnboarding extends HTMLElement {
       if (this.state.formData.representatives[idx]) {
         this.state.formData.representatives[idx][name] = value;
       }
+    } else if (stepId === "underwriting") {
+      // TODO: Add underwriting field handling here when fields are added
+      this.state.formData.underwriting[name] = value;
     } else if (stepId === "bank-details") {
       this.state.formData.bankDetails[name] = value;
     }
 
     // Real-time validation: validate the field and update error state
     const stepKey = `step${this.state.currentStep}`;
-    
+
     // Initialize errors object if it doesn't exist
     if (!this.state.validationState[stepKey]) {
       this.state.validationState[stepKey] = { isValid: true, errors: {} };
@@ -2152,13 +2254,13 @@ class OperatorOnboarding extends HTMLElement {
     if (!this.state.validationState[stepKey].errors) {
       this.state.validationState[stepKey].errors = {};
     }
-    
+
     // Only validate if showErrors is true (after first submit attempt)
     if (this.state.uiState.showErrors) {
       // Get field configuration for validation
       let validators = [];
       let fieldLabel = name;
-      
+
       if (stepId === "verification") {
         if (name === "wioEmail") {
           validators = ["required", "email"];
@@ -2167,13 +2269,23 @@ class OperatorOnboarding extends HTMLElement {
       } else if (stepId === "business-details") {
         const fieldConfigs = {
           businessName: { validators: ["required"], label: "Business Name" },
+          doingBusinessAs: { validators: ["required"], label: "Doing Business As (DBA)" },
           businessWebsite: { validators: ["url"], label: "Business Website" },
-          businessPhoneNumber: { validators: ["required", "usPhone"], label: "Business Phone" },
-          businessEmail: { validators: ["required", "email"], label: "Business Email" },
+          businessPhoneNumber: {
+            validators: ["required", "usPhone"],
+            label: "Business Phone",
+          },
+          businessEmail: {
+            validators: ["required", "email"],
+            label: "Business Email",
+          },
           businessStreet: { validators: ["required"], label: "Street Address" },
           businessCity: { validators: ["required"], label: "City" },
           businessState: { validators: ["required"], label: "State" },
-          businessPostalCode: { validators: ["required", "postalCode"], label: "ZIP Code" },
+          businessPostalCode: {
+            validators: ["required", "postalCode"],
+            label: "ZIP Code",
+          },
         };
         if (fieldConfigs[name]) {
           validators = fieldConfigs[name].validators;
@@ -2181,27 +2293,67 @@ class OperatorOnboarding extends HTMLElement {
         }
       } else if (stepId === "representatives" && repIndex !== undefined) {
         const fieldConfigs = {
-          representativeFirstName: { validators: ["required"], label: "First Name" },
-          representativeLastName: { validators: ["required"], label: "Last Name" },
-          representativeJobTitle: { validators: ["required"], label: "Job Title" },
-          representativePhone: { validators: ["required", "usPhone"], label: "Phone" },
-          representativeEmail: { validators: ["required", "email"], label: "Email" },
-          representativeDateOfBirth: { validators: ["required"], label: "Date of Birth" },
+          representativeFirstName: {
+            validators: ["required"],
+            label: "First Name",
+          },
+          representativeLastName: {
+            validators: ["required"],
+            label: "Last Name",
+          },
+          representativeJobTitle: {
+            validators: ["required"],
+            label: "Job Title",
+          },
+          representativePhone: {
+            validators: ["required", "usPhone"],
+            label: "Phone",
+          },
+          representativeEmail: {
+            validators: ["required", "email"],
+            label: "Email",
+          },
+          representativeDateOfBirth: {
+            validators: ["required"],
+            label: "Date of Birth",
+          },
           representativeAddress: { validators: ["required"], label: "Address" },
           representativeCity: { validators: ["required"], label: "City" },
           representativeState: { validators: ["required"], label: "State" },
-          representativeZip: { validators: ["required", "postalCode"], label: "ZIP Code" },
+          representativeZip: {
+            validators: ["required", "postalCode"],
+            label: "ZIP Code",
+          },
         };
         if (fieldConfigs[name]) {
           validators = fieldConfigs[name].validators;
           fieldLabel = fieldConfigs[name].label;
         }
+      } else if (stepId === "underwriting") {
+        // TODO: Add underwriting field validation configs here when fields are added
+        // Example:
+        // const fieldConfigs = {
+        //   industryType: { validators: ["required"], label: "Industry Type" },
+        // };
+        // if (fieldConfigs[name]) {
+        //   validators = fieldConfigs[name].validators;
+        //   fieldLabel = fieldConfigs[name].label;
+        // }
       } else if (stepId === "bank-details") {
         const fieldConfigs = {
-          accountHolderName: { validators: ["required"], label: "Account Holder Name" },
+          accountHolderName: {
+            validators: ["required"],
+            label: "Account Holder Name",
+          },
           accountType: { validators: ["required"], label: "Account Type" },
-          routingNumber: { validators: ["required", "routingNumber"], label: "Routing Number" },
-          accountNumber: { validators: ["required", "accountNumber"], label: "Account Number" },
+          routingNumber: {
+            validators: ["required", "routingNumber"],
+            label: "Routing Number",
+          },
+          accountNumber: {
+            validators: ["required", "accountNumber"],
+            label: "Account Number",
+          },
         };
         if (fieldConfigs[name]) {
           validators = fieldConfigs[name].validators;
@@ -2212,20 +2364,23 @@ class OperatorOnboarding extends HTMLElement {
       // Validate the field
       if (validators.length > 0) {
         const error = this.validateField(value, validators, fieldLabel);
-        
+
         if (repIndex !== undefined) {
           // Handle representative field errors
           const repKey = `rep${repIndex}`;
           if (!this.state.validationState[stepKey].errors[repKey]) {
             this.state.validationState[stepKey].errors[repKey] = {};
           }
-          
+
           if (error) {
             this.state.validationState[stepKey].errors[repKey][name] = error;
           } else {
             delete this.state.validationState[stepKey].errors[repKey][name];
             // If no more errors for this rep, remove the rep key
-            if (Object.keys(this.state.validationState[stepKey].errors[repKey]).length === 0) {
+            if (
+              Object.keys(this.state.validationState[stepKey].errors[repKey])
+                .length === 0
+            ) {
               delete this.state.validationState[stepKey].errors[repKey];
             }
           }
@@ -2237,7 +2392,7 @@ class OperatorOnboarding extends HTMLElement {
             delete this.state.validationState[stepKey].errors[name];
           }
         }
-        
+
         // Update error message in DOM without full re-render
         this.updateFieldErrorDisplay(input, error);
       }
@@ -2246,27 +2401,27 @@ class OperatorOnboarding extends HTMLElement {
 
   updateFieldErrorDisplay(input, error) {
     // Find the parent form-field div
-    const formField = input.closest('.form-field');
+    const formField = input.closest(".form-field");
     if (!formField) return;
 
     // Update has-error class
     if (error) {
-      formField.classList.add('has-error');
+      formField.classList.add("has-error");
     } else {
-      formField.classList.remove('has-error');
+      formField.classList.remove("has-error");
     }
 
     // Find or create error message element
-    let errorSpan = formField.querySelector('.error-message');
-    
+    let errorSpan = formField.querySelector(".error-message");
+
     if (error) {
       if (errorSpan) {
         // Update existing error message
         errorSpan.textContent = error;
       } else {
         // Create new error message
-        errorSpan = document.createElement('span');
-        errorSpan.className = 'error-message';
+        errorSpan = document.createElement("span");
+        errorSpan.className = "error-message";
         errorSpan.textContent = error;
         formField.appendChild(errorSpan);
       }
