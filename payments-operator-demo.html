@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OperatorPayment Component - Demo</title>
+
+    <!-- Moov SDK is automatically loaded by the component -->
+    <!-- No manual script loading required! -->
+
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+        background: #f5f5f5;
+        padding: 20px;
+      }
+
+      .page-header {
+        text-align: center;
+        margin-bottom: 40px;
+        padding: 20px;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+
+      .page-header h1 {
+        color: #333;
+        margin-bottom: 10px;
+      }
+
+      .page-header p {
+        color: #666;
+        font-size: 14px;
+      }
+
+      .demo-section {
+        max-width: 900px;
+        margin: 0 auto 20px;
+        padding: 20px;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+
+      .demo-section h3 {
+        margin-bottom: 15px;
+        color: #333;
+      }
+
+      .demo-section p {
+        margin-bottom: 15px;
+        color: #666;
+        font-size: 14px;
+      }
+
+      .form-group {
+        margin-bottom: 15px;
+      }
+
+      .form-group label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: 500;
+        color: #333;
+      }
+
+      .form-group input {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 14px;
+      }
+
+      .button-group {
+        display: flex;
+        gap: 10px;
+        margin-top: 15px;
+      }
+
+      button {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: 500;
+        font-size: 14px;
+        transition: opacity 0.2s;
+      }
+
+      button:hover {
+        opacity: 0.9;
+      }
+
+      .btn-primary {
+        background: #325240;
+        color: white;
+      }
+
+      .btn-secondary {
+        background: #6c757d;
+        color: white;
+      }
+
+      .btn-success {
+        background: #28a745;
+        color: white;
+      }
+
+      .btn-danger {
+        background: #dc3545;
+        color: white;
+      }
+
+      .message-box {
+        padding: 15px;
+        border-radius: 4px;
+        margin-top: 15px;
+        display: none;
+      }
+
+      .message-box.visible {
+        display: block;
+      }
+
+      .message-box.success {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+      }
+
+      .message-box.error {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+      }
+
+      .message-box.info {
+        background: #d1ecf1;
+        color: #0c5460;
+        border: 1px solid #bee5eb;
+      }
+
+      code {
+        background: #f4f4f4;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-family: monospace;
+        font-size: 13px;
+      }
+
+      pre {
+        background: #1e1e1e;
+        color: #d4d4d4;
+        padding: 15px;
+        border-radius: 4px;
+        overflow-x: auto;
+        font-size: 13px;
+        margin-top: 10px;
+      }
+
+      .component-wrapper {
+        max-width: 900px;
+        margin: 0 auto;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page-header">
+      <h1>OperatorPayment Component Demo</h1>
+      <p>Test the operator payment methods integration</p>
+    </div>
+
+    <!-- Demo Controls -->
+    <div class="demo-section">
+      <h3>Demo Controls</h3>
+      <p>Configure and test the OperatorPayment component:</p>
+
+      <div class="form-group">
+        <label for="operatorEmailInput">Operator Email</label>
+        <input
+          type="email"
+          id="operatorEmailInput"
+          placeholder="operator@example.com"
+          value="operator@example.com" />
+      </div>
+
+      <div class="button-group">
+        <button class="btn-primary" onclick="initializeComponent()">
+          Initialize Component
+        </button>
+        <button class="btn-success" onclick="openPaymentDrop()">
+          Open Payment Drop
+        </button>
+        <button class="btn-secondary" onclick="closePaymentDrop()">
+          Close Payment Drop
+        </button>
+      </div>
+
+      <div id="messageBox" class="message-box"></div>
+    </div>
+
+    <!-- Usage Examples -->
+    <div class="demo-section">
+      <h3>Usage Examples</h3>
+
+      <h4 style="margin-top: 15px; margin-bottom: 10px">
+        1. Basic JavaScript Usage:
+      </h4>
+      <pre>
+const payment = document.getElementById('payment');
+payment.operatorEmail = 'operator@example.com';
+payment.onSuccess = (data) => console.log('Success!', data);
+payment.onError = ({ errorType, error }) => console.error(error);
+payment.open = true;</pre
+      >
+
+      <h4 style="margin-top: 15px; margin-bottom: 10px">2. HTML Attributes:</h4>
+      <pre>
+&lt;operator-payment 
+  operator-email="operator@example.com"
+  on-success="handleSuccess"
+  on-error="handleError"
+  open&gt;
+&lt;/operator-payment&gt;</pre
+      >
+
+      <h4 style="margin-top: 15px; margin-bottom: 10px">3. React Usage:</h4>
+      <pre>
+const paymentRef = useRef(null);
+
+useEffect(() => {
+  if (paymentRef.current) {
+    paymentRef.current.operatorEmail = operatorEmail;
+    paymentRef.current.onSuccess = handleSuccess;
+    paymentRef.current.onError = handleError;
+  }
+}, [operatorEmail]);
+
+return &lt;operator-payment ref={paymentRef} /&gt;;</pre
+      >
+    </div>
+
+    <!-- Component Container -->
+    <div class="component-wrapper">
+      <operator-payment id="payment"></operator-payment>
+    </div>
+
+    <!-- Load the component -->
+    <script src="payments-operator.js"></script>
+
+    <script>
+      // Get references
+      const paymentComponent = document.getElementById("payment");
+      const messageBox = document.getElementById("messageBox");
+
+      /**
+       * Show a message to the user
+       */
+      function showMessage(message, type = "info") {
+        messageBox.textContent = message;
+        messageBox.className = `message-box visible ${type}`;
+
+        // Auto-hide after 5 seconds for success/info messages
+        if (type !== "error") {
+          setTimeout(() => {
+            messageBox.className = "message-box";
+          }, 5000);
+        }
+      }
+
+      /**
+       * Initialize the component with operator email
+       */
+      function initializeComponent() {
+        const email = document.getElementById("operatorEmailInput").value;
+
+        if (!email) {
+          showMessage("Please enter an operator email", "error");
+          return;
+        }
+
+        // Set operator email (triggers initialization)
+        paymentComponent.operatorEmail = email;
+
+        // Set callbacks
+        paymentComponent.onSuccess = handlePaymentSuccess;
+        paymentComponent.onError = handlePaymentError;
+
+        showMessage(`Component initialized for: ${email}`, "success");
+      }
+
+      /**
+       * Open the payment methods drop
+       */
+      function openPaymentDrop() {
+        if (!paymentComponent.operatorEmail) {
+          showMessage("Please initialize the component first", "error");
+          return;
+        }
+
+        paymentComponent.open = true;
+        showMessage("Payment drop opened", "info");
+      }
+
+      /**
+       * Close the payment methods drop
+       */
+      function closePaymentDrop() {
+        paymentComponent.open = false;
+        showMessage("Payment drop closed", "info");
+      }
+
+      /**
+       * Handle successful payment method addition
+       */
+      function handlePaymentSuccess(data) {
+        console.log("✅ Payment method successfully added:", data);
+        showMessage(
+          `Payment method added successfully! Check console for details.`,
+          "success"
+        );
+
+        // In a real app, you might:
+        // - Refresh the payment methods list
+        // - Close a modal
+        // - Show a confirmation message
+        // - Navigate to another page
+      }
+
+      /**
+       * Handle payment errors
+       */
+      function handlePaymentError({ errorType, error }) {
+        console.error(`❌ Payment error (${errorType}):`, error);
+        showMessage(`Error (${errorType}): ${error}`, "error");
+
+        // In a real app, you might:
+        // - Show user-friendly error messages
+        // - Log to error tracking service
+        // - Provide retry options
+      }
+
+      /**
+       * Also listen for custom events (alternative to callbacks)
+       */
+      paymentComponent.addEventListener("payment-error", (event) => {
+        console.log("Payment error event:", event.detail);
+      });
+
+      // Log component status
+      console.log("✅ OperatorPayment Component Demo Loaded");
+      console.log("📝 Use the controls above to test the component");
+      console.log("🔧 Check browser console for detailed logs");
+
+      // Show initial message
+      showMessage(
+        'Component ready. Enter operator email and click "Initialize Component"',
+        "info"
+      );
+    </script>
+  </body>
+</html>
