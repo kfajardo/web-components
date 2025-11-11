@@ -1,17 +1,11 @@
 # Operator Onboarding Web Component
 
-A complete, self-contained web component for operator onboarding with a 4-step stepper form, validations, and success page.
+A complete, self-contained web component for operator onboarding with WIO email verification, 4-step stepper form, file uploads, validations, and success page.
 
 ## Installation
 
-### Via CDN (jsdelivr)
 ```html
-<script src="https://cdn.jsdelivr.net/npm/web-components-moov@1.0.3/component.js"></script>
-```
-
-### Via npm
-```bash
-npm install web-components-moov
+<script src="https://cdn.jsdelivr.net/npm/web-components-moov@1.0.17/component.js"></script>
 ```
 
 ## Basic Usage
@@ -20,11 +14,94 @@ npm install web-components-moov
 The simplest way to use the component:
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/web-components-moov@1.0.3/component.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/web-components-moov@1.0.17/component.js"></script>
 <operator-onboarding></operator-onboarding>
 ```
 
 When submitted, form data is automatically logged to console and success page is shown.
+
+---
+
+## Configuration
+
+The component can be configured with optional attributes for API integration:
+
+```html
+<operator-onboarding 
+  api-base-url="https://your-api-domain.com"
+  embeddable-key="your-embeddable-key">
+</operator-onboarding>
+```
+
+### Attributes
+
+| Attribute | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `api-base-url` | `String` | `https://bison-jib-development.azurewebsites.net` | Base URL for API endpoints |
+| `embeddable-key` | `String` | Default key provided | Authentication key for API requests |
+| `on-success` | `String` | - | Name of global function to call on success |
+| `on-error` | `String` | - | Name of global function to call on error |
+| `on-load` | `String` | - | JSON string or global variable name for initial data |
+
+---
+
+## Form Flow
+
+The onboarding process consists of two phases:
+
+### Phase 1: WIO Email Verification (Pre-Stepper)
+Before the main form, users must verify their WIO (Wealth & Income Opportunities) email address:
+- Single field: `wioEmail`
+- Real-time validation
+- Async verification with your API
+- Error handling for invalid WIO emails
+- Auto-skip if `wioEmail` is provided in `onLoad`
+
+### Phase 2: 4-Step Stepper Form
+After verification, users complete the main form:
+
+1. **Business Details** - Company information and address
+2. **Representatives** (Optional) - Add business representatives
+3. **Bank Account** - Link bank account details
+4. **Underwriting** - Upload required documents
+
+---
+
+## Form Steps in Detail
+
+### Step 1: Business Details
+- Business name *
+- Doing Business As (DBA) *
+- EIN (Employer Identification Number) * (auto-formatted as XX-XXXXXXX)
+- Business website (auto-normalized to include https://)
+- Business phone * (auto-formatted as (555) 123-4567)
+- Business email *
+- Full address * (street, city, state, ZIP)
+
+### Step 2: Representatives (Optional)
+- Add/remove multiple representatives
+- Full CRUD interface
+- Each representative requires:
+  - First name, last name *
+  - Job title *
+  - Phone * (auto-formatted)
+  - Email *
+  - Date of birth *
+  - Full address * (street, city, state, ZIP)
+- Can skip entire step if no representatives to add
+
+### Step 3: Bank Account
+- Account holder name *
+- Account type * (checking/savings)
+- Routing number * (9 digits)
+- Account number * (4-17 digits)
+
+### Step 4: Underwriting
+- Upload supporting documents * (required)
+- Drag-and-drop or browse file selection
+- Maximum 10 files
+- Maximum 10MB per file
+- Accepted formats: PDF, JPG, JPEG, PNG, DOC, DOCX
 
 ---
 
@@ -37,13 +114,15 @@ const component = document.querySelector('operator-onboarding');
 
 // Pre-populate with existing data
 component.onLoad = {
-  verification: {
-    businessEmail: 'existing@company.com'
-  },
+  wioEmail: 'existing@wio-company.com',  // Auto-skips verification
   businessDetails: {
     businessName: 'Acme Corp',
+    doingBusinessAs: 'Acme',
+    ein: '12-3456789',
+    businessWebsite: 'https://acme.com',
     businessPhoneNumber: '5551234567',
-    businessStreet: '123 Main St',
+    businessEmail: 'contact@acme.com',
+    BusinessAddress1: '123 Main St',
     businessCity: 'San Francisco',
     businessState: 'CA',
     businessPostalCode: '94105'
@@ -52,23 +131,34 @@ component.onLoad = {
     {
       representativeFirstName: 'John',
       representativeLastName: 'Doe',
-      representativeEmail: 'john@company.com'
-      // ... other fields
+      representativeJobTitle: 'CEO',
+      representativePhone: '5559876543',
+      representativeEmail: 'john@company.com',
+      representativeDateOfBirth: '1980-01-15',
+      representativeAddress: '456 Oak Ave',
+      representativeCity: 'San Francisco',
+      representativeState: 'CA',
+      representativeZip: '94105'
     }
   ],
+  underwriting: {
+    underwritingDocuments: []  // Can be pre-populated with File objects
+  },
   bankDetails: {
-    accountHolderName: 'Acme Corp',
-    accountType: 'checking',
-    routingNumber: '123456789',
-    accountNumber: '987654321'
+    bankAccountHolderName: 'Acme Corp',
+    bankAccountType: 'checking',
+    bankRoutingNumber: '123456789',
+    bankAccountNumber: '987654321'
   }
 };
 ```
 
+**Note:** If you provide `wioEmail` in `onLoad`, the verification step will be automatically skipped, and the user will proceed directly to the stepper form.
+
 ### Method 2: HTML Attribute with JSON
 
 ```html
-<operator-onboarding on-load='{"businessDetails":{"businessName":"Acme Corp"}}'></operator-onboarding>
+<operator-onboarding on-load='{"wioEmail":"test@wio.com","businessDetails":{"businessName":"Acme Corp"}}'></operator-onboarding>
 ```
 
 ### Method 3: HTML Attribute with Global Variable
@@ -76,6 +166,7 @@ component.onLoad = {
 ```html
 <script>
   const initialData = {
+    wioEmail: 'test@wio.com',
     businessDetails: {
       businessName: 'Acme Corp',
       businessEmail: 'test@company.com'
@@ -97,7 +188,7 @@ component.onLoad = {
 ```javascript
 const component = document.querySelector('operator-onboarding');
 
-// Simply assign a function to the onSuccess property
+// Success callback
 component.onSuccess = (formData) => {
   console.log('Onboarding complete!', formData);
   
@@ -111,6 +202,16 @@ component.onSuccess = (formData) => {
   // Close your modal
   closeModal();
 };
+
+// Error callback
+component.onError = (errorData) => {
+  console.error('Onboarding error:', errorData);
+  
+  if (errorData.action === 'resubmit') {
+    // User clicked resubmit button
+    console.log('User wants to retry submission');
+  }
+};
 ```
 
 ### Method 2: HTML Attribute
@@ -118,25 +219,45 @@ component.onSuccess = (formData) => {
 Good for simple cases with global functions:
 
 ```html
-<operator-onboarding on-success="handleSuccess"></operator-onboarding>
+<operator-onboarding 
+  on-success="handleSuccess"
+  on-error="handleError">
+</operator-onboarding>
 
 <script>
   function handleSuccess(data) {
     console.log('Success!', data);
     closeModal();
   }
+  
+  function handleError(errorData) {
+    console.error('Error:', errorData);
+  }
 </script>
 ```
 
-### Method 3: Event Listener
+### Method 3: Event Listeners
 
-Listen to the `formComplete` custom event:
+Listen to custom events:
 
 ```javascript
+// Success event
 component.addEventListener('formComplete', (event) => {
   const formData = event.detail;
   console.log('Form completed!', formData);
   closeModal();
+});
+
+// Verification failure event
+component.addEventListener('verificationFailed', (event) => {
+  const errorData = event.detail;
+  console.error('Verification failed:', errorData);
+});
+
+// Submission failure event
+component.addEventListener('submissionFailed', (event) => {
+  const errorData = event.detail;
+  console.error('Submission failed:', errorData);
 });
 ```
 
@@ -154,7 +275,7 @@ function OnboardingModal({ isOpen, onClose }) {
   
   useEffect(() => {
     if (componentRef.current) {
-      // Direct property assignment
+      // Success handler
       componentRef.current.onSuccess = (data) => {
         console.log('Onboarding complete:', data);
         
@@ -164,8 +285,13 @@ function OnboardingModal({ isOpen, onClose }) {
           body: JSON.stringify(data)
         });
         
-        // Close modal
         onClose();
+      };
+      
+      // Error handler
+      componentRef.current.onError = (errorData) => {
+        console.error('Error:', errorData);
+        // Handle errors appropriately
       };
     }
   }, [onClose]);
@@ -174,324 +300,17 @@ function OnboardingModal({ isOpen, onClose }) {
   
   return (
     <div className="modal">
-      <operator-onboarding ref={componentRef}></operator-onboarding>
-    </div>
-  );
-}
-```
-
-### Alternative: Callback Ref Pattern
-
-```jsx
-function OnboardingModal({ isOpen, onClose }) {
-  const handleSuccess = (data) => {
-    console.log('Complete!', data);
-    fetch('/api/onboard', { 
-      method: 'POST', 
-      body: JSON.stringify(data) 
-    });
-    onClose();
-  };
-  
-  if (!isOpen) return null;
-  
-  return (
-    <div className="modal">
       <operator-onboarding 
-        ref={(el) => {
-          if (el) el.onSuccess = handleSuccess;
-        }}
-      />
+        ref={componentRef}
+        api-base-url="https://your-api.com"
+        embeddable-key="your-key">
+      </operator-onboarding>
     </div>
   );
 }
 ```
 
----
-
-## Form Steps
-
-### Step 1: Email Verification
-- Single field: `businessEmail`
-- Fake async verification (2 seconds)
-- Success message display
-- Auto-progression to Step 2
-
-### Step 2: Business Details
-- Business name, DBA, website
-- Phone number (U.S. format with auto-formatting)
-- Email (read-only from Step 1)
-- Full address (street, city, state, ZIP)
-
-### Step 3: Representatives (Optional)
-- Add/remove multiple representatives
-- Full CRUD interface
-- All fields required if any field is filled
-- Can skip entire step
-
-### Step 4: Bank Details
-- Account holder name
-- Account type (checking/savings)
-- Routing number (9 digits)
-- Account number (4-17 digits)
-
----
-
-## Data Structure
-
-The component returns a complete data object:
-
-```javascript
-{
-  "verification": {
-    "businessEmail": "test@company.com"
-  },
-  "businessDetails": {
-    "businessName": "Acme Corp",
-    "doingBusinessAs": "Acme",
-    "businessWebsite": "https://acme.com",
-    "businessPhoneNumber": "(555) 123-4567",
-    "businessEmail": "test@company.com",
-    "businessStreet": "123 Main St",
-    "businessCity": "San Francisco",
-    "businessState": "CA",
-    "businessPostalCode": "94105"
-  },
-  "representatives": [
-    {
-      "id": "uuid-here",
-      "representativeFirstName": "John",
-      "representativeLastName": "Doe",
-      "representativeJobTitle": "CEO",
-      "representativePhone": "(555) 987-6543",
-      "representativeEmail": "john@company.com",
-      "representativeDateOfBirth": "1980-01-15",
-      "representativeAddress": "456 Oak Ave",
-      "representativeCity": "San Francisco",
-      "representativeState": "CA",
-      "representativeZip": "94105"
-    }
-  ],
-  "bankDetails": {
-    "accountHolderName": "Acme Corp",
-    "accountType": "checking",
-    "routingNumber": "123456789",
-    "accountNumber": "987654321"
-  }
-}
-```
-
----
-
-## Features
-
-✅ **4-Step Stepper Form** - Visual progress indicator  
-✅ **Field Validation** - Real-time validation on blur  
-✅ **Phone Formatting** - Auto-formats to (555) 123-4567  
-✅ **Email Verification** - Fake async verification flow  
-✅ **CRUD Representatives** - Add/remove multiple reps  
-✅ **Success Page** - Animated completion screen  
-✅ **Framework Friendly** - Easy integration with React, Vue, etc.  
-✅ **Shadow DOM** - Fully encapsulated styles  
-✅ **Zero Dependencies** - Pure vanilla JavaScript  
-
----
-
-## Modal Integration Example
-
-```html
-<div id="onboardingModal" class="modal">
-  <div class="modal-content">
-    <operator-onboarding on-success="closeOnboardingModal"></operator-onboarding>
-  </div>
-</div>
-
-<script>
-  function closeOnboardingModal(data) {
-    console.log('Onboarding complete for:', data.businessDetails.businessName);
-    
-    // Close modal
-    document.getElementById('onboardingModal').style.display = 'none';
-    
-    // Send data to backend
-    fetch('/api/onboarding', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    });
-  }
-</script>
-```
-
----
-
-## API Reference
-
-### Properties
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `onSuccess` | `Function` | Callback function called when form is successfully submitted. Receives complete form data as parameter. |
-| `onLoad` | `Object` | Pre-populate form fields with initial data. Accepts partial or complete form data object. |
-
-### Attributes
-
-| Attribute | Type | Description |
-|-----------|------|-------------|
-| `on-success` | `String` | Name of global function to call on success. |
-| `on-load` | `String` | JSON string or name of global variable containing initial form data. |
-
-### Events
-
-| Event | Detail | Description |
-|-------|--------|-------------|
-| `formComplete` | `Object` | Emitted when form is successfully submitted. `event.detail` contains complete form data. |
-
-### Methods
-
-| Method | Parameters | Returns | Description |
-|--------|------------|---------|-------------|
-| `verifyOperator(operatorId, mockResult)` | `operatorId: string`, `mockResult: boolean` | `boolean` | Standalone function to verify if an operator exists. Used to conditionally render the onboarding form. |
-
----
-
-## Operator Verification
-
-The `verifyOperator` function allows you to check if an operator should be shown the onboarding form before rendering it.
-
-### Usage
-
-```javascript
-// Basic usage
-const isVerified = verifyOperator('OP123456', true);
-
-if (isVerified) {
-  // Show the onboarding form
-  document.getElementById('onboarding-container').innerHTML = `
-    <operator-onboarding></operator-onboarding>
-  `;
-} else {
-  // Show error message
-  document.getElementById('onboarding-container').innerHTML = `
-    <div class="error">Operator not found or not eligible for onboarding.</div>
-  `;
-}
-```
-
-### React Example
-
-```jsx
-import { useState, useEffect } from 'react';
-
-function OnboardingPage({ operatorId }) {
-  const [isVerified, setIsVerified] = useState(false);
-  const [isChecking, setIsChecking] = useState(true);
-  
-  useEffect(() => {
-    // In a real app, you'd call your API here
-    // For demo purposes, using the mock function
-    const verified = window.verifyOperator(operatorId, true);
-    setIsVerified(verified);
-    setIsChecking(false);
-  }, [operatorId]);
-  
-  if (isChecking) {
-    return <div>Checking operator status...</div>;
-  }
-  
-  if (!isVerified) {
-    return (
-      <div className="error">
-        <h2>Access Denied</h2>
-        <p>This operator is not eligible for onboarding.</p>
-      </div>
-    );
-  }
-  
-  return (
-    <div className="onboarding-container">
-      <operator-onboarding />
-    </div>
-  );
-}
-```
-
-### Vue Example
-
-```vue
-<template>
-  <div v-if="isChecking">Checking operator status...</div>
-  <div v-else-if="!isVerified" class="error">
-    <h2>Access Denied</h2>
-    <p>This operator is not eligible for onboarding.</p>
-  </div>
-  <div v-else>
-    <operator-onboarding></operator-onboarding>
-  </div>
-</template>
-
-<script>
-export default {
-  props: ['operatorId'],
-  data() {
-    return {
-      isVerified: false,
-      isChecking: true
-    };
-  },
-  mounted() {
-    // In a real app, call your API here
-    this.isVerified = window.verifyOperator(this.operatorId, true);
-    this.isChecking = false;
-  }
-};
-</script>
-```
-
-### Parameters
-
-- `operatorId` (string, required): The operator ID to verify
-- `mockResult` (boolean, required): Mock result for testing
-  - `true`: Operator is verified (show onboarding form)
-  - `false`: Operator is not verified (show error message)
-
-### Returns
-
-- `boolean`: `true` if operator is verified, `false` otherwise
-
-**Note:** In production, replace `mockResult` with an actual API call to your backend to verify the operator.
-
----
-
-## Complete Example: Edit Mode
-
-Pre-populate form for editing existing operator:
-
-```javascript
-// Fetch existing operator data
-fetch('/api/operators/123')
-  .then(res => res.json())
-  .then(existingData => {
-    const component = document.querySelector('operator-onboarding');
-    
-    // Pre-populate with existing data
-    component.onLoad = existingData;
-    
-    // Handle updates
-    component.onSuccess = (updatedData) => {
-      fetch('/api/operators/123', {
-        method: 'PUT',
-        body: JSON.stringify(updatedData)
-      })
-      .then(() => {
-        console.log('Operator updated!');
-        closeModal();
-      });
-    };
-  });
-```
-
-### React Example with Pre-populated Data
+### With Pre-populated Data
 
 ```jsx
 function EditOperatorModal({ operatorId, isOpen, onClose }) {
@@ -509,7 +328,7 @@ function EditOperatorModal({ operatorId, isOpen, onClose }) {
   
   useEffect(() => {
     if (componentRef.current) {
-      // Set initial data
+      // Pre-populate form
       if (initialData) {
         componentRef.current.onLoad = initialData;
       }
@@ -537,12 +356,318 @@ function EditOperatorModal({ operatorId, isOpen, onClose }) {
 
 ---
 
+## Data Structure
+
+The component returns a complete data object:
+
+```javascript
+{
+  "verification": {
+    "wioEmail": "test@wio-company.com"
+  },
+  "businessDetails": {
+    "businessName": "Acme Corp",
+    "doingBusinessAs": "Acme",
+    "ein": "12-3456789",
+    "businessWebsite": "https://acme.com",
+    "businessPhoneNumber": "(555) 123-4567",
+    "businessEmail": "contact@acme.com",
+    "BusinessAddress1": "123 Main St",
+    "businessCity": "San Francisco",
+    "businessState": "CA",
+    "businessPostalCode": "94105"
+  },
+  "representatives": [
+    {
+      "id": "uuid-here",
+      "representativeFirstName": "John",
+      "representativeLastName": "Doe",
+      "representativeJobTitle": "CEO",
+      "representativePhone": "(555) 987-6543",
+      "representativeEmail": "john@company.com",
+      "representativeDateOfBirth": "1980-01-15",
+      "representativeAddress": "456 Oak Ave",
+      "representativeCity": "San Francisco",
+      "representativeState": "CA",
+      "representativeZip": "94105"
+    }
+  ],
+  "underwriting": {
+    "underwritingDocuments": [
+      // Array of File objects
+      File { name: "document.pdf", size: 1234567, type: "application/pdf" }
+    ]
+  },
+  "bankDetails": {
+    "bankAccountHolderName": "Acme Corp",
+    "bankAccountType": "checking",
+    "bankRoutingNumber": "123456789",
+    "bankAccountNumber": "987654321"
+  }
+}
+```
+
+---
+
+## Features
+
+✅ **WIO Email Verification** - Pre-stepper email validation  
+✅ **4-Step Stepper Form** - Visual progress indicator  
+✅ **Field Validation** - Real-time validation on blur  
+✅ **Auto-Formatting** - Phone numbers, EIN, URLs  
+✅ **File Upload** - Drag-and-drop with validation  
+✅ **CRUD Representatives** - Add/remove multiple reps  
+✅ **Error Handling** - Verification and submission failures  
+✅ **Success Page** - Animated completion screen  
+✅ **Framework Friendly** - Easy integration with React, Vue, etc.  
+✅ **Shadow DOM** - Fully encapsulated styles  
+✅ **Zero Dependencies** - Pure vanilla JavaScript  
+✅ **API Integration** - Ready for backend integration  
+
+---
+
+## API Reference
+
+### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `onSuccess` | `Function` | Callback function called when form is successfully submitted. Receives complete form data as parameter. |
+| `onError` | `Function` | Callback function called when verification or submission fails. Receives error data as parameter. |
+| `onLoad` | `Object` | Pre-populate form fields with initial data. Accepts partial or complete form data object. If `wioEmail` is provided, verification is automatically skipped. |
+| `apiBaseURL` | `String` | Base URL for API endpoints. |
+| `embeddableKey` | `String` | Authentication key for API requests. |
+
+### Events
+
+| Event | Detail | Description |
+|-------|--------|-------------|
+| `formComplete` | `Object` | Emitted when form is successfully submitted. `event.detail` contains complete form data. |
+| `verificationFailed` | `Object` | Emitted when WIO email verification fails. `event.detail` contains error information. |
+| `submissionFailed` | `Object` | Emitted when form submission fails. `event.detail` contains error information. |
+
+### Global Functions
+
+| Function | Parameters | Returns | Description |
+|----------|------------|---------|-------------|
+| `verifyWIO(wioEmail, mockResult)` | `wioEmail: string`, `mockResult: boolean` | `boolean` | Verify if a WIO email is valid before rendering the form. |
+| `verifyOperator(operatorEmail, mockResult)` | `operatorEmail: string`, `mockResult: boolean` | `boolean` | Verify if an operator email exists. |
+
+---
+
+## WIO Email Verification
+
+The component requires WIO email verification before the main form. You can also verify WIO emails programmatically before rendering the component.
+
+### Usage
+
+```javascript
+// Check if WIO email is valid before showing form
+const isValid = verifyWIO('wio@example.com', true);
+
+if (isValid) {
+  // Show the onboarding form
+  document.getElementById('container').innerHTML = `
+    <operator-onboarding></operator-onboarding>
+  `;
+} else {
+  // Show error message
+  document.getElementById('container').innerHTML = `
+    <div class="error">Invalid WIO email. Please contact support.</div>
+  `;
+}
+```
+
+### React Example
+
+```jsx
+import { useState, useEffect } from 'react';
+
+function OnboardingPage({ wioEmail }) {
+  const [isValid, setIsValid] = useState(false);
+  const [isChecking, setIsChecking] = useState(true);
+  
+  useEffect(() => {
+    // In production, call your API here
+    const valid = window.verifyWIO(wioEmail, true);
+    setIsValid(valid);
+    setIsChecking(false);
+  }, [wioEmail]);
+  
+  if (isChecking) {
+    return <div>Verifying WIO email...</div>;
+  }
+  
+  if (!isValid) {
+    return (
+      <div className="error">
+        <h2>Invalid WIO Email</h2>
+        <p>This WIO email is not recognized.</p>
+      </div>
+    );
+  }
+  
+  return (
+    <div className="onboarding-container">
+      <operator-onboarding />
+    </div>
+  );
+}
+```
+
+### Parameters
+
+- `wioEmail` (string, required): The WIO email to verify
+- `mockResult` (boolean, required): Mock result for testing
+  - `true`: Email is valid (proceed)
+  - `false`: Email is invalid (show error)
+
+### Returns
+
+- `boolean`: `true` if valid, `false` otherwise
+
+**Note:** In production, replace `mockResult` with actual API integration.
+
+---
+
+## Operator Verification
+
+Similar to WIO verification, you can verify operator emails:
+
+```javascript
+// Check if operator exists
+const exists = verifyOperator('operator@company.com', true);
+
+if (exists) {
+  // Proceed with operation
+  console.log('Operator verified');
+} else {
+  // Show error
+  console.error('Operator not found');
+}
+```
+
+---
+
+## Error Handling
+
+The component provides comprehensive error handling:
+
+### Verification Failures
+
+When WIO email verification fails:
+
+```javascript
+component.addEventListener('verificationFailed', (event) => {
+  const { email, message, timestamp } = event.detail;
+  console.error('Verification failed:', message);
+  // Show custom error UI
+});
+
+// Or use callback
+component.onError = (errorData) => {
+  if (errorData.message.includes('WIO email')) {
+    // Handle verification error
+  }
+};
+```
+
+### Submission Failures
+
+When form submission fails:
+
+```javascript
+component.addEventListener('submissionFailed', (event) => {
+  const { formData, message, timestamp } = event.detail;
+  console.error('Submission failed:', message);
+  // Retry or show error
+});
+
+// Or use callback
+component.onError = (errorData) => {
+  if (errorData.action === 'resubmit') {
+    // User clicked resubmit button
+    // Your retry logic here
+  }
+};
+```
+
+---
+
+## Modal Integration Example
+
+```html
+<div id="onboardingModal" class="modal">
+  <div class="modal-content">
+    <operator-onboarding 
+      on-success="closeOnboardingModal"
+      on-error="handleOnboardingError">
+    </operator-onboarding>
+  </div>
+</div>
+
+<script>
+  function closeOnboardingModal(data) {
+    console.log('Onboarding complete for:', data.businessDetails.businessName);
+    
+    // Close modal
+    document.getElementById('onboardingModal').style.display = 'none';
+    
+    // Send data to backend
+    fetch('/api/onboarding', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+  }
+  
+  function handleOnboardingError(errorData) {
+    console.error('Onboarding error:', errorData);
+    // Show error notification
+  }
+</script>
+```
+
+---
+
+## File Upload Validation
+
+The underwriting step includes file upload with the following restrictions:
+
+- **Maximum files:** 10
+- **Maximum size per file:** 10MB
+- **Allowed formats:** PDF, JPG, JPEG, PNG, DOC, DOCX
+- **Validation:** Real-time with error messages
+
+Files are validated on both drag-and-drop and browse selection. Invalid files are rejected with clear error messages.
+
+---
+
 ## Browser Support
 
 - Chrome/Edge (latest)
 - Firefox (latest)
 - Safari (latest)
 - Any browser supporting Custom Elements V1 and Shadow DOM
+
+---
+
+## API Integration
+
+The component is designed to work with the BisonJibPay API. Configure your endpoints:
+
+```html
+<operator-onboarding 
+  api-base-url="https://your-api-domain.com"
+  embeddable-key="your-embeddable-key">
+</operator-onboarding>
+```
+
+### API Endpoints Used
+
+- `POST /api/embeddable/validate/operator-email` - Validate operator email
+- `POST /api/embeddable/validate/wio-email` - Validate WIO email
+- `POST /api/embeddable/operator-registration` - Register operator with form data
 
 ---
 
