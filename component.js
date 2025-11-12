@@ -63,16 +63,6 @@ class BisonJibPayAPI {
   }
 
   /**
-   * Validate WIO email
-   */
-  async validateWIOEmail(email) {
-    return this.request("/api/embeddable/validate/wio-email", {
-      method: "POST",
-      body: JSON.stringify({ email }),
-    });
-  }
-
-  /**
    * Register operator
    */
   async registerOperator(formData) {
@@ -108,16 +98,11 @@ class OperatorOnboarding extends HTMLElement {
     // Initialize state
     this.state = {
       currentStep: 0,
-      totalSteps: 4, // Business, Representatives, Underwriting, Bank (verification is pre-stepper)
+      totalSteps: 4, // Business, Representatives, Bank, Underwriting
       isSubmitted: false,
       isFailed: false,
       isSubmissionFailed: false,
-      isVerified: false, // Track if WIO verification is complete
-      verificationSkipped: false, // Track if verification was skipped via onLoad
       formData: {
-        verification: {
-          wioEmail: "",
-        },
         businessDetails: {
           businessName: "",
           doingBusinessAs: "",
@@ -142,7 +127,6 @@ class OperatorOnboarding extends HTMLElement {
         },
       },
       validationState: {
-        verification: { isValid: false, errors: {} }, // Pre-stepper validation
         step0: { isValid: false, errors: {} }, // Business Details
         step1: { isValid: true, errors: {} }, // Representatives (optional)
         step2: { isValid: false, errors: {} }, // Bank Details
@@ -151,7 +135,6 @@ class OperatorOnboarding extends HTMLElement {
       completedSteps: new Set(),
       uiState: {
         isLoading: false,
-        verificationStatus: null,
         showErrors: false,
         errorMessage: null,
       },
@@ -412,10 +395,6 @@ class OperatorOnboarding extends HTMLElement {
     if (typeof stepIdentifier === "number") {
       step = this.STEPS[stepIdentifier];
       stepKey = `step${stepIdentifier}`;
-    } else if (stepIdentifier === "verification") {
-      // Special case for verification (pre-stepper)
-      step = { id: "verification", fields: ["wioEmail"] };
-      stepKey = "verification";
     } else {
       step = this.STEPS.find((s) => s.id === stepIdentifier);
       stepKey = stepIdentifier;
@@ -425,20 +404,6 @@ class OperatorOnboarding extends HTMLElement {
 
     let isValid = true;
     const errors = {};
-
-    // Validation logic for verification step
-    if (step.id === "verification") {
-      const email = this.state.formData.verification.wioEmail;
-      const error = this.validateField(
-        email,
-        ["required", "email"],
-        "WIO Email"
-      );
-      if (error) {
-        errors.wioEmail = error;
-        isValid = false;
-      }
-    }
 
     // Update validation state
     this.setState({
@@ -469,18 +434,7 @@ class OperatorOnboarding extends HTMLElement {
     let isValid = true;
     const errors = {};
 
-    if (stepId === "verification") {
-      const email = this.state.formData.verification.wioEmail;
-      const error = this.validateField(
-        email,
-        ["required", "email"],
-        "WIO Email"
-      );
-      if (error) {
-        errors.wioEmail = error;
-        isValid = false;
-      }
-    } else if (stepId === "business-details") {
+    if (stepId === "business-details") {
       const data = this.state.formData.businessDetails;
       const fields = [
         {
@@ -745,209 +699,6 @@ class OperatorOnboarding extends HTMLElement {
     }
   }
 
-  // ==================== ASYNC OPERATIONS ====================
-
-  async handleVerification(shouldFail = false) {
-    // Set loading state
-    this.setState({
-      uiState: { isLoading: true, verificationStatus: "pending" },
-    });
-
-    // Simulate API call (2 seconds)
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-
-    if (shouldFail) {
-      // Handle verification failure
-      this.handleVerificationFailure();
-      return;
-    }
-
-    // Update verification status to success
-    this.setState({
-      uiState: { isLoading: false, verificationStatus: "success" },
-    });
-
-    // Show "Proceeding to onboarding" message (1.5 seconds)
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-
-    // Mark as verified and proceed to stepper form
-    this.setState({
-      isVerified: true,
-      currentStep: 0, // Start at first step of stepper (Business Details)
-      uiState: {
-        verificationStatus: null,
-        showErrors: false,
-        isLoading: false,
-      },
-    });
-  }
-
-  handleVerificationFailure() {
-    const email = this.state.formData.verification.wioEmail;
-    const errorData = {
-      email,
-      message: "This email is not a valid WIO email.",
-      timestamp: new Date().toISOString(),
-    };
-
-    // Log error to console
-    console.error("Verification Failed:", errorData);
-
-    // Update state to show failure page
-    this.setState({
-      isFailed: true,
-      uiState: {
-        isLoading: false,
-        verificationStatus: "failed",
-        errorMessage: errorData.message,
-      },
-    });
-
-    // Emit custom error event
-    this.dispatchEvent(
-      new CustomEvent("verificationFailed", {
-        detail: errorData,
-        bubbles: true,
-        composed: true,
-      })
-    );
-
-    // Call onError callback if provided
-    if (this.onError && typeof this.onError === "function") {
-      this.onError(errorData);
-    }
-  }
-
-  resetToVerification() {
-    // Reset the failure state and return to verification step
-    this.setState({
-      currentStep: 0,
-      isFailed: false,
-      isVerified: false, // Stay in pre-stepper verification
-      uiState: {
-        isLoading: false,
-        verificationStatus: null,
-        showErrors: false,
-        errorMessage: null,
-      },
-    });
-  }
-
-  // Attach event listeners for standalone verification form
-  attachVerificationListeners() {
-    const shadow = this.shadowRoot;
-
-    // Handle verification form submission
-    const verifyButton = shadow.querySelector('[data-action="verify"]');
-    if (verifyButton) {
-      verifyButton.addEventListener("mousedown", async (e) => {
-        e.preventDefault(); // Prevent blur from interfering
-
-        // Capture email value from input
-        const emailInput = shadow.querySelector('input[name="wioEmail"]');
-        if (!emailInput) return;
-
-        const email = emailInput.value.trim();
-
-        // Update state with email
-        this.state.formData.verification.wioEmail = email;
-
-        // Validate email directly
-        const emailError = this.validateField(
-          email,
-          ["required", "email"],
-          "WIO Email"
-        );
-
-        if (emailError) {
-          // Show validation error
-          this.setState({
-            validationState: {
-              verification: {
-                isValid: false,
-                errors: { wioEmail: emailError },
-              },
-            },
-            uiState: { showErrors: true },
-          });
-        } else {
-          // Email is valid, proceed with verification
-          this.handleVerification(false);
-        }
-      });
-    }
-
-    // Handle fail verification button (for demo)
-    const failButton = shadow.querySelector('[data-action="fail-verify"]');
-    if (failButton) {
-      failButton.addEventListener("mousedown", (e) => {
-        e.preventDefault(); // Prevent blur from interfering
-        // Capture email value from input
-        const emailInput = shadow.querySelector('input[name="wioEmail"]');
-        if (emailInput) {
-          this.setState({
-            formData: {
-              verification: {
-                wioEmail: emailInput.value,
-              },
-            },
-          });
-        }
-
-        // Validate the verification step
-        const isValid = this.validateStep("verification");
-        if (isValid) {
-          this.handleVerification(true);
-        } else {
-          this.setState({
-            uiState: { showErrors: true },
-          });
-        }
-      });
-    }
-
-    // Handle field input for verification step
-    const wioEmailInput = shadow.querySelector('[name="wioEmail"]');
-    if (wioEmailInput) {
-      wioEmailInput.addEventListener("input", (e) => {
-        // Update state in real-time
-        this.state.formData.verification.wioEmail = e.target.value;
-
-        // Real-time validation if showErrors is true
-        if (this.state.uiState.showErrors) {
-          const error = this.validateField(
-            e.target.value,
-            ["required", "email"],
-            "WIO Email"
-          );
-
-          // Initialize validation state if needed
-          if (!this.state.validationState.verification) {
-            this.state.validationState.verification = {
-              isValid: true,
-              errors: {},
-            };
-          }
-
-          if (error) {
-            this.state.validationState.verification.errors.wioEmail = error;
-          } else {
-            delete this.state.validationState.verification.errors.wioEmail;
-          }
-
-          // Update error message in DOM without full re-render
-          this.updateFieldErrorDisplay(e.target, error);
-        }
-      });
-
-      wioEmailInput.addEventListener("blur", () => {
-        this.setState({
-          uiState: { showErrors: true },
-        });
-      });
-    }
-  }
-
   // ==================== REPRESENTATIVES CRUD ====================
 
   addRepresentative() {
@@ -998,28 +749,12 @@ class OperatorOnboarding extends HTMLElement {
   loadInitialData(data) {
     const newFormData = { ...this.state.formData };
 
-    // Check for wioEmail to skip verification step
-    const hasWioEmail = data.wioEmail && data.wioEmail.trim().length > 0;
-
-    // Load verification data
-    if (data.verification) {
-      newFormData.verification = {
-        ...newFormData.verification,
-        ...data.verification,
-      };
-    }
-
     // Load business details
     if (data.businessDetails) {
       newFormData.businessDetails = {
         ...newFormData.businessDetails,
         ...data.businessDetails,
       };
-    }
-
-    // If wioEmail exists, pre-populate verification email for skipping step 0
-    if (hasWioEmail) {
-      newFormData.verification.wioEmail = data.wioEmail;
     }
 
     // Load representatives
@@ -1056,29 +791,9 @@ class OperatorOnboarding extends HTMLElement {
     }
 
     // Update state with loaded data
-    const stateUpdate = {
-      formData: newFormData,
-      verificationSkipped: hasWioEmail, // Mark that verification will be auto-skipped
-    };
-
-    // If wioEmail exists, trigger automatic verification
-    if (hasWioEmail) {
-      stateUpdate.isVerified = false; // Ensure we show verification UI
-      stateUpdate.uiState = {
-        isLoading: true,
-        verificationStatus: "pending",
-      };
-    }
-
-    this.setState(stateUpdate);
-
-    // Trigger automatic verification if wioEmail was provided
-    if (hasWioEmail) {
-      // Small delay to allow UI to render loading state
-      setTimeout(() => {
-        this.handleVerification(false); // false = success, can be changed for testing
-      }, 100);
-    }
+    this.setState({
+      formData: newFormData
+    });
   }
 
   // ==================== UTILITIES ====================
@@ -1122,12 +837,6 @@ class OperatorOnboarding extends HTMLElement {
   getFieldError(fieldName, repIndex = null) {
     if (!this.state.uiState.showErrors) return "";
 
-    // For verification step (pre-stepper)
-    if (!this.state.isVerified) {
-      const errors = this.state.validationState.verification?.errors || {};
-      return errors[fieldName] || "";
-    }
-
     // For stepper steps
     const errors =
       this.state.validationState[`step${this.state.currentStep}`]?.errors || {};
@@ -1156,7 +865,6 @@ class OperatorOnboarding extends HTMLElement {
 
     // Log all form data to console
     const formData = {
-      verification: this.state.formData.verification,
       businessDetails: this.state.formData.businessDetails,
       representatives: this.state.formData.representatives,
       underwriting: this.state.formData.underwriting,
@@ -1231,18 +939,6 @@ class OperatorOnboarding extends HTMLElement {
   // ==================== RENDERING ====================
 
   render() {
-    // Show failure page if verification failed
-    if (this.state.isFailed) {
-      this.shadowRoot.innerHTML = `
-        ${this.renderStyles()}
-        <div class="onboarding-container">
-          ${this.renderFailurePage()}
-        </div>
-      `;
-      this.attachFailurePageListeners();
-      return;
-    }
-
     // Show submission failure page
     if (this.state.isSubmissionFailed) {
       this.shadowRoot.innerHTML = `
@@ -1267,7 +963,7 @@ class OperatorOnboarding extends HTMLElement {
     }
 
     // Show loading during submission
-    if (this.state.uiState.isLoading && this.state.isVerified) {
+    if (this.state.uiState.isLoading) {
       this.shadowRoot.innerHTML = `
         ${this.renderStyles()}
         <div class="onboarding-container">
@@ -1283,19 +979,7 @@ class OperatorOnboarding extends HTMLElement {
       return;
     }
 
-    // If NOT verified, show standalone verification flow
-    if (!this.state.isVerified) {
-      this.shadowRoot.innerHTML = `
-        ${this.renderStyles()}
-        <div class="onboarding-container">
-          ${this.renderVerificationStep()}
-        </div>
-      `;
-      this.attachVerificationListeners();
-      return;
-    }
-
-    // If verified, show main stepper form
+    // Show main stepper form
     this.shadowRoot.innerHTML = `
       ${this.renderStyles()}
       <div class="onboarding-container">
@@ -1612,27 +1296,6 @@ class OperatorOnboarding extends HTMLElement {
           background: #0056b3;
         }
         
-        .btn-verify {
-          background: var(--primary-color);
-          color: white;
-          padding: 12px 24px;
-          border: none;
-          border-radius: var(--border-radius);
-          font-size: 14px;
-          font-weight: 500;
-          cursor: pointer;
-          margin-top: var(--spacing-md);
-        }
-        
-        .btn-verify:hover {
-          background: #325240e6;
-        }
-        
-        .btn-verify:disabled {
-          background: var(--gray-medium);
-          cursor: not-allowed;
-        }
-        
         /* Loading & Messages */
         .loading-spinner {
           border: 3px solid var(--gray-light);
@@ -1796,12 +1459,6 @@ class OperatorOnboarding extends HTMLElement {
         
         .btn-fail:hover {
           background: #c82333;
-        }
-        
-        .verification-buttons {
-          display: flex;
-          gap: var(--spacing-sm);
-          margin-top: var(--spacing-md);
         }
         
         /* Success Page */
@@ -2073,79 +1730,6 @@ class OperatorOnboarding extends HTMLElement {
         `
           )
           .join("")}
-      </div>
-    `;
-  }
-
-  renderVerificationStep() {
-    const { wioEmail } = this.state.formData.verification;
-    const errors = this.state.validationState.verification?.errors || {};
-    const showErrors = this.state.uiState.showErrors;
-    const { isLoading, verificationStatus } = this.state.uiState;
-
-    // Show loading screen during verification
-    if (isLoading) {
-      return `
-        <div class="step-content" style="text-align: center; padding: calc(var(--spacing-lg) * 2);">
-          <div class="form-logo">
-            <img src="https://bisonpaywell.com/lovable-uploads/28831244-e8b3-4e7b-8dbb-c016f9f9d54f.png" alt="Logo" />
-          </div>
-          <h2>Verifying WIO Email...</h2>
-          <p style="color: var(--gray-medium); margin-bottom: var(--spacing-lg);">
-            Please wait while we verify: <strong>${
-              wioEmail || "your email"
-            }</strong>
-          </p>
-          <div class="loading-spinner"></div>
-        </div>
-      `;
-    }
-
-    // Show success message before transitioning to stepper
-    if (verificationStatus === "success") {
-      return `
-        <div class="success-container">
-          <div class="success-icon">
-            <svg viewBox="0 0 52 52">
-              <path d="M14 27l7 7 16-16"/>
-            </svg>
-          </div>
-          <h2>Verification Successful!</h2>
-          <p>Proceeding to onboarding...</p>
-        </div>
-      `;
-    }
-
-    // Show standalone verification form
-    return `
-      <div class="step-content">
-        <div class="form-logo">
-          <img src="https://bisonpaywell.com/lovable-uploads/28831244-e8b3-4e7b-8dbb-c016f9f9d54f.png" alt="Logo" />
-        </div>
-        <h2>Verify WIO Email</h2>
-        <p>Enter your WIO email address to begin the operator onboarding process.</p>
-        
-        <div class="form-field ${
-          showErrors && errors.wioEmail ? "has-error" : ""
-        }">
-          <label for="wioEmail">WIO Email <span class="required-asterisk">*</span></label>
-          <input
-            type="email"
-            id="wioEmail"
-            name="wioEmail"
-            value="${wioEmail}"
-            placeholder="your.email@company.com"
-          />
-          ${
-            showErrors && errors.wioEmail
-              ? `<span class="error-message">${errors.wioEmail}</span>`
-              : ""
-          }
-        </div>
-        
-        <div class="verification-buttons">
-          <button type="button" class="btn-verify" data-action="verify">Verify Email</button>
-        </div>
       </div>
     `;
   }
@@ -2527,8 +2111,7 @@ class OperatorOnboarding extends HTMLElement {
     const canSkip = this.STEPS[this.state.currentStep].canSkip;
     console.log("[FORM DATA]: ", this.state.formData);
 
-    // Hide back button if we're on first step (Business Details)
-    // Since verification is now pre-stepper, there's nothing to go back to
+    // Hide back button on first step (Business Details)
     const showBack = !isFirstStep;
 
     return `
@@ -2596,53 +2179,6 @@ class OperatorOnboarding extends HTMLElement {
           A confirmation email has been sent to <strong>${
             businessDetails.businessEmail
           }</strong>
-        </p>
-      </div>
-    `;
-  }
-
-  renderFailurePage() {
-    const { wioEmail } = this.state.formData.verification;
-    const { errorMessage } = this.state.uiState;
-
-    return `
-      <div class="error-container">
-        <div class="error-icon">
-          <svg viewBox="0 0 52 52">
-            <circle cx="26" cy="26" r="25" fill="none"/>
-            <path d="M16 16 L36 36 M36 16 L16 36"/>
-          </svg>
-        </div>
-        
-        <h2>Verification Failed</h2>
-        <p>This WIO email could not be verified.</p>
-        
-        <div class="error-details">
-          <h3>Error Details</h3>
-          <p><strong>Email:</strong> ${wioEmail}</p>
-          <p><strong>Issue:</strong> ${
-            errorMessage || "This WIO email does not exist in our system."
-          }</p>
-          <p style="margin-top: var(--spacing-md);">
-            Please ensure you have a valid WIO associated with this email address before attempting to onboard an operator.
-          </p>
-        </div>
-        
-        <div style="margin-top: var(--spacing-lg); display: flex; gap: var(--spacing-sm); justify-content: center;">
-          <button type="button" class="btn-back-to-verification" style="
-            padding: 12px 24px;
-            background: var(--primary-color);
-            color: white;
-            border: none;
-            border-radius: var(--border-radius);
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-          ">Try Again</button>
-        </div>
-        
-        <p style="margin-top: var(--spacing-md); font-size: 12px; color: var(--gray-medium);">
-          Or you can close this dialog.
         </p>
       </div>
     `;
@@ -2765,29 +2301,6 @@ class OperatorOnboarding extends HTMLElement {
       skipBtn.addEventListener("mousedown", (e) => {
         e.preventDefault(); // Prevent blur from interfering
         this.skipStep();
-      });
-    }
-
-    // Verify button - ensure field is captured before validation
-    const verifyBtn = shadow.querySelector(".btn-verify");
-    if (verifyBtn) {
-      verifyBtn.addEventListener("mousedown", (e) => {
-        e.preventDefault(); // Prevent blur from interfering
-        // Capture email value from input before validating
-        const emailInput = shadow.querySelector('input[name="wioEmail"]');
-        if (emailInput) {
-          this.setState({
-            formData: {
-              verification: {
-                wioEmail: emailInput.value,
-              },
-            },
-          });
-          // Small delay to ensure state is updated before validation
-          setTimeout(() => this.goToNextStep(), 0);
-        } else {
-          this.goToNextStep();
-        }
       });
     }
 
@@ -2997,16 +2510,7 @@ class OperatorOnboarding extends HTMLElement {
     // Update state based on step
     const stepId = this.STEPS[this.state.currentStep].id;
 
-    if (stepId === "verification") {
-      this.setState({
-        formData: {
-          verification: {
-            ...this.state.formData.verification,
-            [name]: input.value,
-          },
-        },
-      });
-    } else if (stepId === "business-details") {
+    if (stepId === "business-details") {
       this.setState({
         formData: {
           businessDetails: {
@@ -3081,9 +2585,7 @@ class OperatorOnboarding extends HTMLElement {
     // Update state in real-time
     const stepId = this.STEPS[this.state.currentStep].id;
 
-    if (stepId === "verification") {
-      this.state.formData.verification[name] = value;
-    } else if (stepId === "business-details") {
+    if (stepId === "business-details") {
       this.state.formData.businessDetails[name] = value;
     } else if (stepId === "representatives" && repIndex !== undefined) {
       const idx = parseInt(repIndex);
@@ -3114,12 +2616,7 @@ class OperatorOnboarding extends HTMLElement {
       let validators = [];
       let fieldLabel = name;
 
-      if (stepId === "verification") {
-        if (name === "wioEmail") {
-          validators = ["required", "email"];
-          fieldLabel = "WIO Email";
-        }
-      } else if (stepId === "business-details") {
+      if (stepId === "business-details") {
         const fieldConfigs = {
           businessName: { validators: ["required"], label: "Business Name" },
           doingBusinessAs: {
@@ -3339,41 +2836,6 @@ class OperatorOnboarding extends HTMLElement {
 customElements.define("operator-onboarding", OperatorOnboarding);
 
 /**
- * Standalone function to verify a WIO email
- * This can be used to check WIO email status before rendering the onboarding form
- *
- * @param {string} wioEmail - The WIO email address to verify
- * @param {boolean} mockResult - Mock result for testing (true = verified, false = not verified)
- * @returns {boolean} - Returns true if WIO email is verified, false otherwise
- *
- * @example
- * // Check if WIO email is verified
- * const isVerified = verifyWIO('wio@example.com', true);
- * if (isVerified) {
- *   // Show onboarding form
- * } else {
- *   // Show error message
- * }
- */
-function verifyWIO(wioEmail, mockResult) {
-  if (!wioEmail || typeof wioEmail !== "string") {
-    console.error("verifyWIO: wioEmail must be a non-empty string");
-    return false;
-  }
-
-  if (typeof mockResult !== "boolean") {
-    console.error("verifyWIO: mockResult must be a boolean");
-    return false;
-  }
-
-  // Log verification attempt
-  console.log(`Verifying WIO email: ${wioEmail}`, { result: mockResult });
-
-  // Return the mock result
-  return mockResult;
-}
-
-/**
  * Standalone function to verify an operator email
  * This can be used to check operator email status
  *
@@ -3412,12 +2874,11 @@ function verifyOperator(operatorEmail, mockResult) {
 
 // Export for module usage (if using ES modules)
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { BisonJibPayAPI, OperatorOnboarding, verifyWIO, verifyOperator };
+  module.exports = { BisonJibPayAPI, OperatorOnboarding, verifyOperator };
 }
 
 // Also make available globally for script tag usage
 if (typeof window !== "undefined") {
   window.BisonJibPayAPI = BisonJibPayAPI;
-  window.verifyWIO = verifyWIO;
   window.verifyOperator = verifyOperator;
 }
