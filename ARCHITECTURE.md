@@ -78,17 +78,17 @@ The current [`OperatorOnboarding`](component.js) component demonstrates a basic 
   
   // Form data organized by step
   formData: {
-    step1: { businessEmail: '' },
-    step2: { /* business details */ },
-    step3: { representatives: [] },
-    step4: { /* bank details */ }
+    step1: { /* business details */ },
+    step2: { representatives: [] },
+    step3: { /* bank details */ },
+    step4: { /* underwriting */ }
   },
   
   // Validation state per step
   validationState: {
     step1: { isValid: false, errors: {} },
-    step2: { isValid: false, errors: {} },
-    step3: { isValid: true, errors: {} }, // Optional step
+    step2: { isValid: true, errors: {} }, // Optional step
+    step3: { isValid: false, errors: {} },
     step4: { isValid: false, errors: {} }
   },
   
@@ -98,7 +98,6 @@ The current [`OperatorOnboarding`](component.js) component demonstrates a basic 
   // UI state
   uiState: {
     isLoading: false,
-    verificationStatus: null, // 'pending' | 'success' | 'error'
     showErrors: false
   }
 }
@@ -259,14 +258,6 @@ Render Error Messages
 ```javascript
 const STEPS = [
   {
-    id: 'verification',
-    title: 'Verify Email',
-    description: 'Verify your business email address',
-    canSkip: false,
-    requiresValidation: true,
-    hasAsyncOperation: true // Email verification
-  },
-  {
     id: 'business-details',
     title: 'Business Information',
     description: 'Provide your business details',
@@ -289,6 +280,14 @@ const STEPS = [
     canSkip: false,
     requiresValidation: true,
     hasAsyncOperation: false
+  },
+  {
+    id: 'underwriting',
+    title: 'Underwriting',
+    description: 'Upload required documents',
+    canSkip: false,
+    requiresValidation: true,
+    hasAsyncOperation: false
   }
 ];
 ```
@@ -305,17 +304,12 @@ async goToNextStep() {
     return;
   }
   
-  // 2. Handle async operations (e.g., Step 1 verification)
-  if (STEPS[this.state.currentStep].hasAsyncOperation) {
-    await this.performStepOperation();
-  }
-  
-  // 3. Mark step complete
+  // 2. Mark step complete
   this.markStepComplete(this.state.currentStep);
   
-  // 4. Progress to next step
+  // 3. Progress to next step
   if (this.state.currentStep < this.state.totalSteps - 1) {
-    this.setState({ 
+    this.setState({
       currentStep: this.state.currentStep + 1,
       uiState: { showErrors: false }
     });
@@ -377,20 +371,13 @@ skipStep() {
 
 ```javascript
 {
-  // Step 1: Verification
-  verification: {
-    businessEmail: '',
-    verificationStatus: 'pending' | 'verified' | 'failed',
-    verifiedAt: null // timestamp
-  },
-  
-  // Step 2: Business Details
+  // Step 1: Business Details
   businessDetails: {
     businessName: '',
     doingBusinessAs: '', // Optional
     businessWebsite: '',
     businessPhoneNumber: '',
-    businessEmail: '', // Read-only from Step 1
+    businessEmail: '',
     address: {
       street: '',
       city: '',
@@ -399,7 +386,7 @@ skipStep() {
     }
   },
   
-  // Step 3: Representatives (Array of objects)
+  // Step 2: Representatives (Array of objects)
   representatives: [
     {
       id: 'uuid-v4', // Unique identifier
@@ -418,12 +405,17 @@ skipStep() {
     }
   ],
   
-  // Step 4: Bank Details
+  // Step 3: Bank Details
   bankDetails: {
     accountHolderName: '',
     accountType: 'checking' | 'savings',
     routingNumber: '',
     accountNumber: ''
+  },
+  
+  // Step 4: Underwriting
+  underwriting: {
+    underwritingDocuments: [] // Array of File objects
   },
   
   // Metadata
@@ -539,44 +531,15 @@ class OperatorOnboarding extends HTMLElement {
     const stepId = STEPS[this.state.currentStep].id;
     
     switch(stepId) {
-      case 'verification':
-        return this.renderVerificationStep();
       case 'business-details':
         return this.renderBusinessDetailsStep();
       case 'representatives':
         return this.renderRepresentativesStep();
       case 'bank-details':
         return this.renderBankDetailsStep();
+      case 'underwriting':
+        return this.renderUnderwritingStep();
     }
-  }
-  
-  // Verification step (Step 1)
-  renderVerificationStep() {
-    const { businessEmail } = this.state.formData.verification;
-    const { isLoading, verificationStatus } = this.state.uiState;
-    
-    return `
-      <div class="step-content">
-        <h2>Verify Your Business Email</h2>
-        <p>Enter your business email to get started</p>
-        
-        ${this.renderField({
-          name: 'businessEmail',
-          label: 'Business Email',
-          type: 'email',
-          value: businessEmail,
-          error: this.getFieldError('businessEmail')
-        })}
-        
-        ${verificationStatus === 'success' ? `
-          <div class="success-message">
-            ✓ Email verified successfully! Proceeding to next step...
-          </div>
-        ` : ''}
-        
-        ${isLoading ? '<div class="loading-spinner"></div>' : ''}
-      </div>
-    `;
   }
   
   // Representatives step with CRUD
@@ -685,42 +648,7 @@ class OperatorOnboarding extends HTMLElement {
 
 ## Technical Specifications
 
-### Step 1: Verification Flow
-
-```javascript
-async handleVerification() {
-  // 1. Set loading state
-  this.setState({ 
-    uiState: { isLoading: true, verificationStatus: 'pending' } 
-  });
-  
-  // 2. Simulate API call with timeout (2 seconds)
-  await new Promise(resolve => setTimeout(resolve, 2000));
-  
-  // 3. Update verification status
-  this.setState({
-    formData: {
-      verification: {
-        ...this.state.formData.verification,
-        verificationStatus: 'verified',
-        verifiedAt: new Date().toISOString()
-      }
-    },
-    uiState: { 
-      isLoading: false, 
-      verificationStatus: 'success' 
-    }
-  });
-  
-  // 4. Show success message briefly
-  await new Promise(resolve => setTimeout(resolve, 1500));
-  
-  // 5. Auto-progress to next step
-  this.goToNextStep();
-}
-```
-
-### Step 3: Representative CRUD Operations
+### Step 2: Representative CRUD Operations
 
 ```javascript
 // Add new representative
@@ -920,10 +848,9 @@ handleError(error, context) {
 4. Add field-level validation
 
 ### Phase 2: Enhanced Features
-1. Implement verification async flow
-2. Add representative CRUD functionality
-3. Implement phone number formatting
-4. Add accessibility features
+1. Add representative CRUD functionality
+2. Implement phone number formatting
+3. Add accessibility features
 
 ### Phase 3: Polish & Optimization
 1. Refine UI/UX with transitions
@@ -974,10 +901,10 @@ component.js
 │   ├── render()
 │   ├── renderStepperHeader()
 │   ├── renderCurrentStep()
-│   ├── renderVerificationStep()
 │   ├── renderBusinessDetailsStep()
 │   ├── renderRepresentativesStep()
 │   ├── renderBankDetailsStep()
+│   ├── renderUnderwritingStep()
 │   └── renderNavigationFooter()
 ├── Event Handling
 │   ├── attachEventListeners()
@@ -1010,48 +937,50 @@ The proposed architecture can be implemented incrementally, allowing for iterati
 ```
 ┌─────────────┐
 │ Step 1      │
-│ (Email)     │──────┐
+│ (Business)  │──────┐
 └─────────────┘      │
-                     ↓ (verify & next)
+                     ↓ (validate & next)
               ┌─────────────┐
               │ Step 2      │
-              │ (Business)  │──────┐
+              │ (Reps)      │──────┐
               └─────────────┘      │
-                     ↑             ↓ (validate & next)
+                     ↑             ↓ (next or skip)
                      │      ┌─────────────┐
-                     │      │ Step 3      │
-                  (back)    │ (Reps)      │──────┐
+                  (back)    │ Step 3      │
+                     │      │ (Bank)      │──────┐
                      │      └─────────────┘      │
-                     │             │             ↓ (next or skip)
-                     │             ↓      ┌─────────────┐
-                     │      ┌─────────────┤ Step 4      │
-                     └──────┤             │ (Bank)      │
-                            │             └─────────────┘
-                            │                    │
-                            │                    ↓ (submit)
-                            │             ┌─────────────┐
-                            └─────────────┤  Complete   │
-                                         └─────────────┘
+                     │             ↑             ↓ (validate & next)
+                     │             │      ┌─────────────┐
+                     │          (back)    │ Step 4      │
+                     │             │      │(Underwrite) │
+                     │             │      └─────────────┘
+                     │             │             │
+                     │             │             ↓ (submit)
+                     │             │      ┌─────────────┐
+                     └─────────────┴──────┤  Complete   │
+                                          └─────────────┘
 ```
 
 ### Field Summary Table
 
 | Step | Field Name | Type | Validation | Optional |
 |------|-----------|------|-----------|----------|
+| 1 | businessName | text | required | No |
+| 1 | doingBusinessAs | text | - | Yes |
+| 1 | ein | text | required, ein | No |
+| 1 | businessWebsite | url | url | Yes |
+| 1 | businessPhoneNumber | tel | required, usPhone | No |
 | 1 | businessEmail | email | required, email | No |
-| 2 | businessName | text | required | No |
-| 2 | doingBusinessAs | text | - | Yes |
-| 2 | businessWebsite | url | url | Yes |
-| 2 | businessPhoneNumber | tel | required, usPhone | No |
-| 2 | businessStreet | text | required | No |
-| 2 | businessCity | text | required | No |
-| 2 | businessState | text | required | No |
-| 2 | businessPostalCode | text | required, postalCode | No |
-| 3 | representatives[] | array | conditional | Yes (entire step) |
-| 4 | accountHolderName | text | required | No |
-| 4 | accountType | select | required | No |
-| 4 | routingNumber | text | required, routingNumber | No |
-| 4 | accountNumber | text | required, accountNumber | No |
+| 1 | businessStreet | text | required | No |
+| 1 | businessCity | text | required | No |
+| 1 | businessState | text | required | No |
+| 1 | businessPostalCode | text | required, postalCode | No |
+| 2 | representatives[] | array | conditional | Yes (entire step) |
+| 3 | accountHolderName | text | required | No |
+| 3 | accountType | select | required | No |
+| 3 | routingNumber | text | required, routingNumber | No |
+| 3 | accountNumber | text | required, accountNumber | No |
+| 4 | underwritingDocuments | file | required | No |
 
 ---
 

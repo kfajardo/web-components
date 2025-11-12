@@ -1,4 +1,79 @@
 /**
+ * API Service for BisonJibPay Embeddable Endpoints
+ */
+class BisonJibPayAPI {
+  constructor(baseURL, embeddableKey) {
+    this.baseURL = baseURL || "https://bison-jib-development.azurewebsites.net";
+    this.embeddableKey = embeddableKey;
+  }
+
+  /**
+   * Make authenticated API request
+   */
+  async request(endpoint, options = {}) {
+    const url = `${this.baseURL}${endpoint}`;
+    const headers = {
+      "X-Embeddable-Key": this.embeddableKey,
+      ...options.headers,
+    };
+
+    // Don't add Content-Type for FormData
+    if (!(options.body instanceof FormData)) {
+      headers["Content-Type"] = "application/json";
+    }
+
+    try {
+      const response = await fetch(url, {
+        ...options,
+        headers,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw {
+          status: response.status,
+          data: data,
+        };
+      }
+
+      return data;
+    } catch (error) {
+      // Re-throw with structured error
+      if (error.status) throw error;
+      throw {
+        status: 500,
+        data: {
+          success: false,
+          message: "Network error occurred",
+          errors: [error.message],
+        },
+      };
+    }
+  }
+
+  /**
+   * Validate operator email
+   */
+  async validateOperatorEmail(email) {
+    return this.request("/api/embeddable/validate/operator-email", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    });
+  }
+
+  /**
+   * Register operator
+   */
+  async registerOperator(formData) {
+    return this.request("/api/embeddable/operator-registration", {
+      method: "POST",
+      body: formData, // FormData object
+    });
+  }
+}
+
+/**
  * A web component that captures operator information via stepper form
  * with necessary field validations. This serves as the simplified approach
  * in comparison to the Moov Onboarding Drop.
@@ -11,19 +86,23 @@ class OperatorOnboarding extends HTMLElement {
     super();
     this.attachShadow({ mode: "open" });
 
+    // API Configuration
+    this.apiBaseURL =
+      this.getAttribute("api-base-url") ||
+      "https://bison-jib-development.azurewebsites.net";
+    this.embeddableKey =
+      this.getAttribute("embeddable-key") ||
+      "R80WMkbNN8457RofiMYx03DL65P06IaVT30Q2emYJUBQwYCzRC";
+    this.api = new BisonJibPayAPI(this.apiBaseURL, this.embeddableKey);
+
     // Initialize state
     this.state = {
       currentStep: 0,
-      totalSteps: 4, // Business, Representatives, Underwriting, Bank (verification is pre-stepper)
+      totalSteps: 4, // Business, Representatives, Bank, Underwriting
       isSubmitted: false,
       isFailed: false,
       isSubmissionFailed: false,
-      isVerified: false, // Track if WIO verification is complete
-      verificationSkipped: false, // Track if verification was skipped via onLoad
       formData: {
-        verification: {
-          wioEmail: "",
-        },
         businessDetails: {
           businessName: "",
           doingBusinessAs: "",
@@ -31,35 +110,31 @@ class OperatorOnboarding extends HTMLElement {
           businessWebsite: "",
           businessPhoneNumber: "",
           businessEmail: "",
-          businessStreet: "",
+          BusinessAddress1: "",
           businessCity: "",
           businessState: "",
           businessPostalCode: "",
         },
         representatives: [],
         underwriting: {
-          // TODO: Add underwriting fields here as needed
-          // Example: industryType: "",
-          // Example: estimatedMonthlyRevenue: "",
+          underwritingDocuments: [], // File upload support for underwriting documents
         },
         bankDetails: {
-          accountHolderName: "",
-          accountType: "checking",
-          routingNumber: "",
-          accountNumber: "",
+          bankAccountHolderName: "",
+          bankAccountType: "checking",
+          bankRoutingNumber: "",
+          bankAccountNumber: "",
         },
       },
       validationState: {
-        verification: { isValid: false, errors: {} }, // Pre-stepper validation
         step0: { isValid: false, errors: {} }, // Business Details
         step1: { isValid: true, errors: {} }, // Representatives (optional)
         step2: { isValid: false, errors: {} }, // Bank Details
-        step3: { isValid: true, errors: {} }, // Underwriting (optional)
+        step3: { isValid: false, errors: {} }, // Underwriting (required)
       },
       completedSteps: new Set(),
       uiState: {
         isLoading: false,
-        verificationStatus: null,
         showErrors: false,
         errorMessage: null,
       },
@@ -88,7 +163,7 @@ class OperatorOnboarding extends HTMLElement {
       {
         id: "underwriting",
         title: "Underwriting",
-        description: "Underwriting information",
+        description: "Upload required documents",
         canSkip: false,
       },
     ];
@@ -316,34 +391,20 @@ class OperatorOnboarding extends HTMLElement {
     // Handle both step index (number) and step id (string)
     let step;
     let stepKey;
-    
-    if (typeof stepIdentifier === 'number') {
+
+    if (typeof stepIdentifier === "number") {
       step = this.STEPS[stepIdentifier];
       stepKey = `step${stepIdentifier}`;
-    } else if (stepIdentifier === 'verification') {
-      // Special case for verification (pre-stepper)
-      step = { id: 'verification', fields: ['wioEmail'] };
-      stepKey = 'verification';
     } else {
-      step = this.STEPS.find(s => s.id === stepIdentifier);
+      step = this.STEPS.find((s) => s.id === stepIdentifier);
       stepKey = stepIdentifier;
     }
-    
+
     if (!step) return false;
-    
+
     let isValid = true;
     const errors = {};
-    
-    // Validation logic for verification step
-    if (step.id === "verification") {
-      const email = this.state.formData.verification.wioEmail;
-      const error = this.validateField(email, ["required", "email"], "WIO Email");
-      if (error) {
-        errors.wioEmail = error;
-        isValid = false;
-      }
-    }
-    
+
     // Update validation state
     this.setState({
       validationState: {
@@ -351,7 +412,7 @@ class OperatorOnboarding extends HTMLElement {
       },
       uiState: { showErrors: !isValid },
     });
-    
+
     return isValid;
   }
 
@@ -373,18 +434,7 @@ class OperatorOnboarding extends HTMLElement {
     let isValid = true;
     const errors = {};
 
-    if (stepId === "verification") {
-      const email = this.state.formData.verification.wioEmail;
-      const error = this.validateField(
-        email,
-        ["required", "email"],
-        "WIO Email"
-      );
-      if (error) {
-        errors.wioEmail = error;
-        isValid = false;
-      }
-    } else if (stepId === "business-details") {
+    if (stepId === "business-details") {
       const data = this.state.formData.businessDetails;
       const fields = [
         {
@@ -418,7 +468,7 @@ class OperatorOnboarding extends HTMLElement {
           label: "Business Email",
         },
         {
-          name: "businessStreet",
+          name: "BusinessAddress1",
           validators: ["required"],
           label: "Street Address",
         },
@@ -521,43 +571,36 @@ class OperatorOnboarding extends HTMLElement {
         }
       });
     } else if (stepId === "underwriting") {
-      // TODO: Add underwriting field validation here
-      // Example:
-      // const data = this.state.formData.underwriting;
-      // const fields = [
-      //   { name: "industryType", validators: ["required"], label: "Industry Type" },
-      // ];
-      // fields.forEach((field) => {
-      //   const error = this.validateField(data[field.name], field.validators, field.label);
-      //   if (error) {
-      //     errors[field.name] = error;
-      //     isValid = false;
-      //   }
-      // });
-
-      // For now, mark as valid since no fields are required yet
-      isValid = true;
+      // Validate that at least one document is uploaded
+      const data = this.state.formData.underwriting;
+      if (
+        !data.underwritingDocuments ||
+        data.underwritingDocuments.length === 0
+      ) {
+        errors.underwritingDocuments = "At least one document is required";
+        isValid = false;
+      }
     } else if (stepId === "bank-details") {
       const data = this.state.formData.bankDetails;
       const fields = [
         {
-          name: "accountHolderName",
+          name: "bankAccountHolderName",
           validators: ["required"],
           label: "Account Holder Name",
         },
         {
-          name: "accountType",
+          name: "bankAccountType",
           validators: ["required"],
           label: "Account Type",
         },
         {
-          name: "routingNumber",
-          validators: ["required", "routingNumber"],
+          name: "bankRoutingNumber",
+          validators: ["required", "bankRoutingNumber"],
           label: "Routing Number",
         },
         {
-          name: "accountNumber",
-          validators: ["required", "accountNumber"],
+          name: "bankAccountNumber",
+          validators: ["required", "bankAccountNumber"],
           label: "Account Number",
         },
       ];
@@ -589,7 +632,20 @@ class OperatorOnboarding extends HTMLElement {
 
   async goToNextStep() {
     // Validate current step
-    if (!this.validateCurrentStep()) return;
+    const isValid = this.validateCurrentStep();
+
+    console.log("🔍 Validation Result:", {
+      currentStep: this.state.currentStep,
+      stepId: this.STEPS[this.state.currentStep].id,
+      isValid,
+      errors:
+        this.state.validationState[`step${this.state.currentStep}`]?.errors,
+    });
+
+    if (!isValid) {
+      console.warn("❌ Validation failed - cannot proceed to next step");
+      return;
+    }
 
     // Mark step complete
     const completedSteps = new Set(this.state.completedSteps);
@@ -597,12 +653,14 @@ class OperatorOnboarding extends HTMLElement {
 
     // Progress to next step
     if (this.state.currentStep < this.state.totalSteps - 1) {
+      console.log("✅ Moving to next step:", this.state.currentStep + 1);
       this.setState({
         currentStep: this.state.currentStep + 1,
         completedSteps,
         uiState: { showErrors: false },
       });
     } else {
+      console.log("✅ Final step - submitting form");
       this.handleFormCompletion();
     }
   }
@@ -637,187 +695,6 @@ class OperatorOnboarding extends HTMLElement {
         currentStep: this.state.currentStep + 1,
         completedSteps,
         uiState: { showErrors: false },
-      });
-    }
-  }
-
-  // ==================== ASYNC OPERATIONS ====================
-
-  async handleVerification(shouldFail = false) {
-    // Set loading state
-    this.setState({
-      uiState: { isLoading: true, verificationStatus: "pending" },
-    });
-
-    // Simulate API call (2 seconds)
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-
-    if (shouldFail) {
-      // Handle verification failure
-      this.handleVerificationFailure();
-      return;
-    }
-
-    // Update verification status to success
-    this.setState({
-      uiState: { isLoading: false, verificationStatus: "success" },
-    });
-
-    // Show "Proceeding to onboarding" message (1.5 seconds)
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-
-    // Mark as verified and proceed to stepper form
-    this.setState({
-      isVerified: true,
-      currentStep: 0, // Start at first step of stepper (Business Details)
-      uiState: { verificationStatus: null, showErrors: false, isLoading: false },
-    });
-  }
-
-  handleVerificationFailure() {
-    const email = this.state.formData.verification.wioEmail;
-    const errorData = {
-      email,
-      message: "This email is not a valid WIO email.",
-      timestamp: new Date().toISOString(),
-    };
-
-    // Log error to console
-    console.error("Verification Failed:", errorData);
-
-    // Update state to show failure page
-    this.setState({
-      isFailed: true,
-      uiState: {
-        isLoading: false,
-        verificationStatus: "failed",
-        errorMessage: errorData.message,
-      },
-    });
-
-    // Emit custom error event
-    this.dispatchEvent(
-      new CustomEvent("verificationFailed", {
-        detail: errorData,
-        bubbles: true,
-        composed: true,
-      })
-    );
-
-    // Call onError callback if provided
-    if (this.onError && typeof this.onError === "function") {
-      this.onError(errorData);
-    }
-  }
-
-  resetToVerification() {
-    // Reset the failure state and return to verification step
-    this.setState({
-      currentStep: 0,
-      isFailed: false,
-      isVerified: false, // Stay in pre-stepper verification
-      uiState: {
-        isLoading: false,
-        verificationStatus: null,
-        showErrors: false,
-        errorMessage: null,
-      },
-    });
-  }
-
-  // Attach event listeners for standalone verification form
-  attachVerificationListeners() {
-    const shadow = this.shadowRoot;
-    
-    // Handle verification form submission
-    const verifyButton = shadow.querySelector('[data-action="verify"]');
-    if (verifyButton) {
-      verifyButton.addEventListener("mousedown", (e) => {
-        e.preventDefault(); // Prevent blur from interfering
-        // Capture email value from input
-        const emailInput = shadow.querySelector('input[name="wioEmail"]');
-        if (emailInput) {
-          this.setState({
-            formData: {
-              verification: {
-                wioEmail: emailInput.value,
-              },
-            },
-          });
-        }
-        
-        // Validate the verification step
-        const isValid = this.validateStep("verification");
-        if (isValid) {
-          this.handleVerification(false);
-        } else {
-          this.setState({
-            uiState: { showErrors: true },
-          });
-        }
-      });
-    }
-
-    // Handle fail verification button (for demo)
-    const failButton = shadow.querySelector('[data-action="fail-verify"]');
-    if (failButton) {
-      failButton.addEventListener("mousedown", (e) => {
-        e.preventDefault(); // Prevent blur from interfering
-        // Capture email value from input
-        const emailInput = shadow.querySelector('input[name="wioEmail"]');
-        if (emailInput) {
-          this.setState({
-            formData: {
-              verification: {
-                wioEmail: emailInput.value,
-              },
-            },
-          });
-        }
-        
-        // Validate the verification step
-        const isValid = this.validateStep("verification");
-        if (isValid) {
-          this.handleVerification(true);
-        } else {
-          this.setState({
-            uiState: { showErrors: true },
-          });
-        }
-      });
-    }
-
-    // Handle field input for verification step
-    const wioEmailInput = shadow.querySelector('[name="wioEmail"]');
-    if (wioEmailInput) {
-      wioEmailInput.addEventListener("input", (e) => {
-        // Update state in real-time
-        this.state.formData.verification.wioEmail = e.target.value;
-        
-        // Real-time validation if showErrors is true
-        if (this.state.uiState.showErrors) {
-          const error = this.validateField(e.target.value, ["required", "email"], "WIO Email");
-          
-          // Initialize validation state if needed
-          if (!this.state.validationState.verification) {
-            this.state.validationState.verification = { isValid: true, errors: {} };
-          }
-          
-          if (error) {
-            this.state.validationState.verification.errors.wioEmail = error;
-          } else {
-            delete this.state.validationState.verification.errors.wioEmail;
-          }
-          
-          // Update error message in DOM without full re-render
-          this.updateFieldErrorDisplay(e.target, error);
-        }
-      });
-      
-      wioEmailInput.addEventListener("blur", () => {
-        this.setState({
-          uiState: { showErrors: true },
-        });
       });
     }
   }
@@ -872,28 +749,12 @@ class OperatorOnboarding extends HTMLElement {
   loadInitialData(data) {
     const newFormData = { ...this.state.formData };
 
-    // Check for wioEmail to skip verification step
-    const hasWioEmail = data.wioEmail && data.wioEmail.trim().length > 0;
-
-    // Load verification data
-    if (data.verification) {
-      newFormData.verification = {
-        ...newFormData.verification,
-        ...data.verification,
-      };
-    }
-
     // Load business details
     if (data.businessDetails) {
       newFormData.businessDetails = {
         ...newFormData.businessDetails,
         ...data.businessDetails,
       };
-    }
-
-    // If wioEmail exists, pre-populate verification email for skipping step 0
-    if (hasWioEmail) {
-      newFormData.verification.wioEmail = data.wioEmail;
     }
 
     // Load representatives
@@ -930,29 +791,9 @@ class OperatorOnboarding extends HTMLElement {
     }
 
     // Update state with loaded data
-    const stateUpdate = {
-      formData: newFormData,
-      verificationSkipped: hasWioEmail, // Mark that verification will be auto-skipped
-    };
-
-    // If wioEmail exists, trigger automatic verification
-    if (hasWioEmail) {
-      stateUpdate.isVerified = false; // Ensure we show verification UI
-      stateUpdate.uiState = {
-        isLoading: true,
-        verificationStatus: "pending",
-      };
-    }
-
-    this.setState(stateUpdate);
-
-    // Trigger automatic verification if wioEmail was provided
-    if (hasWioEmail) {
-      // Small delay to allow UI to render loading state
-      setTimeout(() => {
-        this.handleVerification(false); // false = success, can be changed for testing
-      }, 100);
-    }
+    this.setState({
+      formData: newFormData
+    });
   }
 
   // ==================== UTILITIES ====================
@@ -960,10 +801,10 @@ class OperatorOnboarding extends HTMLElement {
   formatPhoneNumber(value) {
     // Remove all non-digits
     const cleaned = value.replace(/\D/g, "");
-    
+
     // Limit to 10 digits
     const limited = cleaned.slice(0, 10);
-    
+
     // Format progressively as (XXX) XXX-XXXX
     if (limited.length === 0) {
       return "";
@@ -972,17 +813,19 @@ class OperatorOnboarding extends HTMLElement {
     } else if (limited.length <= 6) {
       return `(${limited.slice(0, 3)}) ${limited.slice(3)}`;
     } else {
-      return `(${limited.slice(0, 3)}) ${limited.slice(3, 6)}-${limited.slice(6)}`;
+      return `(${limited.slice(0, 3)}) ${limited.slice(3, 6)}-${limited.slice(
+        6
+      )}`;
     }
   }
 
   formatEIN(value) {
     // Remove all non-digits
     const cleaned = value.replace(/\D/g, "");
-    
+
     // Limit to 9 digits
     const limited = cleaned.slice(0, 9);
-    
+
     // Format as XX-XXXXXXX
     if (limited.length <= 2) {
       return limited;
@@ -993,13 +836,7 @@ class OperatorOnboarding extends HTMLElement {
 
   getFieldError(fieldName, repIndex = null) {
     if (!this.state.uiState.showErrors) return "";
-    
-    // For verification step (pre-stepper)
-    if (!this.state.isVerified) {
-      const errors = this.state.validationState.verification?.errors || {};
-      return errors[fieldName] || "";
-    }
-    
+
     // For stepper steps
     const errors =
       this.state.validationState[`step${this.state.currentStep}`]?.errors || {};
@@ -1028,7 +865,6 @@ class OperatorOnboarding extends HTMLElement {
 
     // Log all form data to console
     const formData = {
-      verification: this.state.formData.verification,
       businessDetails: this.state.formData.businessDetails,
       representatives: this.state.formData.representatives,
       underwriting: this.state.formData.underwriting,
@@ -1103,18 +939,6 @@ class OperatorOnboarding extends HTMLElement {
   // ==================== RENDERING ====================
 
   render() {
-    // Show failure page if verification failed
-    if (this.state.isFailed) {
-      this.shadowRoot.innerHTML = `
-        ${this.renderStyles()}
-        <div class="onboarding-container">
-          ${this.renderFailurePage()}
-        </div>
-      `;
-      this.attachFailurePageListeners();
-      return;
-    }
-
     // Show submission failure page
     if (this.state.isSubmissionFailed) {
       this.shadowRoot.innerHTML = `
@@ -1139,7 +963,7 @@ class OperatorOnboarding extends HTMLElement {
     }
 
     // Show loading during submission
-    if (this.state.uiState.isLoading && this.state.isVerified) {
+    if (this.state.uiState.isLoading) {
       this.shadowRoot.innerHTML = `
         ${this.renderStyles()}
         <div class="onboarding-container">
@@ -1155,19 +979,7 @@ class OperatorOnboarding extends HTMLElement {
       return;
     }
 
-    // If NOT verified, show standalone verification flow
-    if (!this.state.isVerified) {
-      this.shadowRoot.innerHTML = `
-        ${this.renderStyles()}
-        <div class="onboarding-container">
-          ${this.renderVerificationStep()}
-        </div>
-      `;
-      this.attachVerificationListeners();
-      return;
-    }
-
-    // If verified, show main stepper form
+    // Show main stepper form
     this.shadowRoot.innerHTML = `
       ${this.renderStyles()}
       <div class="onboarding-container">
@@ -1484,27 +1296,6 @@ class OperatorOnboarding extends HTMLElement {
           background: #0056b3;
         }
         
-        .btn-verify {
-          background: var(--primary-color);
-          color: white;
-          padding: 12px 24px;
-          border: none;
-          border-radius: var(--border-radius);
-          font-size: 14px;
-          font-weight: 500;
-          cursor: pointer;
-          margin-top: var(--spacing-md);
-        }
-        
-        .btn-verify:hover {
-          background: #325240e6;
-        }
-        
-        .btn-verify:disabled {
-          background: var(--gray-medium);
-          cursor: not-allowed;
-        }
-        
         /* Loading & Messages */
         .loading-spinner {
           border: 3px solid var(--gray-light);
@@ -1534,6 +1325,48 @@ class OperatorOnboarding extends HTMLElement {
           text-align: center;
           padding: var(--spacing-lg);
           color: var(--gray-medium);
+        }
+        
+        /* Drag and Drop Styles */
+        .drag-drop-area {
+          border: 2px dashed var(--border-color);
+          border-radius: var(--border-radius-lg);
+          padding: calc(var(--spacing-lg) * 2);
+          text-align: center;
+          background: var(--gray-light);
+          transition: all 0.3s ease;
+          cursor: pointer;
+        }
+        
+        .drag-drop-area:hover {
+          border-color: var(--primary-color);
+          background: #f0f7f4;
+        }
+        
+        .drag-drop-area.drag-over {
+          border-color: var(--primary-color);
+          background: #e6f2ed;
+          border-style: solid;
+        }
+        
+        .drag-drop-content {
+          pointer-events: none;
+        }
+        
+        .btn-browse:hover {
+          background: #2a4536;
+        }
+        
+        .uploaded-files {
+          margin-top: var(--spacing-md);
+        }
+        
+        .file-item:hover {
+          background: #e9ecef;
+        }
+        
+        .btn-remove-file:hover {
+          text-decoration: underline;
         }
         
         /* Error/Failure Styles */
@@ -1626,12 +1459,6 @@ class OperatorOnboarding extends HTMLElement {
         
         .btn-fail:hover {
           background: #c82333;
-        }
-        
-        .verification-buttons {
-          display: flex;
-          gap: var(--spacing-sm);
-          margin-top: var(--spacing-md);
         }
         
         /* Success Page */
@@ -1784,116 +1611,125 @@ class OperatorOnboarding extends HTMLElement {
 
   renderUnderwritingStep() {
     const data = this.state.formData.underwriting;
-
-    /**
-     * DEVELOPER GUIDE: Adding Underwriting Fields
-     *
-     * To add fields to this step, follow these steps:
-     *
-     * 1. ADD FIELD TO STATE (line ~38-42):
-     *    In the constructor's formData.underwriting object, add your field:
-     *    underwriting: {
-     *      yourFieldName: "",  // Add your field here
-     *    }
-     *
-     * 2. ADD VALIDATION (in validateCurrentStep method, around line 471):
-     *    Add validation for underwriting fields
-     *
-     * 3. ADD FIELD HANDLING IN handleFieldInput (around line 2409):
-     *    Already implemented - will handle your fields automatically
-     *
-     * 4. ADD FIELD HANDLING IN handleFieldBlur (around line 2369):
-     *    Already implemented - will handle your fields automatically
-     *
-     * 5. ADD REAL-TIME VALIDATION CONFIG (in handleFieldInput, around line 2501):
-     *    Add your field validation configuration
-     *
-     * 6. RENDER FIELDS BELOW:
-     *    Use this.renderField() to add input fields in the form grid below
-     */
+    const underwritingDocuments = data.underwritingDocuments || [];
+    const error = this.getFieldError("underwritingDocuments");
+    const showErrors = this.state.uiState.showErrors;
 
     return `
       <div class="step-content">
         <div class="form-logo">
           <img src="https://bisonpaywell.com/lovable-uploads/28831244-e8b3-4e7b-8dbb-c016f9f9d54f.png" alt="Logo" />
         </div>
-        <h2>Underwriting</h2>
-        <p>Underwriting information</p>
+        <h2>Underwriting Documents</h2>
+        <p>Upload supporting documents (required, max 10 files, 10MB each)</p>
         
         <div class="form-grid">
-          <div class="empty-state full-width">
-            <p>Underwriting fields will be added here by the developer.</p>
-            <p style="font-size: 12px; color: var(--gray-medium); margin-top: var(--spacing-sm);">
-              See renderUnderwritingStep() method for implementation guide.
-            </p>
+          <div class="form-field full-width ${
+            showErrors && error ? "has-error" : ""
+          }">
+            <label for="underwritingDocs">
+              Upload Documents <span class="required-asterisk">*</span>
+              <span style="font-size: 12px; color: var(--gray-medium); font-weight: normal;">
+                (PDF, JPG, PNG, DOC, DOCX - Max 10MB each)
+              </span>
+            </label>
+            
+            <div class="drag-drop-area" id="dragDropArea">
+              <div class="drag-drop-content">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin: 0 auto var(--spacing-sm); display: block; color: var(--gray-medium);">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="17 8 12 3 7 8"></polyline>
+                  <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+                <p style="margin-bottom: var(--spacing-sm); color: #333; font-weight: 500;">
+                  Drag and drop files here
+                </p>
+                <p style="font-size: 14px; color: var(--gray-medium); margin-bottom: var(--spacing-md);">
+                  or
+                </p>
+                <button type="button" class="btn-browse" style="
+                  padding: 10px 20px;
+                  background: var(--primary-color);
+                  color: white;
+                  border: none;
+                  border-radius: var(--border-radius-sm);
+                  cursor: pointer;
+                  font-size: 14px;
+                  font-weight: 500;
+                ">Browse Files</button>
+                <input
+                  type="file"
+                  id="underwritingDocs"
+                  name="underwritingDocs"
+                  multiple
+                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                  style="display: none;"
+                />
+              </div>
+            </div>
+            
+            <div id="fileList" style="margin-top: var(--spacing-md);">
+              ${
+                underwritingDocuments.length > 0
+                  ? this.renderFileList(underwritingDocuments)
+                  : ""
+              }
+            </div>
+            
+            ${
+              showErrors && error
+                ? `<span class="error-message">${error}</span>`
+                : ""
+            }
           </div>
         </div>
       </div>
     `;
   }
 
-  renderVerificationStep() {
-    const { wioEmail } = this.state.formData.verification;
-    const errors = this.state.validationState.verification?.errors || {};
-    const showErrors = this.state.uiState.showErrors;
-    const { isLoading, verificationStatus } = this.state.uiState;
-
-    // Show loading screen during verification
-    if (isLoading) {
-      return `
-        <div class="step-content" style="text-align: center; padding: calc(var(--spacing-lg) * 2);">
-          <div class="form-logo">
-            <img src="https://bisonpaywell.com/lovable-uploads/28831244-e8b3-4e7b-8dbb-c016f9f9d54f.png" alt="Logo" />
-          </div>
-          <h2>Verifying WIO Email...</h2>
-          <p style="color: var(--gray-medium); margin-bottom: var(--spacing-lg);">
-            Please wait while we verify: <strong>${wioEmail || 'your email'}</strong>
-          </p>
-          <div class="loading-spinner"></div>
-        </div>
-      `;
-    }
-
-    // Show success message before transitioning to stepper
-    if (verificationStatus === "success") {
-      return `
-        <div class="success-container">
-          <div class="success-icon">
-            <svg viewBox="0 0 52 52">
-              <path d="M14 27l7 7 16-16"/>
-            </svg>
-          </div>
-          <h2>Verification Successful!</h2>
-          <p>Proceeding to onboarding...</p>
-        </div>
-      `;
-    }
-
-    // Show standalone verification form
+  renderFileList(files) {
     return `
-      <div class="step-content">
-        <div class="form-logo">
-          <img src="https://bisonpaywell.com/lovable-uploads/28831244-e8b3-4e7b-8dbb-c016f9f9d54f.png" alt="Logo" />
-        </div>
-        <h2>Verify WIO Email</h2>
-        <p>Enter your WIO email address to begin the operator onboarding process.</p>
-        
-        <div class="form-field ${showErrors && errors.wioEmail ? "has-error" : ""}">
-          <label for="wioEmail">WIO Email <span class="required-asterisk">*</span></label>
-          <input
-            type="email"
-            id="wioEmail"
-            name="wioEmail"
-            value="${wioEmail}"
-            placeholder="your.email@company.com"
-          />
-          ${showErrors && errors.wioEmail ? `<span class="error-message">${errors.wioEmail}</span>` : ""}
-        </div>
-        
-        <div class="verification-buttons">
-          <button type="button" class="btn-verify" data-action="verify">Verify Email</button>
-          <button type="button" class="btn-fail" data-action="fail-verify">Fail Verify (Demo)</button>
-        </div>
+      <div class="uploaded-files">
+        <p style="font-size: 14px; font-weight: 500; margin-bottom: var(--spacing-sm); color: #333;">
+          ${files.length} file(s) uploaded:
+        </p>
+        ${files
+          .map(
+            (file, index) => `
+          <div class="file-item" data-index="${index}" style="
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: var(--spacing-sm);
+            background: var(--gray-light);
+            border-radius: var(--border-radius-sm);
+            margin-bottom: var(--spacing-sm);
+          ">
+            <div style="display: flex; align-items: center; gap: var(--spacing-sm); flex: 1; min-width: 0;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink: 0;">
+                <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+                <polyline points="13 2 13 9 20 9"></polyline>
+              </svg>
+              <span style="font-size: 14px; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                ${file.name}
+              </span>
+              <span style="font-size: 12px; color: var(--gray-medium); white-space: nowrap;">
+                (${(file.size / 1024).toFixed(1)} KB)
+              </span>
+            </div>
+            <button type="button" class="btn-remove-file" data-index="${index}" style="
+              background: none;
+              border: none;
+              color: var(--error-color);
+              cursor: pointer;
+              padding: var(--spacing-sm);
+              font-size: 14px;
+              flex-shrink: 0;
+            ">✕</button>
+          </div>
+        `
+          )
+          .join("")}
       </div>
     `;
   }
@@ -1965,10 +1801,10 @@ class OperatorOnboarding extends HTMLElement {
           })}
           
           ${this.renderField({
-            name: "businessStreet",
+            name: "BusinessAddress1",
             label: "Street Address *",
-            value: data.businessStreet,
-            error: this.getFieldError("businessStreet"),
+            value: data.BusinessAddress1,
+            error: this.getFieldError("BusinessAddress1"),
             className: "full-width",
           })}
           
@@ -2185,10 +2021,10 @@ class OperatorOnboarding extends HTMLElement {
         
         <div class="form-grid">
           ${this.renderField({
-            name: "accountHolderName",
+            name: "bankAccountHolderName",
             label: "Account Holder Name *",
-            value: data.accountHolderName,
-            error: this.getFieldError("accountHolderName"),
+            value: data.bankAccountHolderName,
+            error: this.getFieldError("bankAccountHolderName"),
             className: "full-width",
           })}
           
@@ -2196,14 +2032,14 @@ class OperatorOnboarding extends HTMLElement {
             <label>Account Type <span class="required-asterisk">*</span></label>
             <div class="radio-group">
               <div class="radio-option">
-                <input type="radio" id="checking" name="accountType" value="checking" ${
-                  data.accountType === "checking" ? "checked" : ""
+                <input type="radio" id="checking" name="bankAccountType" value="checking" ${
+                  data.bankAccountType === "checking" ? "checked" : ""
                 }>
                 <label for="checking">Checking</label>
               </div>
               <div class="radio-option">
-                <input type="radio" id="savings" name="accountType" value="savings" ${
-                  data.accountType === "savings" ? "checked" : ""
+                <input type="radio" id="savings" name="bankAccountType" value="savings" ${
+                  data.bankAccountType === "savings" ? "checked" : ""
                 }>
                 <label for="savings">Savings</label>
               </div>
@@ -2211,19 +2047,19 @@ class OperatorOnboarding extends HTMLElement {
           </div>
           
           ${this.renderField({
-            name: "routingNumber",
+            name: "bankRoutingNumber",
             label: "Routing Number *",
-            value: data.routingNumber,
-            error: this.getFieldError("routingNumber"),
+            value: data.bankRoutingNumber,
+            error: this.getFieldError("bankRoutingNumber"),
             placeholder: "123456789",
             maxLength: 9,
           })}
           
           ${this.renderField({
-            name: "accountNumber",
+            name: "bankAccountNumber",
             label: "Account Number *",
-            value: data.accountNumber,
-            error: this.getFieldError("accountNumber"),
+            value: data.bankAccountNumber,
+            error: this.getFieldError("bankAccountNumber"),
             placeholder: "1234567890",
           })}
         </div>
@@ -2273,9 +2109,9 @@ class OperatorOnboarding extends HTMLElement {
     const isFirstStep = this.state.currentStep === 0;
     const isLastStep = this.state.currentStep === this.state.totalSteps - 1;
     const canSkip = this.STEPS[this.state.currentStep].canSkip;
+    console.log("[FORM DATA]: ", this.state.formData);
 
-    // Hide back button if we're on first step (Business Details)
-    // Since verification is now pre-stepper, there's nothing to go back to
+    // Hide back button on first step (Business Details)
     const showBack = !isFirstStep;
 
     return `
@@ -2287,7 +2123,6 @@ class OperatorOnboarding extends HTMLElement {
         <button type="button" class="btn-next">
           ${isLastStep ? "Submit" : "Next"}
         </button>
-        ${isLastStep ? '<button type="button" class="btn-fail-submit" style="margin-left: var(--spacing-sm); background: var(--error-color);">Fail Submit (Demo)</button>' : ""}
       </div>
     `;
   }
@@ -2333,8 +2168,10 @@ class OperatorOnboarding extends HTMLElement {
           <div class="detail-item">
             <span class="detail-label">Bank Account</span>
             <span class="detail-value">${
-              bankDetails.accountType === "checking" ? "Checking" : "Savings"
-            } (****${bankDetails.accountNumber.slice(-4)})</span>
+              bankDetails.bankAccountType === "checking"
+                ? "Checking"
+                : "Savings"
+            } (****${bankDetails.bankAccountNumber.slice(-4)})</span>
           </div>
         </div>
         
@@ -2342,53 +2179,6 @@ class OperatorOnboarding extends HTMLElement {
           A confirmation email has been sent to <strong>${
             businessDetails.businessEmail
           }</strong>
-        </p>
-      </div>
-    `;
-  }
-
-  renderFailurePage() {
-    const { wioEmail } = this.state.formData.verification;
-    const { errorMessage } = this.state.uiState;
-
-    return `
-      <div class="error-container">
-        <div class="error-icon">
-          <svg viewBox="0 0 52 52">
-            <circle cx="26" cy="26" r="25" fill="none"/>
-            <path d="M16 16 L36 36 M36 16 L16 36"/>
-          </svg>
-        </div>
-        
-        <h2>Verification Failed</h2>
-        <p>This WIO email could not be verified.</p>
-        
-        <div class="error-details">
-          <h3>Error Details</h3>
-          <p><strong>Email:</strong> ${wioEmail}</p>
-          <p><strong>Issue:</strong> ${
-            errorMessage || "This WIO email does not exist in our system."
-          }</p>
-          <p style="margin-top: var(--spacing-md);">
-            Please ensure you have a valid WIO associated with this email address before attempting to onboard an operator.
-          </p>
-        </div>
-        
-        <div style="margin-top: var(--spacing-lg); display: flex; gap: var(--spacing-sm); justify-content: center;">
-          <button type="button" class="btn-back-to-verification" style="
-            padding: 12px 24px;
-            background: var(--primary-color);
-            color: white;
-            border: none;
-            border-radius: var(--border-radius);
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-          ">Try Again</button>
-        </div>
-        
-        <p style="margin-top: var(--spacing-md); font-size: 12px; color: var(--gray-medium);">
-          Or you can close this dialog.
         </p>
       </div>
     `;
@@ -2453,7 +2243,7 @@ class OperatorOnboarding extends HTMLElement {
         if (this.onError && typeof this.onError === "function") {
           this.onError({ action: "resubmit", formData: this.state.formData });
         }
-        
+
         // For now, just reset to last step
         // TODO: Implement actual resubmission logic
         this.setState({
@@ -2467,15 +2257,7 @@ class OperatorOnboarding extends HTMLElement {
 
   attachFailurePageListeners() {
     const shadow = this.shadowRoot;
-
-    // Back to verification button (on failure page)
-    const backToVerificationBtn = shadow.querySelector(".btn-back-to-verification");
-    if (backToVerificationBtn) {
-      backToVerificationBtn.addEventListener("mousedown", (e) => {
-        e.preventDefault(); // Prevent blur from interfering
-        this.resetToVerification();
-      });
-    }
+    // This method is currently unused but kept for future error handling
   }
 
   attachEventListeners() {
@@ -2512,67 +2294,6 @@ class OperatorOnboarding extends HTMLElement {
       });
     }
 
-    // Verify button - ensure field is captured before validation
-    const verifyBtn = shadow.querySelector(".btn-verify");
-    if (verifyBtn) {
-      verifyBtn.addEventListener("mousedown", (e) => {
-        e.preventDefault(); // Prevent blur from interfering
-        // Capture email value from input before validating
-        const emailInput = shadow.querySelector('input[name="wioEmail"]');
-        if (emailInput) {
-          this.setState({
-            formData: {
-              verification: {
-                wioEmail: emailInput.value,
-              },
-            },
-          });
-          // Small delay to ensure state is updated before validation
-          setTimeout(() => this.goToNextStep(), 0);
-        } else {
-          this.goToNextStep();
-        }
-      });
-    }
-
-    // Fail Verify button - for demo purposes
-    const failBtn = shadow.querySelector(".btn-fail");
-    if (failBtn) {
-      failBtn.addEventListener("mousedown", async (e) => {
-        e.preventDefault(); // Prevent blur from interfering
-        // Capture email value from input before validating
-        const emailInput = shadow.querySelector('input[name="wioEmail"]');
-        if (emailInput) {
-          this.setState({
-            formData: {
-              verification: {
-                wioEmail: emailInput.value,
-              },
-            },
-          });
-        }
-
-        // Validate the field first
-        if (!this.validateCurrentStep()) return;
-
-        // Trigger failure verification
-        await this.handleVerification(true);
-      });
-    }
-
-    // Fail Submit button - for demo purposes
-    const failSubmitBtn = shadow.querySelector(".btn-fail-submit");
-    if (failSubmitBtn) {
-      failSubmitBtn.addEventListener("mousedown", async (e) => {
-        e.preventDefault(); // Prevent blur from interfering
-        // Validate the field first
-        if (!this.validateCurrentStep()) return;
-
-        // Trigger failure submission
-        await this.handleFormCompletion(true);
-      });
-    }
-
     // Step indicators (for navigation)
     shadow.querySelectorAll("[data-step]").forEach((indicator) => {
       indicator.addEventListener("click", (e) => {
@@ -2596,6 +2317,159 @@ class OperatorOnboarding extends HTMLElement {
         const index = parseInt(e.target.dataset.index);
         this.removeRepresentative(index);
       });
+    });
+
+    // File upload handlers for underwriting documents
+    const fileInput = shadow.querySelector("#underwritingDocs");
+    const dragDropArea = shadow.querySelector("#dragDropArea");
+    const browseBtn = shadow.querySelector(".btn-browse");
+
+    if (fileInput && dragDropArea) {
+      // Browse button click
+      if (browseBtn) {
+        browseBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          fileInput.click();
+        });
+      }
+
+      // Click on drag area
+      dragDropArea.addEventListener("click", () => {
+        fileInput.click();
+      });
+
+      // Drag and drop events
+      dragDropArea.addEventListener("dragenter", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dragDropArea.classList.add("drag-over");
+      });
+
+      dragDropArea.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dragDropArea.classList.add("drag-over");
+      });
+
+      dragDropArea.addEventListener("dragleave", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.target === dragDropArea) {
+          dragDropArea.classList.remove("drag-over");
+        }
+      });
+
+      dragDropArea.addEventListener("drop", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dragDropArea.classList.remove("drag-over");
+
+        const files = Array.from(e.dataTransfer.files);
+        this.handleFileUpload(files);
+      });
+
+      // File input change
+      fileInput.addEventListener("change", (e) => {
+        const files = Array.from(e.target.files);
+        this.handleFileUpload(files);
+      });
+    }
+
+    // Remove file buttons
+    shadow.querySelectorAll(".btn-remove-file").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const index = parseInt(btn.dataset.index);
+        this.removeFile(index);
+      });
+    });
+  }
+
+  handleFileUpload(files) {
+    // Validate files
+    const errors = [];
+    const validFiles = [];
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    const maxFiles = 10;
+    const allowedTypes = [".pdf", ".jpg", ".jpeg", ".png", ".doc", ".docx"];
+
+    // Get existing documents
+    const existingDocs =
+      this.state.formData.underwriting.underwritingDocuments || [];
+    const totalFiles = existingDocs.length + files.length;
+
+    if (totalFiles > maxFiles) {
+      errors.push(
+        `Maximum ${maxFiles} files allowed (you have ${existingDocs.length} already)`
+      );
+    }
+
+    files.forEach((file) => {
+      // Check file size
+      if (file.size > maxSize) {
+        errors.push(`${file.name} exceeds 10MB limit`);
+      } else if (file.size === 0) {
+        errors.push(`${file.name} is empty`);
+      } else {
+        // Check file type
+        const ext = "." + file.name.split(".").pop().toLowerCase();
+        if (allowedTypes.includes(ext)) {
+          validFiles.push(file);
+        } else {
+          errors.push(`${file.name} is not an allowed file type`);
+        }
+      }
+    });
+
+    // Combine with existing documents
+    const allDocs = [...existingDocs, ...validFiles].slice(0, maxFiles);
+
+    console.log("[FILE UPLOAD ERRORS]: ", errors);
+
+    // Update state with valid files
+    this.setState({
+      formData: {
+        underwriting: {
+          ...this.state.formData.underwriting,
+          underwritingDocuments: allDocs,
+        },
+      },
+      uiState: {
+        errorMessage: errors.length > 0 ? errors.join("; ") : null,
+      },
+    });
+
+    // Show errors if any
+    if (errors.length > 0) {
+      const fileList = this.shadowRoot.querySelector("#fileList");
+      if (fileList) {
+        const errorDiv = document.createElement("div");
+        errorDiv.style.color = "var(--error-color)";
+        errorDiv.style.fontSize = "12px";
+        errorDiv.style.marginTop = "var(--spacing-sm)";
+        errorDiv.textContent = errors.join("; ");
+        fileList.prepend(errorDiv);
+
+        // Remove error message after 5 seconds
+        setTimeout(() => errorDiv.remove(), 5000);
+      }
+    }
+  }
+
+  removeFile(index) {
+    const underwritingDocuments = [
+      ...this.state.formData.underwriting.underwritingDocuments,
+    ];
+
+    underwritingDocuments.splice(index, 1);
+
+    this.setState({
+      formData: {
+        underwriting: {
+          ...this.state.formData.underwriting,
+          underwritingDocuments,
+        },
+      },
     });
   }
 
@@ -2626,16 +2500,7 @@ class OperatorOnboarding extends HTMLElement {
     // Update state based on step
     const stepId = this.STEPS[this.state.currentStep].id;
 
-    if (stepId === "verification") {
-      this.setState({
-        formData: {
-          verification: {
-            ...this.state.formData.verification,
-            [name]: input.value,
-          },
-        },
-      });
-    } else if (stepId === "business-details") {
+    if (stepId === "business-details") {
       this.setState({
         formData: {
           businessDetails: {
@@ -2680,7 +2545,7 @@ class OperatorOnboarding extends HTMLElement {
       const oldValue = value;
       value = this.formatEIN(value);
       input.value = value;
-      
+
       // Adjust cursor position after formatting
       if (oldValue.length < value.length) {
         // If a hyphen was added, move cursor after it
@@ -2696,7 +2561,7 @@ class OperatorOnboarding extends HTMLElement {
       const oldValue = value;
       value = this.formatPhoneNumber(value);
       input.value = value;
-      
+
       // Adjust cursor position after formatting
       const diff = value.length - oldValue.length;
       if (diff > 0) {
@@ -2710,9 +2575,7 @@ class OperatorOnboarding extends HTMLElement {
     // Update state in real-time
     const stepId = this.STEPS[this.state.currentStep].id;
 
-    if (stepId === "verification") {
-      this.state.formData.verification[name] = value;
-    } else if (stepId === "business-details") {
+    if (stepId === "business-details") {
       this.state.formData.businessDetails[name] = value;
     } else if (stepId === "representatives" && repIndex !== undefined) {
       const idx = parseInt(repIndex);
@@ -2743,15 +2606,13 @@ class OperatorOnboarding extends HTMLElement {
       let validators = [];
       let fieldLabel = name;
 
-      if (stepId === "verification") {
-        if (name === "wioEmail") {
-          validators = ["required", "email"];
-          fieldLabel = "WIO Email";
-        }
-      } else if (stepId === "business-details") {
+      if (stepId === "business-details") {
         const fieldConfigs = {
           businessName: { validators: ["required"], label: "Business Name" },
-          doingBusinessAs: { validators: ["required"], label: "Doing Business As (DBA)" },
+          doingBusinessAs: {
+            validators: ["required"],
+            label: "Doing Business As (DBA)",
+          },
           ein: { validators: ["required", "ein"], label: "EIN" },
           businessWebsite: { validators: ["url"], label: "Business Website" },
           businessPhoneNumber: {
@@ -2762,7 +2623,10 @@ class OperatorOnboarding extends HTMLElement {
             validators: ["required", "email"],
             label: "Business Email",
           },
-          businessStreet: { validators: ["required"], label: "Street Address" },
+          BusinessAddress1: {
+            validators: ["required"],
+            label: "Street Address",
+          },
           businessCity: { validators: ["required"], label: "City" },
           businessState: { validators: ["required"], label: "State" },
           businessPostalCode: {
@@ -2962,41 +2826,6 @@ class OperatorOnboarding extends HTMLElement {
 customElements.define("operator-onboarding", OperatorOnboarding);
 
 /**
- * Standalone function to verify a WIO email
- * This can be used to check WIO email status before rendering the onboarding form
- *
- * @param {string} wioEmail - The WIO email address to verify
- * @param {boolean} mockResult - Mock result for testing (true = verified, false = not verified)
- * @returns {boolean} - Returns true if WIO email is verified, false otherwise
- *
- * @example
- * // Check if WIO email is verified
- * const isVerified = verifyWIO('wio@example.com', true);
- * if (isVerified) {
- *   // Show onboarding form
- * } else {
- *   // Show error message
- * }
- */
-function verifyWIO(wioEmail, mockResult) {
-  if (!wioEmail || typeof wioEmail !== "string") {
-    console.error("verifyWIO: wioEmail must be a non-empty string");
-    return false;
-  }
-
-  if (typeof mockResult !== "boolean") {
-    console.error("verifyWIO: mockResult must be a boolean");
-    return false;
-  }
-
-  // Log verification attempt
-  console.log(`Verifying WIO email: ${wioEmail}`, { result: mockResult });
-
-  // Return the mock result
-  return mockResult;
-}
-
-/**
  * Standalone function to verify an operator email
  * This can be used to check operator email status
  *
@@ -3025,7 +2854,9 @@ function verifyOperator(operatorEmail, mockResult) {
   }
 
   // Log verification attempt
-  console.log(`Verifying operator email: ${operatorEmail}`, { result: mockResult });
+  console.log(`Verifying operator email: ${operatorEmail}`, {
+    result: mockResult,
+  });
 
   // Return the mock result
   return mockResult;
@@ -3033,11 +2864,11 @@ function verifyOperator(operatorEmail, mockResult) {
 
 // Export for module usage (if using ES modules)
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { OperatorOnboarding, verifyWIO, verifyOperator };
+  module.exports = { BisonJibPayAPI, OperatorOnboarding, verifyOperator };
 }
 
 // Also make available globally for script tag usage
 if (typeof window !== "undefined") {
-  window.verifyWIO = verifyWIO;
+  window.BisonJibPayAPI = BisonJibPayAPI;
   window.verifyOperator = verifyOperator;
 }
