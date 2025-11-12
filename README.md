@@ -652,12 +652,214 @@ Files are validated on both drag-and-drop and browse selection. Invalid files ar
 
 ---
 
+## BisonJibPayAPI - Direct API Access
+
+In addition to the web component, you can use the `BisonJibPayAPI` class directly for API integration without the UI. This is useful when you need to interact with the BisonJibPay API programmatically.
+
+### Installation & Import
+
+The API class is automatically exported when you load the component:
+
+```javascript
+// ES Module
+import { BisonJibPayAPI } from './component.js';
+
+// Or access from window (script tag)
+const BisonJibPayAPI = window.BisonJibPayAPI;
+```
+
+### Basic Usage
+
+```javascript
+// Create API instance
+const api = new BisonJibPayAPI(
+  'https://bison-jib-development.azurewebsites.net',
+  'YOUR_EMBEDDABLE_KEY'
+);
+
+// Validate WIO email
+try {
+  const result = await api.validateWIOEmail('wio@example.com');
+  console.log('WIO email is valid:', result);
+} catch (error) {
+  console.error('Validation failed:', error);
+}
+
+// Validate operator email
+try {
+  const result = await api.validateOperatorEmail('operator@example.com');
+  console.log('Operator email is valid:', result);
+} catch (error) {
+  console.error('Validation failed:', error);
+}
+
+// Register operator
+const formData = new FormData();
+formData.append('businessName', 'Acme Corp');
+formData.append('businessEmail', 'contact@acme.com');
+// ... add more fields
+
+try {
+  const result = await api.registerOperator(formData);
+  console.log('Operator registered successfully:', result);
+} catch (error) {
+  console.error('Registration failed:', error);
+}
+```
+
+### API Methods
+
+#### `validateWIOEmail(email)`
+Validates a WIO email address.
+
+**Parameters:**
+- `email` (string) - The WIO email address to validate
+
+**Returns:**
+- Promise resolving to the API response
+
+**Example:**
+```javascript
+const result = await api.validateWIOEmail('wio@company.com');
+```
+
+#### `validateOperatorEmail(email)`
+Validates an operator email address.
+
+**Parameters:**
+- `email` (string) - The operator email address to validate
+
+**Returns:**
+- Promise resolving to the API response
+
+**Example:**
+```javascript
+const result = await api.validateOperatorEmail('operator@company.com');
+```
+
+#### `registerOperator(formData)`
+Registers a new operator with complete form data.
+
+**Parameters:**
+- `formData` (FormData) - FormData object containing all operator information
+
+**Returns:**
+- Promise resolving to the API response
+
+**Example:**
+```javascript
+const formData = new FormData();
+formData.append('businessName', 'Acme Corp');
+formData.append('businessEmail', 'contact@acme.com');
+formData.append('ein', '12-3456789');
+// ... add all required fields
+
+const result = await api.registerOperator(formData);
+```
+
+### React Integration Example
+
+```jsx
+import { useEffect, useState } from 'react';
+import { BisonJibPayAPI } from './component.js';
+
+function EmailValidator() {
+  const [api] = useState(() => new BisonJibPayAPI(
+    'https://bison-jib-development.azurewebsites.net',
+    'YOUR_KEY'
+  ));
+  const [email, setEmail] = useState('');
+  const [isValid, setIsValid] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const validateEmail = async () => {
+    setIsLoading(true);
+    try {
+      await api.validateWIOEmail(email);
+      setIsValid(true);
+    } catch (error) {
+      setIsValid(false);
+      console.error('Validation failed:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div>
+      <input
+        type="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="Enter WIO email"
+      />
+      <button onClick={validateEmail} disabled={isLoading}>
+        {isLoading ? 'Validating...' : 'Validate'}
+      </button>
+      {isValid !== null && (
+        <p>{isValid ? '✓ Valid' : '✗ Invalid'}</p>
+      )}
+    </div>
+  );
+}
+```
+
+### Error Handling
+
+The API methods throw structured errors that you can catch:
+
+```javascript
+try {
+  await api.validateWIOEmail('invalid@email.com');
+} catch (error) {
+  console.error('Status:', error.status);
+  console.error('Message:', error.data.message);
+  console.error('Errors:', error.data.errors);
+}
+```
+
+Error structure:
+```javascript
+{
+  status: 400,  // HTTP status code
+  data: {
+    success: false,
+    message: "Validation failed",
+    errors: ["Email does not exist in our system"]
+  }
+}
+```
+
+### Using with Different Environments
+
+```javascript
+// Development
+const devApi = new BisonJibPayAPI(
+  'https://bison-jib-development.azurewebsites.net',
+  'DEV_KEY'
+);
+
+// Production
+const prodApi = new BisonJibPayAPI(
+  'https://bison-jib-production.azurewebsites.net',
+  'PROD_KEY'
+);
+
+// Use environment variables
+const api = new BisonJibPayAPI(
+  process.env.REACT_APP_API_URL,
+  process.env.REACT_APP_EMBEDDABLE_KEY
+);
+```
+
+---
+
 ## API Integration
 
 The component is designed to work with the BisonJibPay API. Configure your endpoints:
 
 ```html
-<operator-onboarding 
+<operator-onboarding
   api-base-url="https://your-api-domain.com"
   embeddable-key="your-embeddable-key">
 </operator-onboarding>

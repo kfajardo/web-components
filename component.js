@@ -3412,11 +3412,12 @@ function verifyOperator(operatorEmail, mockResult) {
 
 // Export for module usage (if using ES modules)
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { OperatorOnboarding, verifyWIO, verifyOperator };
+  module.exports = { BisonJibPayAPI, OperatorOnboarding, verifyWIO, verifyOperator };
 }
 
 // Also make available globally for script tag usage
 if (typeof window !== "undefined") {
+  window.BisonJibPayAPI = BisonJibPayAPI;
   window.verifyWIO = verifyWIO;
   window.verifyOperator = verifyOperator;
 }
