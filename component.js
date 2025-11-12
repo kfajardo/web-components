@@ -2257,17 +2257,7 @@ class OperatorOnboarding extends HTMLElement {
 
   attachFailurePageListeners() {
     const shadow = this.shadowRoot;
-
-    // Back to verification button (on failure page)
-    const backToVerificationBtn = shadow.querySelector(
-      ".btn-back-to-verification"
-    );
-    if (backToVerificationBtn) {
-      backToVerificationBtn.addEventListener("mousedown", (e) => {
-        e.preventDefault(); // Prevent blur from interfering
-        this.resetToVerification();
-      });
-    }
+    // This method is currently unused but kept for future error handling
   }
 
   attachEventListeners() {

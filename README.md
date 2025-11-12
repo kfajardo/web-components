@@ -1,6 +1,6 @@
 # Operator Onboarding Web Component
 
-A complete, self-contained web component for operator onboarding with WIO email verification, 4-step stepper form, file uploads, validations, and success page.
+A complete, self-contained web component for operator onboarding with 4-step stepper form, file uploads, validations, and success page.
 
 ## Installation
 
@@ -47,18 +47,7 @@ The component can be configured with optional attributes for API integration:
 
 ## Form Flow
 
-The onboarding process consists of two phases:
-
-### Phase 1: WIO Email Verification (Pre-Stepper)
-Before the main form, users must verify their WIO (Wealth & Income Opportunities) email address:
-- Single field: `wioEmail`
-- Real-time validation
-- Async verification with your API
-- Error handling for invalid WIO emails
-- Auto-skip if `wioEmail` is provided in `onLoad`
-
-### Phase 2: 4-Step Stepper Form
-After verification, users complete the main form:
+The onboarding process consists of a 4-step stepper form:
 
 1. **Business Details** - Company information and address
 2. **Representatives** (Optional) - Add business representatives
@@ -114,7 +103,6 @@ const component = document.querySelector('operator-onboarding');
 
 // Pre-populate with existing data
 component.onLoad = {
-  wioEmail: 'existing@wio-company.com',  // Auto-skips verification
   businessDetails: {
     businessName: 'Acme Corp',
     doingBusinessAs: 'Acme',
@@ -153,12 +141,10 @@ component.onLoad = {
 };
 ```
 
-**Note:** If you provide `wioEmail` in `onLoad`, the verification step will be automatically skipped, and the user will proceed directly to the stepper form.
-
 ### Method 2: HTML Attribute with JSON
 
 ```html
-<operator-onboarding on-load='{"wioEmail":"test@wio.com","businessDetails":{"businessName":"Acme Corp"}}'></operator-onboarding>
+<operator-onboarding on-load='{"businessDetails":{"businessName":"Acme Corp"}}'></operator-onboarding>
 ```
 
 ### Method 3: HTML Attribute with Global Variable
@@ -166,7 +152,6 @@ component.onLoad = {
 ```html
 <script>
   const initialData = {
-    wioEmail: 'test@wio.com',
     businessDetails: {
       businessName: 'Acme Corp',
       businessEmail: 'test@company.com'
@@ -246,12 +231,6 @@ component.addEventListener('formComplete', (event) => {
   const formData = event.detail;
   console.log('Form completed!', formData);
   closeModal();
-});
-
-// Verification failure event
-component.addEventListener('verificationFailed', (event) => {
-  const errorData = event.detail;
-  console.error('Verification failed:', errorData);
 });
 
 // Submission failure event
@@ -362,9 +341,6 @@ The component returns a complete data object:
 
 ```javascript
 {
-  "verification": {
-    "wioEmail": "test@wio-company.com"
-  },
   "businessDetails": {
     "businessName": "Acme Corp",
     "doingBusinessAs": "Acme",
@@ -411,8 +387,7 @@ The component returns a complete data object:
 
 ## Features
 
-✅ **WIO Email Verification** - Pre-stepper email validation  
-✅ **4-Step Stepper Form** - Visual progress indicator  
+✅ **4-Step Stepper Form** - Visual progress indicator
 ✅ **Field Validation** - Real-time validation on blur  
 ✅ **Auto-Formatting** - Phone numbers, EIN, URLs  
 ✅ **File Upload** - Drag-and-drop with validation  
@@ -433,8 +408,8 @@ The component returns a complete data object:
 | Property | Type | Description |
 |----------|------|-------------|
 | `onSuccess` | `Function` | Callback function called when form is successfully submitted. Receives complete form data as parameter. |
-| `onError` | `Function` | Callback function called when verification or submission fails. Receives error data as parameter. |
-| `onLoad` | `Object` | Pre-populate form fields with initial data. Accepts partial or complete form data object. If `wioEmail` is provided, verification is automatically skipped. |
+| `onError` | `Function` | Callback function called when submission fails. Receives error data as parameter. |
+| `onLoad` | `Object` | Pre-populate form fields with initial data. Accepts partial or complete form data object. |
 | `apiBaseURL` | `String` | Base URL for API endpoints. |
 | `embeddableKey` | `String` | Authentication key for API requests. |
 
@@ -443,96 +418,19 @@ The component returns a complete data object:
 | Event | Detail | Description |
 |-------|--------|-------------|
 | `formComplete` | `Object` | Emitted when form is successfully submitted. `event.detail` contains complete form data. |
-| `verificationFailed` | `Object` | Emitted when WIO email verification fails. `event.detail` contains error information. |
 | `submissionFailed` | `Object` | Emitted when form submission fails. `event.detail` contains error information. |
 
 ### Global Functions
 
 | Function | Parameters | Returns | Description |
 |----------|------------|---------|-------------|
-| `verifyWIO(wioEmail, mockResult)` | `wioEmail: string`, `mockResult: boolean` | `boolean` | Verify if a WIO email is valid before rendering the form. |
 | `verifyOperator(operatorEmail, mockResult)` | `operatorEmail: string`, `mockResult: boolean` | `boolean` | Verify if an operator email exists. |
-
----
-
-## WIO Email Verification
-
-The component requires WIO email verification before the main form. You can also verify WIO emails programmatically before rendering the component.
-
-### Usage
-
-```javascript
-// Check if WIO email is valid before showing form
-const isValid = verifyWIO('wio@example.com', true);
-
-if (isValid) {
-  // Show the onboarding form
-  document.getElementById('container').innerHTML = `
-    <operator-onboarding></operator-onboarding>
-  `;
-} else {
-  // Show error message
-  document.getElementById('container').innerHTML = `
-    <div class="error">Invalid WIO email. Please contact support.</div>
-  `;
-}
-```
-
-### React Example
-
-```jsx
-import { useState, useEffect } from 'react';
-
-function OnboardingPage({ wioEmail }) {
-  const [isValid, setIsValid] = useState(false);
-  const [isChecking, setIsChecking] = useState(true);
-  
-  useEffect(() => {
-    // In production, call your API here
-    const valid = window.verifyWIO(wioEmail, true);
-    setIsValid(valid);
-    setIsChecking(false);
-  }, [wioEmail]);
-  
-  if (isChecking) {
-    return <div>Verifying WIO email...</div>;
-  }
-  
-  if (!isValid) {
-    return (
-      <div className="error">
-        <h2>Invalid WIO Email</h2>
-        <p>This WIO email is not recognized.</p>
-      </div>
-    );
-  }
-  
-  return (
-    <div className="onboarding-container">
-      <operator-onboarding />
-    </div>
-  );
-}
-```
-
-### Parameters
-
-- `wioEmail` (string, required): The WIO email to verify
-- `mockResult` (boolean, required): Mock result for testing
-  - `true`: Email is valid (proceed)
-  - `false`: Email is invalid (show error)
-
-### Returns
-
-- `boolean`: `true` if valid, `false` otherwise
-
-**Note:** In production, replace `mockResult` with actual API integration.
 
 ---
 
 ## Operator Verification
 
-Similar to WIO verification, you can verify operator emails:
+You can verify operator emails:
 
 ```javascript
 // Check if operator exists
@@ -552,25 +450,6 @@ if (exists) {
 ## Error Handling
 
 The component provides comprehensive error handling:
-
-### Verification Failures
-
-When WIO email verification fails:
-
-```javascript
-component.addEventListener('verificationFailed', (event) => {
-  const { email, message, timestamp } = event.detail;
-  console.error('Verification failed:', message);
-  // Show custom error UI
-});
-
-// Or use callback
-component.onError = (errorData) => {
-  if (errorData.message.includes('WIO email')) {
-    // Handle verification error
-  }
-};
-```
 
 ### Submission Failures
 
@@ -677,14 +556,6 @@ const api = new BisonJibPayAPI(
   'YOUR_EMBEDDABLE_KEY'
 );
 
-// Validate WIO email
-try {
-  const result = await api.validateWIOEmail('wio@example.com');
-  console.log('WIO email is valid:', result);
-} catch (error) {
-  console.error('Validation failed:', error);
-}
-
 // Validate operator email
 try {
   const result = await api.validateOperatorEmail('operator@example.com');
@@ -708,20 +579,6 @@ try {
 ```
 
 ### API Methods
-
-#### `validateWIOEmail(email)`
-Validates a WIO email address.
-
-**Parameters:**
-- `email` (string) - The WIO email address to validate
-
-**Returns:**
-- Promise resolving to the API response
-
-**Example:**
-```javascript
-const result = await api.validateWIOEmail('wio@company.com');
-```
 
 #### `validateOperatorEmail(email)`
 Validates an operator email address.
@@ -775,7 +632,7 @@ function EmailValidator() {
   const validateEmail = async () => {
     setIsLoading(true);
     try {
-      await api.validateWIOEmail(email);
+      await api.validateOperatorEmail(email);
       setIsValid(true);
     } catch (error) {
       setIsValid(false);
@@ -791,7 +648,7 @@ function EmailValidator() {
         type="email"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
-        placeholder="Enter WIO email"
+        placeholder="Enter operator email"
       />
       <button onClick={validateEmail} disabled={isLoading}>
         {isLoading ? 'Validating...' : 'Validate'}
@@ -810,7 +667,7 @@ The API methods throw structured errors that you can catch:
 
 ```javascript
 try {
-  await api.validateWIOEmail('invalid@email.com');
+  await api.validateOperatorEmail('invalid@email.com');
 } catch (error) {
   console.error('Status:', error.status);
   console.error('Message:', error.data.message);
@@ -868,7 +725,6 @@ The component is designed to work with the BisonJibPay API. Configure your endpo
 ### API Endpoints Used
 
 - `POST /api/embeddable/validate/operator-email` - Validate operator email
-- `POST /api/embeddable/validate/wio-email` - Validate WIO email
 - `POST /api/embeddable/operator-registration` - Register operator with form data
 
 ---
