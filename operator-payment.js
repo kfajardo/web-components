@@ -7,8 +7,13 @@
  * @author @kfajardo
  * @version 1.0.0
  *
+ * @requires BisonJibPayAPI - Must be loaded before this component (from component.js)
+ *
  * @example
  * ```html
+ * <script src="component.js"></script>
+ * <script src="payments-operator.js"></script>
+ *
  * <operator-payment id="payment"></operator-payment>
  * <script>
  *   const payment = document.getElementById('payment');
@@ -24,6 +29,24 @@ class OperatorPayment extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
+
+    // API Configuration
+    this.apiBaseURL =
+      this.getAttribute("api-base-url") ||
+      "https://bison-jib-development.azurewebsites.net";
+    this.embeddableKey =
+      this.getAttribute("embeddable-key") ||
+      "R80WMkbNN8457RofiMYx03DL65P06IaVT30Q2emYJUBQwYCzRC";
+    
+    // Check if BisonJibPayAPI is available
+    if (typeof BisonJibPayAPI === "undefined") {
+      console.error(
+        "OperatorPayment: BisonJibPayAPI is not available. Please ensure component.js is loaded before payments-operator.js"
+      );
+      this.api = null;
+    } else {
+      this.api = new BisonJibPayAPI(this.apiBaseURL, this.embeddableKey);
+    }
 
     // Internal state
     this._state = {
@@ -48,7 +71,7 @@ class OperatorPayment extends HTMLElement {
   // ==================== STATIC PROPERTIES ====================
 
   static get observedAttributes() {
-    return ["operator-email", "on-success", "on-error", "open"];
+    return ["operator-email", "on-success", "on-error", "open", "api-base-url", "embeddable-key"];
   }
 
   // ==================== PROPERTY GETTERS/SETTERS ====================
@@ -182,6 +205,16 @@ class OperatorPayment extends HTMLElement {
       case "open":
         this.open = newValue !== null;
         break;
+
+      case "api-base-url":
+        this.apiBaseURL = newValue;
+        this.api = new BisonJibPayAPI(this.apiBaseURL, this.embeddableKey);
+        break;
+
+      case "embeddable-key":
+        this.embeddableKey = newValue;
+        this.api = new BisonJibPayAPI(this.apiBaseURL, this.embeddableKey);
+        break;
     }
   }
 
@@ -268,10 +301,18 @@ class OperatorPayment extends HTMLElement {
       return;
     }
 
-    // 2. Generate token
+    // 2. Generate token using BisonJibPayAPI
+    if (!this.api) {
+      this.handleError({
+        errorType: "initialization",
+        error: "BisonJibPayAPI is not available. Please ensure component.js is loaded first.",
+      });
+      return;
+    }
+
     try {
       this._state.isLoading = true;
-      const tokenResult = await this.generateMoovToken(
+      const tokenResult = await this.api.generateMoovToken(
         this._state.operatorEmail
       );
       this._state.moovToken = tokenResult.access_token;
@@ -321,92 +362,6 @@ class OperatorPayment extends HTMLElement {
     // 6. Mark as initialized
     this._state.isInitialized = true;
     console.log("OperatorPayment: Initialized for", this._state.operatorEmail);
-  }
-
-  /**
-   * Generate Moov access token for the operator
-   *
-   * ⚠️ MOCK IMPLEMENTATION - REPLACE THIS IN PRODUCTION ⚠️
-   *
-   * This is a mock implementation that generates a fake token for development.
-   * In production, you MUST replace this with an actual API call to your backend
-   * that securely generates a Moov token.
-   *
-   * Production implementation should:
-   * 1. Make authenticated request to your backend
-   * 2. Backend validates the request and operator
-   * 3. Backend calls Moov API to generate a scoped token
-   * 4. Backend returns token to frontend
-   *
-   * @param {string} operatorEmail - Operator's email address
-   * @returns {Promise<{access_token: string}>}
-   *
-   * @example Production Implementation
-   * ```javascript
-   * async generateMoovToken(operatorEmail) {
-   *   const response = await fetch('/api/moov/generate-token', {
-   *     method: 'POST',
-   *     headers: {
-   *       'Content-Type': 'application/json',
-   *       'Authorization': `Bearer ${yourAuthToken}`
-   *     },
-   *     body: JSON.stringify({ operatorEmail })
-   *   });
-   *
-   *   if (!response.ok) {
-   *     throw new Error('Failed to generate Moov token');
-   *   }
-   *
-   *   return await response.json();
-   * }
-   * ```
-   */
-  async generateMoovToken(operatorEmail) {
-    console.log(`[MOCK] Generating Moov token for operator: ${operatorEmail}`);
-    console.warn(
-      "⚠️ Using MOCK token generation. Replace with actual API call in production!"
-    );
-
-    // Simulate API delay
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
-    // const result = await fetch("test-embeddables-be.vercel.app/", {
-    //   method: 'post',
-    //   body: {
-
-    //   }
-    // });
-
-    // Generate mock token (for development only)
-    const mockToken = `mock_token_${Date.now()}_${Math.random()
-      .toString(36)
-      .substr(2, 9)}`;
-
-    console.log("[MOCK] Token generated:", mockToken);
-
-    // Return in the expected format
-    return {
-      access_token: mockToken,
-      // Optional: include additional mock data
-      expires_in: 3600,
-      scope: "accounts.write payment_methods.write",
-    };
-
-    // TODO: Replace the above mock implementation with:
-    // const response = await fetch('/api/moov/generate-token', {
-    //   method: 'POST',
-    //   headers: {
-    //     'Content-Type': 'application/json',
-    //     'Authorization': `Bearer ${yourAuthToken}`
-    //   },
-    //   body: JSON.stringify({ operatorEmail })
-    // });
-    //
-    // if (!response.ok) {
-    //   throw new Error(`Token generation failed: ${response.statusText}`);
-    // }
-    //
-    // return await response.json();
   }
 
   /**
