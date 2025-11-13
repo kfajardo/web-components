@@ -79,7 +79,16 @@ Multi-step onboarding form for capturing operator information.
 <script>
   const onboarding = document.getElementById('onboarding');
   
-  // Success callback
+  // Submit callback (called before submission, can modify or cancel)
+  onboarding.onSubmit = async (formData) => {
+    console.log('About to submit:', formData);
+    // Return false to cancel submission
+    // Return modified data to use instead
+    // Return nothing/true to proceed normally
+    return formData;
+  };
+  
+  // Success callback (called after successful submission)
   onboarding.onSuccess = (formData) => {
     console.log('Onboarding completed!', formData);
     // formData contains: businessDetails, representatives, bankDetails, underwriting
@@ -126,6 +135,7 @@ Multi-step onboarding form for capturing operator information.
 |-----------|------|---------|-------------|
 | `api-base-url` | string | `https://bison-jib-development.azurewebsites.net` | API base URL |
 | `embeddable-key` | string | (dev key) | Your embeddable API key |
+| `on-submit` | string | - | Global function name for pre-submission callback |
 | `on-success` | string | - | Global function name for success callback |
 | `on-error` | string | - | Global function name for error callback |
 
@@ -135,8 +145,13 @@ Multi-step onboarding form for capturing operator information.
 const onboarding = document.getElementById('onboarding');
 
 // Callbacks
-onboarding.onSuccess = (data) => { /* ... */ };
-onboarding.onError = (error) => { /* ... */ };
+onboarding.onSubmit = async (data) => {
+  // Called before submission
+  // Return false to cancel, modified data to transform, or nothing to proceed
+  return data;
+};
+onboarding.onSuccess = (data) => { /* Called after successful submission */ };
+onboarding.onError = (error) => { /* Called on error */ };
 
 // Pre-fill data
 onboarding.onLoad = { /* data object */ };
@@ -154,6 +169,48 @@ onboarding.addEventListener('submissionFailed', (event) => {
   console.log('Submission failed:', event.detail);
 });
 ```
+
+### Advanced: onSubmit Callback
+
+The `onSubmit` callback allows you to intercept form data before submission:
+
+```javascript
+const onboarding = document.getElementById('onboarding');
+
+onboarding.onSubmit = async (formData) => {
+  console.log('Pre-submission data:', formData);
+  
+  // Example 1: Validate data
+  if (!formData.businessDetails.businessEmail.includes('@company.com')) {
+    alert('Must use company email');
+    return false; // Cancel submission
+  }
+  
+  // Example 2: Transform data
+  const modifiedData = {
+    ...formData,
+    businessDetails: {
+      ...formData.businessDetails,
+      businessName: formData.businessDetails.businessName.toUpperCase()
+    }
+  };
+  return modifiedData; // Use modified data
+  
+  // Example 3: Add metadata
+  return {
+    ...formData,
+    metadata: {
+      submittedAt: new Date().toISOString(),
+      source: 'web'
+    }
+  };
+};
+```
+
+**Return Values:**
+- `false` - Cancels submission
+- `object` - Uses returned object as form data
+- `undefined`/`true` - Proceeds with original data
 
 ---
 

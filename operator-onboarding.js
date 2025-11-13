@@ -177,6 +177,7 @@ class OperatorOnboarding extends HTMLElement {
     // Internal callback storage
     this._onSuccessCallback = null;
     this._onErrorCallback = null;
+    this._onSubmitCallback = null;
     this._initialData = null;
 
     this.render();
@@ -204,6 +205,17 @@ class OperatorOnboarding extends HTMLElement {
     }
   }
 
+  // Getter and setter for onSubmit property (for pre-submission handling)
+  get onSubmit() {
+    return this._onSubmitCallback;
+  }
+
+  set onSubmit(callback) {
+    if (typeof callback === "function" || callback === null) {
+      this._onSubmitCallback = callback;
+    }
+  }
+
   // Getter and setter for onLoad property (for pre-populating form data)
   get onLoad() {
     return this._initialData;
@@ -218,7 +230,7 @@ class OperatorOnboarding extends HTMLElement {
 
   // Static getter for observed attributes
   static get observedAttributes() {
-    return ["on-success", "on-error", "on-load"];
+    return ["on-success", "on-error", "on-submit", "on-load"];
   }
 
   // ==================== VALIDATORS ====================
@@ -806,6 +818,37 @@ class OperatorOnboarding extends HTMLElement {
     const completedSteps = new Set(this.state.completedSteps);
     completedSteps.add(this.state.currentStep);
 
+    // Prepare form data
+    const formData = {
+      businessDetails: this.state.formData.businessDetails,
+      representatives: this.state.formData.representatives,
+      underwriting: this.state.formData.underwriting,
+      bankDetails: this.state.formData.bankDetails,
+    };
+
+    // Call onSubmit callback if provided (before submission)
+    let processedData = formData;
+    if (this.onSubmit && typeof this.onSubmit === "function") {
+      try {
+        const result = await this.onSubmit(formData);
+        
+        // If callback returns false, cancel submission
+        if (result === false) {
+          console.log("Form submission cancelled by onSubmit callback");
+          return;
+        }
+        
+        // If callback returns modified data, use it
+        if (result && typeof result === "object") {
+          processedData = result;
+        }
+      } catch (error) {
+        console.error("Error in onSubmit callback:", error);
+        this.handleSubmissionFailure(formData);
+        return;
+      }
+    }
+
     // Show loading state
     this.setState({
       completedSteps,
@@ -815,19 +858,11 @@ class OperatorOnboarding extends HTMLElement {
     // Simulate processing (2 seconds)
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
-    // Log all form data to console
-    const formData = {
-      businessDetails: this.state.formData.businessDetails,
-      representatives: this.state.formData.representatives,
-      underwriting: this.state.formData.underwriting,
-      bankDetails: this.state.formData.bankDetails,
-    };
-
-    console.log("Form Submission - Complete Data:", formData);
+    console.log("Form Submission - Complete Data:", processedData);
 
     if (shouldFail) {
       // Handle submission failure
-      this.handleSubmissionFailure(formData);
+      this.handleSubmissionFailure(processedData);
       return;
     }
 
@@ -840,7 +875,7 @@ class OperatorOnboarding extends HTMLElement {
     // Emit custom event
     this.dispatchEvent(
       new CustomEvent("formComplete", {
-        detail: formData,
+        detail: processedData,
         bubbles: true,
         composed: true,
       })
@@ -848,7 +883,7 @@ class OperatorOnboarding extends HTMLElement {
 
     // Call onSuccess callback if provided
     if (this.onSuccess && typeof this.onSuccess === "function") {
-      this.onSuccess(formData);
+      this.onSuccess(processedData);
     }
   }
 
@@ -2753,6 +2788,12 @@ class OperatorOnboarding extends HTMLElement {
     if (name === "on-error" && newValue) {
       // Use the setter to assign the callback from window scope
       this.onError = window[newValue];
+    }
+
+    // Handle on-submit attribute
+    if (name === "on-submit" && newValue) {
+      // Use the setter to assign the callback from window scope
+      this.onSubmit = window[newValue];
     }
 
     // Handle on-load attribute (expects JSON string or global variable name)
