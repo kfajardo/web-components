@@ -418,7 +418,7 @@ class OperatorOnboarding extends HTMLElement {
         },
         {
           name: "businessWebsite",
-          validators: ["url"],
+          validators: ["required", "url"],
           label: "Business Website",
         },
         {
@@ -1760,7 +1760,7 @@ class OperatorOnboarding extends HTMLElement {
           
           ${this.renderField({
             name: "businessWebsite",
-            label: "Business Website",
+            label: "Business Website *",
             type: "url",
             value: data.businessWebsite,
             error: this.getFieldError("businessWebsite"),
