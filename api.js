@@ -1,24 +1,24 @@
 /**
  * API Service for BisonJibPay Embeddable Endpoints
- * 
+ *
  * This class provides a centralized way to interact with the BisonJibPay API.
  * It handles authentication via embeddable keys and provides methods for
  * common operations like operator validation, registration, and token generation.
- * 
+ *
  * @class BisonJibPayAPI
  * @author @kfajardo
  * @version 1.0.0
- * 
+ *
  * @example
  * // Initialize the API
  * const api = new BisonJibPayAPI(
  *   'https://your-api.com',
  *   'your-embeddable-key'
  * );
- * 
+ *
  * // Validate operator email
  * const result = await api.validateOperatorEmail('operator@example.com');
- * 
+ *
  * // Generate Moov token
  * const token = await api.generateMoovToken('operator@example.com');
  */
@@ -96,13 +96,13 @@ class BisonJibPayAPI {
 
   /**
    * Generate Moov access token for operator
-   * 
+   *
    * This method calls the backend API to generate a Moov token for payment operations.
    * The backend handles the secure communication with Moov's API.
-   * 
+   *
    * @param {string} operatorEmail - Operator's email address
    * @returns {Promise<{access_token: string, expires_in?: number, scope?: string}>}
-   * 
+   *
    * @example
    * const api = new BisonJibPayAPI(baseURL, embeddableKey);
    * const tokenData = await api.generateMoovToken('operator@example.com');
@@ -112,6 +112,52 @@ class BisonJibPayAPI {
     return this.request("/api/embeddable/moov/generate-token", {
       method: "POST",
       body: JSON.stringify({ operatorEmail }),
+    });
+  }
+
+  /**
+   * Generate Plaid Link token for WIO
+   *
+   * This method calls the backend API to generate a Plaid Link token for bank account linking.
+   * The token is used to initialize Plaid Link in the Moov payment drop.
+   *
+   * @param {string} wioEmail - WIO's email address
+   * @returns {Promise<{link_token: string, expiration?: string}>}
+   *
+   * @example
+   * const api = new BisonJibPayAPI(baseURL, embeddableKey);
+   * const tokenData = await api.generatePlaidToken('wio@example.com');
+   * console.log(tokenData.link_token);
+   */
+  async generatePlaidToken(wioEmail) {
+    return this.request("/api/embeddable/plaid/generate-token", {
+      method: "POST",
+      body: JSON.stringify({ wioEmail }),
+    });
+  }
+
+  /**
+   * Create Plaid processor token
+   *
+   * Exchanges a Plaid public token for a processor token that can be used with Moov.
+   * This is called during the Plaid Link flow after the user selects their bank account.
+   *
+   * @param {string} publicToken - Plaid public token from Link flow
+   * @param {string} bankAccountId - Selected bank account ID
+   * @returns {Promise<{processor_token: string, bank_account_id: string}>}
+   *
+   * @example
+   * const api = new BisonJibPayAPI(baseURL, embeddableKey);
+   * const result = await api.createProcessorToken(publicToken, accountId);
+   * console.log(result.processor_token);
+   */
+  async createProcessorToken(publicToken, bankAccountId) {
+    return this.request("/api/embeddable/plaid/create-processor-token", {
+      method: "POST",
+      body: JSON.stringify({
+        public_token: publicToken,
+        bank_account_id: bankAccountId,
+      }),
     });
   }
 }
