@@ -37,7 +37,7 @@ class OperatorPayment extends HTMLElement {
     this.embeddableKey =
       this.getAttribute("embeddable-key") ||
       "R80WMkbNN8457RofiMYx03DL65P06IaVT30Q2emYJUBQwYCzRC";
-    
+
     // Check if BisonJibPayAPI is available
     if (typeof BisonJibPayAPI === "undefined") {
       console.error(
@@ -71,7 +71,14 @@ class OperatorPayment extends HTMLElement {
   // ==================== STATIC PROPERTIES ====================
 
   static get observedAttributes() {
-    return ["operator-email", "on-success", "on-error", "open", "api-base-url", "embeddable-key"];
+    return [
+      "operator-email",
+      "on-success",
+      "on-error",
+      "open",
+      "api-base-url",
+      "embeddable-key",
+    ];
   }
 
   // ==================== PROPERTY GETTERS/SETTERS ====================
@@ -89,13 +96,32 @@ class OperatorPayment extends HTMLElement {
    * @param {string} value - Operator's email address
    */
   set operatorEmail(value) {
+    console.log("OperatorPayment: Setting operator email to:", value);
     if (this._state.operatorEmail !== value) {
       this._state.operatorEmail = value;
       this._state.isInitialized = false;
 
       // Reinitialize if already connected and email is provided
       if (this.isConnected && value) {
-        this.initializeMoovDrop();
+        console.log(
+          "OperatorPayment: Component is connected, ensuring SDK and calling initializeMoovDrop()"
+        );
+        // Ensure Moov SDK is loaded before initializing
+        this.ensureMoovSDK()
+          .then(() => {
+            this.initializeMoovDrop();
+          })
+          .catch((error) => {
+            console.error("OperatorPayment: Failed to ensure SDK:", error);
+            this.handleError({
+              errorType: "sdk",
+              error: error.message,
+            });
+          });
+      } else {
+        console.log(
+          "OperatorPayment: Component not connected yet, will initialize on connect"
+        );
       }
     }
   }
@@ -166,11 +192,24 @@ class OperatorPayment extends HTMLElement {
   // ==================== LIFECYCLE METHODS ====================
 
   connectedCallback() {
+    console.log("OperatorPayment: connectedCallback called");
+    console.log(
+      "OperatorPayment: Current operator email:",
+      this._state.operatorEmail
+    );
+    console.log("OperatorPayment: Is initialized:", this._state.isInitialized);
+
     // Load Moov SDK if not already loaded
     this.ensureMoovSDK().then(() => {
+      console.log("OperatorPayment: Moov SDK ready in connectedCallback");
       // Initialize if operator email is already set
       if (this._state.operatorEmail && !this._state.isInitialized) {
+        console.log("OperatorPayment: Auto-initializing because email is set");
         this.initializeMoovDrop();
+      } else {
+        console.log(
+          "OperatorPayment: Not auto-initializing - waiting for manual initialization"
+        );
       }
     });
   }
@@ -242,20 +281,23 @@ class OperatorPayment extends HTMLElement {
         "OperatorPayment: Moov SDK script found, waiting for load..."
       );
       return new Promise((resolve, reject) => {
-        existingScript.addEventListener("load", () => resolve());
+        existingScript.addEventListener("load", () => {
+          console.log("OperatorPayment: Moov SDK loaded from existing script");
+          resolve();
+        });
         existingScript.addEventListener("error", () =>
           reject(new Error("Failed to load Moov SDK"))
         );
       });
     }
 
-    // Load the SDK
+    // Load the SDK (using correct Moov CDN URL)
     console.log("OperatorPayment: Loading Moov SDK from CDN...");
     return new Promise((resolve, reject) => {
       const script = document.createElement("script");
-      script.src = "https://js.moov.io/v1/moov.js";
+      script.src = "https://js.moov.io/v1"; // Correct Moov SDK URL
+      script.crossOrigin = "anonymous"; // Required for CORS
       script.async = true;
-      script.defer = true;
 
       script.onload = () => {
         console.log("OperatorPayment: Moov SDK loaded successfully");
@@ -287,6 +329,13 @@ class OperatorPayment extends HTMLElement {
    * 4. Sets up success/error callbacks
    */
   async initializeMoovDrop() {
+    console.log("OperatorPayment: initializeMoovDrop() called");
+    console.log("OperatorPayment: State:", {
+      operatorEmail: this._state.operatorEmail,
+      isInitialized: this._state.isInitialized,
+      isLoading: this._state.isLoading,
+    });
+
     // 1. Validate prerequisites
     if (!this._state.operatorEmail) {
       console.warn("OperatorPayment: operatorEmail is required");
@@ -294,18 +343,38 @@ class OperatorPayment extends HTMLElement {
     }
 
     if (!window.Moov) {
-      this.handleError({
-        errorType: "sdk",
-        error: "Moov SDK not loaded. Please include the Moov SDK script.",
-      });
-      return;
+      console.error(
+        "OperatorPayment: Moov SDK not available, attempting to load..."
+      );
+      // Try to ensure SDK is loaded
+      try {
+        await this.ensureMoovSDK();
+        if (!window.Moov) {
+          this.handleError({
+            errorType: "sdk",
+            error:
+              "Moov SDK failed to load. Please check your internet connection.",
+          });
+          return;
+        }
+        console.log(
+          "OperatorPayment: Moov SDK loaded successfully after retry"
+        );
+      } catch (error) {
+        this.handleError({
+          errorType: "sdk",
+          error: `Failed to load Moov SDK: ${error.message}`,
+        });
+        return;
+      }
     }
 
     // 2. Generate token using BisonJibPayAPI
     if (!this.api) {
       this.handleError({
         errorType: "initialization",
-        error: "BisonJibPayAPI is not available. Please ensure component.js is loaded first.",
+        error:
+          "BisonJibPayAPI is not available. Please ensure component.js is loaded first.",
       });
       return;
     }
@@ -315,6 +384,8 @@ class OperatorPayment extends HTMLElement {
       const tokenResult = await this.api.generateMoovToken(
         this._state.operatorEmail
       );
+
+      console.log("tokenResult", tokenResult);
       this._state.moovToken = tokenResult.access_token;
     } catch (error) {
       this.handleError({

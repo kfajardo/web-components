@@ -305,7 +305,7 @@ class WioPayment extends HTMLElement {
     console.log("WioPayment: Loading Moov SDK from CDN...");
     return new Promise((resolve, reject) => {
       const script = document.createElement("script");
-      script.src = "https://js.moov.io/v1/moov.js";
+      script.src = "https://js.moov.io/v1";
       script.async = true;
       script.defer = true;
 

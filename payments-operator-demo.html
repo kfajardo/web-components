@@ -5,8 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>OperatorPayment Component - Demo</title>
 
-    <!-- Moov SDK is automatically loaded by the component -->
-    <!-- No manual script loading required! -->
+    <!-- Moov SDK will be loaded dynamically by the component -->
 
     <style>
       * {
@@ -189,8 +188,8 @@
         <input
           type="email"
           id="operatorEmailInput"
-          placeholder="operator@example.com"
-          value="operator@example.com" />
+          placeholder="david.miller@caminoresources.com"
+          value="david.miller@caminoresources.com" />
       </div>
 
       <div class="button-group">
@@ -208,56 +207,15 @@
       <div id="messageBox" class="message-box"></div>
     </div>
 
-    <!-- Usage Examples -->
-    <div class="demo-section">
-      <h3>Usage Examples</h3>
-
-      <h4 style="margin-top: 15px; margin-bottom: 10px">
-        1. Basic JavaScript Usage:
-      </h4>
-      <pre>
-const payment = document.getElementById('payment');
-payment.operatorEmail = 'operator@example.com';
-payment.onSuccess = (data) => console.log('Success!', data);
-payment.onError = ({ errorType, error }) => console.error(error);
-payment.open = true;</pre
-      >
-
-      <h4 style="margin-top: 15px; margin-bottom: 10px">2. HTML Attributes:</h4>
-      <pre>
-&lt;operator-payment 
-  operator-email="operator@example.com"
-  on-success="handleSuccess"
-  on-error="handleError"
-  open&gt;
-&lt;/operator-payment&gt;</pre
-      >
-
-      <h4 style="margin-top: 15px; margin-bottom: 10px">3. React Usage:</h4>
-      <pre>
-const paymentRef = useRef(null);
-
-useEffect(() => {
-  if (paymentRef.current) {
-    paymentRef.current.operatorEmail = operatorEmail;
-    paymentRef.current.onSuccess = handleSuccess;
-    paymentRef.current.onError = handleError;
-  }
-}, [operatorEmail]);
-
-return &lt;operator-payment ref={paymentRef} /&gt;;</pre
-      >
-    </div>
-
     <!-- Component Container -->
     <div class="component-wrapper">
       <operator-payment id="payment"></operator-payment>
     </div>
 
-    <!-- Load the component -->
-    <script src="payments-operator.js"></script>
+    <!-- Load the component (requires type="module" for ES6 imports) -->
+    <script type="module" src="component.js"></script>
 
-    <script>
+    <script type="module">
       // Get references
       const paymentComponent = document.getElementById("payment");
       const messageBox = document.getElementById("messageBox");
@@ -280,7 +238,7 @@ return &lt;operator-payment ref={paymentRef} /&gt;;</pre
       /**
        * Initialize the component with operator email
        */
-      function initializeComponent() {
+      window.initializeComponent = function () {
         const email = document.getElementById("operatorEmailInput").value;
 
         if (!email) {
@@ -296,12 +254,12 @@ return &lt;operator-payment ref={paymentRef} /&gt;;</pre
         paymentComponent.onError = handlePaymentError;
 
         showMessage(`Component initialized for: ${email}`, "success");
-      }
+      };
 
       /**
        * Open the payment methods drop
        */
-      function openPaymentDrop() {
+      window.openPaymentDrop = function () {
         if (!paymentComponent.operatorEmail) {
           showMessage("Please initialize the component first", "error");
           return;
@@ -309,20 +267,20 @@ return &lt;operator-payment ref={paymentRef} /&gt;;</pre
 
         paymentComponent.open = true;
         showMessage("Payment drop opened", "info");
-      }
+      };
 
       /**
        * Close the payment methods drop
        */
-      function closePaymentDrop() {
+      window.closePaymentDrop = function () {
         paymentComponent.open = false;
         showMessage("Payment drop closed", "info");
-      }
+      };
 
       /**
        * Handle successful payment method addition
        */
-      function handlePaymentSuccess(data) {
+      window.handlePaymentSuccess = function (data) {
         console.log("✅ Payment method successfully added:", data);
         showMessage(
           `Payment method added successfully! Check console for details.`,
@@ -334,12 +292,12 @@ return &lt;operator-payment ref={paymentRef} /&gt;;</pre
         // - Close a modal
         // - Show a confirmation message
         // - Navigate to another page
-      }
+      };
 
       /**
        * Handle payment errors
        */
-      function handlePaymentError({ errorType, error }) {
+      window.handlePaymentError = function ({ errorType, error }) {
         console.error(`❌ Payment error (${errorType}):`, error);
         showMessage(`Error (${errorType}): ${error}`, "error");
 
@@ -347,7 +305,7 @@ return &lt;operator-payment ref={paymentRef} /&gt;;</pre
         // - Show user-friendly error messages
         // - Log to error tracking service
         // - Provide retry options
-      }
+      };
 
       /**
        * Also listen for custom events (alternative to callbacks)

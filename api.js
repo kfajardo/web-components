@@ -24,7 +24,8 @@
  */
 class BisonJibPayAPI {
   constructor(baseURL, embeddableKey) {
-    this.baseURL = baseURL || "https://bison-jib-development.azurewebsites.net";
+    // this.baseURL = baseURL || "https://bison-jib-development.azurewebsites.net";
+    this.baseURL = baseURL || "http://localhost:5120";
     this.embeddableKey = embeddableKey;
   }
 
@@ -109,9 +110,28 @@ class BisonJibPayAPI {
    * console.log(tokenData.access_token);
    */
   async generateMoovToken(operatorEmail) {
-    return this.request("/api/embeddable/moov/generate-token", {
+    console.log('CALLED GENERATE MOOV TOKEN')
+    return this.request("/api/embeddable/moov-access-token", {
       method: "POST",
-      body: JSON.stringify({ operatorEmail }),
+      body: JSON.stringify({
+        email: operatorEmail,
+        scopes: [
+          "accounts.read",
+          "accounts.write",
+          "fed.read",
+          "profile-enrichment.read",
+          "bank-accounts.read",
+          "bank-accounts.write",
+          "capabilities.read",
+          "capabilities.write",
+          "cards.read",
+          "cards.write",
+          "profile.read",
+          "profile.write",
+          "representatives.read",
+          "representatives.write",
+        ],
+      }),
     });
   }
 
