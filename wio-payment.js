@@ -38,7 +38,7 @@ class WioPayment extends HTMLElement {
     this.embeddableKey =
       this.getAttribute("embeddable-key") ||
       "R80WMkbNN8457RofiMYx03DL65P06IaVT30Q2emYJUBQwYCzRC";
-    
+
     // Check if BisonJibPayAPI is available
     if (typeof BisonJibPayAPI === "undefined") {
       console.error(
@@ -52,8 +52,8 @@ class WioPayment extends HTMLElement {
     // Internal state
     this._state = {
       wioEmail: null,
-      env: 'sandbox',
-      redirectURL: typeof window !== 'undefined' ? window.location.origin : '',
+      env: "sandbox",
+      redirectURL: typeof window !== "undefined" ? window.location.origin : "",
       moovToken: null,
       plaidToken: null,
       isInitialized: false,
@@ -75,7 +75,16 @@ class WioPayment extends HTMLElement {
   // ==================== STATIC PROPERTIES ====================
 
   static get observedAttributes() {
-    return ["wio-email", "env", "redirect-url", "on-success", "on-error", "open", "api-base-url", "embeddable-key"];
+    return [
+      "wio-email",
+      "env",
+      "redirect-url",
+      "on-success",
+      "on-error",
+      "open",
+      "api-base-url",
+      "embeddable-key",
+    ];
   }
 
   // ==================== PROPERTY GETTERS/SETTERS ====================
@@ -213,7 +222,12 @@ class WioPayment extends HTMLElement {
     // Load Moov SDK if not already loaded
     this.ensureMoovSDK().then(() => {
       // Initialize if both wioEmail and env are already set
-      if (this._state.wioEmail && this._state.env && !this._state.isInitialized) {
+
+      if (
+        this._state.wioEmail &&
+        this._state.env &&
+        !this._state.isInitialized
+      ) {
         this.initializeMoovDrop();
       }
     });
@@ -290,9 +304,7 @@ class WioPayment extends HTMLElement {
     // Check if script is already being loaded
     const existingScript = document.querySelector('script[src*="moov.js"]');
     if (existingScript) {
-      console.log(
-        "WioPayment: Moov SDK script found, waiting for load..."
-      );
+      console.log("WioPayment: Moov SDK script found, waiting for load...");
       return new Promise((resolve, reject) => {
         existingScript.addEventListener("load", () => resolve());
         existingScript.addEventListener("error", () =>
@@ -362,7 +374,8 @@ class WioPayment extends HTMLElement {
     if (!this.api) {
       this.handleError({
         errorType: "initialization",
-        error: "BisonJibPayAPI is not available. Please ensure component.js is loaded first.",
+        error:
+          "BisonJibPayAPI is not available. Please ensure component.js is loaded first.",
       });
       return;
     }
@@ -385,7 +398,6 @@ class WioPayment extends HTMLElement {
       );
       this._state.moovToken = moovTokenResult.access_token;
       console.log("WioPayment: Moov token generated successfully");
-
     } catch (error) {
       this.handleError({
         errorType: "token",
@@ -412,7 +424,10 @@ class WioPayment extends HTMLElement {
       redirectURL: this._state.redirectURL,
       token: this._state.plaidToken,
       onSuccess: (moovBankAccount) => {
-        console.log("WioPayment: Plaid flow completed successfully", moovBankAccount);
+        console.log(
+          "WioPayment: Plaid flow completed successfully",
+          moovBankAccount
+        );
       },
       onExit: (err, metadata) => {
         if (err) {
@@ -478,7 +493,12 @@ class WioPayment extends HTMLElement {
 
     // 9. Mark as initialized
     this._state.isInitialized = true;
-    console.log("WioPayment: Initialized for", this._state.wioEmail, "with env", this._state.env);
+    console.log(
+      "WioPayment: Initialized for",
+      this._state.wioEmail,
+      "with env",
+      this._state.env
+    );
   }
 
   /**

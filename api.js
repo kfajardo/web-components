@@ -25,7 +25,7 @@
 class BisonJibPayAPI {
   constructor(baseURL, embeddableKey) {
     // this.baseURL = baseURL || "https://bison-jib-development.azurewebsites.net";
-    this.baseURL = baseURL || "http://localhost:5120";
+    this.baseURL = "http://localhost:5120";
     this.embeddableKey = embeddableKey;
   }
 
@@ -150,9 +150,16 @@ class BisonJibPayAPI {
    * console.log(tokenData.link_token);
    */
   async generatePlaidToken(wioEmail) {
+
     return this.request("/api/embeddable/plaid/generate-token", {
       method: "POST",
-      body: JSON.stringify({ wioEmail }),
+      body: JSON.stringify({
+        clientName: wioEmail,
+        user: {
+          clientUserId: wioEmail,
+          legalName: wioEmail,
+        },
+      }),
     });
   }
 
