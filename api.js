@@ -110,7 +110,7 @@ class BisonJibPayAPI {
    * console.log(tokenData.access_token);
    */
   async generateMoovToken(operatorEmail) {
-    console.log('CALLED GENERATE MOOV TOKEN')
+    console.log("CALLED GENERATE MOOV TOKEN");
     return this.request("/api/embeddable/moov-access-token", {
       method: "POST",
       body: JSON.stringify({
@@ -150,15 +150,17 @@ class BisonJibPayAPI {
    * console.log(tokenData.link_token);
    */
   async generatePlaidToken(wioEmail) {
-
-    return this.request("/api/embeddable/plaid/generate-token", {
+    return this.request("/api/embeddable/plaid/link-token", {
       method: "POST",
       body: JSON.stringify({
         clientName: wioEmail,
+        countryCodes: ["US"],
         user: {
-          clientUserId: wioEmail,
-          legalName: wioEmail,
+          clientUserId: "susan-garcia",
+          legalName: "Susan Garcia",
         },
+        products: ["transactions"],
+        client_name: "Personal Finance App",
       }),
     });
   }

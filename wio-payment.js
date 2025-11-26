@@ -396,7 +396,7 @@ class WioPayment extends HTMLElement {
       const moovTokenResult = await this.api.generateMoovToken(
         this._state.wioEmail
       );
-      this._state.moovToken = moovTokenResult.access_token;
+      this._state.moovToken = moovTokenResult.accessToken;
       console.log("WioPayment: Moov token generated successfully");
     } catch (error) {
       this.handleError({
