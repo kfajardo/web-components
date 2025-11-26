@@ -1,6 +1,6 @@
 {
   "name": "web-components-moov",
-  "version": "1.0.23",
+  "version": "1.0.24",
   "description": "A simple demo for integrated moov drops turned into web components",
   "main": "component.js",
   "type": "module",
