@@ -207,7 +207,18 @@ class BisonJibPayAPI {
     return this.request("/api/embeddable/plaid/processor-token", {
       method: "POST",
       body: JSON.stringify({
-        publicToken: publicToken,
+        publicToken,
+        accountId: bankAccountId,
+      }),
+    });
+  }
+
+  async addPlaidAccountToMoov(publicToken, bankAccountId, moovAccountId) {
+    return this.request("/api/embeddable/plaid/add-to-moov", {
+      method: "POST",
+      body: JSON.stringify({
+        publicToken,
+        moovAccountId,
         accountId: bankAccountId,
       }),
     });
