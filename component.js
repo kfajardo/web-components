@@ -29,6 +29,7 @@ import { BisonJibPayAPI } from "./api.js";
 // Import web components (they auto-register when imported)
 import "./operator-onboarding.js";
 import "./operator-payment.js";
+import "./operator-underwriting.js";
 import "./wio-payment.js";
 import "./wio-payment-linking.js";
 

@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Operator Underwriting Demo</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Oxygen, Ubuntu, sans-serif;
+        background: #f5f5f5;
+        min-height: 100vh;
+        padding: 40px 20px;
+      }
+
+      .container {
+        max-width: 800px;
+        margin: 0 auto;
+      }
+
+      h1 {
+        color: #325240;
+        margin-bottom: 8px;
+      }
+
+      .subtitle {
+        color: #6b7280;
+        margin-bottom: 32px;
+      }
+
+      .demo-section {
+        background: white;
+        border-radius: 12px;
+        padding: 24px;
+        margin-bottom: 24px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+      }
+
+      .demo-section h2 {
+        color: #1f2937;
+        font-size: 18px;
+        margin-bottom: 16px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid #e5e7eb;
+      }
+
+      .demo-row {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 16px;
+      }
+
+      .demo-row:last-child {
+        margin-bottom: 0;
+      }
+
+      label {
+        font-size: 14px;
+        font-weight: 500;
+        color: #374151;
+        min-width: 120px;
+      }
+
+      input[type="email"] {
+        flex: 1;
+        padding: 10px 14px;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        font-size: 14px;
+      }
+
+      input[type="email"]:focus {
+        outline: none;
+        border-color: #325240;
+        box-shadow: 0 0 0 3px rgba(50, 82, 64, 0.1);
+      }
+
+      .btn-apply {
+        padding: 10px 20px;
+        background: #325240;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background 0.2s ease;
+      }
+
+      .btn-apply:hover {
+        background: #2a4536;
+      }
+
+      .event-log {
+        background: #1f2937;
+        border-radius: 8px;
+        padding: 16px;
+        color: #e5e7eb;
+        font-family: "Monaco", "Menlo", "Ubuntu Mono", monospace;
+        font-size: 13px;
+        max-height: 300px;
+        overflow-y: auto;
+      }
+
+      .event-log .log-entry {
+        margin-bottom: 8px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #374151;
+      }
+
+      .event-log .log-entry:last-child {
+        margin-bottom: 0;
+        padding-bottom: 0;
+        border-bottom: none;
+      }
+
+      .event-log .timestamp {
+        color: #9ca3af;
+        margin-right: 8px;
+      }
+
+      .event-log .event-name {
+        color: #10b981;
+        font-weight: bold;
+      }
+
+      .event-log .event-name.error {
+        color: #ef4444;
+      }
+
+      .event-log .event-detail {
+        color: #60a5fa;
+        margin-left: 16px;
+        display: block;
+        word-break: break-all;
+      }
+
+      .component-wrapper {
+        padding: 20px;
+        background: #f9fafb;
+        border-radius: 8px;
+        text-align: center;
+      }
+
+      .state-display {
+        margin-top: 16px;
+        padding: 12px;
+        background: #f3f4f6;
+        border-radius: 6px;
+        font-size: 13px;
+        text-align: left;
+      }
+
+      .state-display code {
+        display: block;
+        white-space: pre-wrap;
+        color: #374151;
+      }
+
+      .btn-clear {
+        padding: 6px 12px;
+        background: #6b7280;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-size: 12px;
+        cursor: pointer;
+        float: right;
+      }
+
+      .btn-clear:hover {
+        background: #4b5563;
+      }
+
+      .info-box {
+        background: #eff6ff;
+        border: 1px solid #bfdbfe;
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 24px;
+      }
+
+      .info-box h3 {
+        color: #1e40af;
+        font-size: 14px;
+        margin-bottom: 8px;
+      }
+
+      .info-box p {
+        color: #3b82f6;
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      .info-box code {
+        background: #dbeafe;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: monospace;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Operator Underwriting Demo</h1>
+      <p class="subtitle">Test the operator-underwriting web component</p>
+
+      <div class="info-box">
+        <h3>How it works</h3>
+        <p>
+          1. Enter an operator email and click "Apply Email"<br />
+          2. The component will call <code>getAccountByEmail</code> API<br />
+          3. On success: Button becomes active, moov account ID is stored<br />
+          4. On failure: Button is disabled with broken link icon<br />
+          5. Click the button to open a blank modal
+        </p>
+      </div>
+
+      <div class="demo-section">
+        <h2>Component Demo</h2>
+
+        <div class="demo-row">
+          <label for="emailInput">Operator Email:</label>
+          <input
+            type="email"
+            id="emailInput"
+            placeholder="operator@example.com"
+            value="" />
+          <button class="btn-apply" id="applyBtn">Apply Email</button>
+        </div>
+
+        <div class="component-wrapper">
+          <operator-underwriting
+            id="underwritingComponent"></operator-underwriting>
+        </div>
+
+        <div class="state-display">
+          <strong>Component State:</strong>
+          <code id="stateDisplay"
+            >{ operatorEmail: null, moovAccountId: null, isReady: false }</code
+          >
+        </div>
+      </div>
+
+      <div class="demo-section">
+        <h2>
+          Event Log <button class="btn-clear" id="clearBtn">Clear</button>
+        </h2>
+        <div class="event-log" id="eventLog">
+          <div class="log-entry">
+            <span class="timestamp">[--:--:--]</span>
+            <span class="event-name">waiting</span>
+            <span class="event-detail"
+              >Enter an email and click "Apply Email" to start</span
+            >
+          </div>
+        </div>
+      </div>
+
+      <div class="demo-section">
+        <h2>Quick Test Scenarios</h2>
+        <div class="demo-row">
+          <button class="btn-apply" id="validEmailBtn">Test Valid Email</button>
+          <button
+            class="btn-apply"
+            id="invalidEmailBtn"
+            style="background: #dc2626">
+            Test Invalid Email
+          </button>
+          <button
+            class="btn-apply"
+            id="clearEmailBtn"
+            style="background: #6b7280">
+            Clear Email
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Load API first -->
+    <script type="module">
+      import { BisonJibPayAPI } from "./api.js";
+      import "./operator-underwriting.js";
+
+      // Make API available globally for the component
+      window.BisonJibPayAPI = BisonJibPayAPI;
+
+      // Get DOM elements
+      const component = document.getElementById("underwritingComponent");
+      const emailInput = document.getElementById("emailInput");
+      const applyBtn = document.getElementById("applyBtn");
+      const eventLog = document.getElementById("eventLog");
+      const stateDisplay = document.getElementById("stateDisplay");
+      const clearBtn = document.getElementById("clearBtn");
+      const validEmailBtn = document.getElementById("validEmailBtn");
+      const invalidEmailBtn = document.getElementById("invalidEmailBtn");
+      const clearEmailBtn = document.getElementById("clearEmailBtn");
+
+      // Log event to event log
+      function logEvent(eventName, detail, isError = false) {
+        const now = new Date();
+        const timestamp = now.toTimeString().split(" ")[0];
+
+        const entry = document.createElement("div");
+        entry.className = "log-entry";
+        entry.innerHTML = `
+        <span class="timestamp">[${timestamp}]</span>
+        <span class="event-name ${isError ? "error" : ""}">${eventName}</span>
+        <span class="event-detail">${JSON.stringify(detail, null, 2)}</span>
+      `;
+
+        eventLog.insertBefore(entry, eventLog.firstChild);
+      }
+
+      // Update state display
+      function updateStateDisplay() {
+        const state = {
+          operatorEmail: component.operatorEmail,
+          moovAccountId: component.moovAccountId,
+          isReady: component.isReady,
+        };
+        stateDisplay.textContent = JSON.stringify(state, null, 2);
+      }
+
+      // Apply email to component
+      applyBtn.addEventListener("click", () => {
+        const email = emailInput.value.trim();
+        if (email) {
+          component.setAttribute("operator-email", email);
+          logEvent("email-applied", { email });
+          updateStateDisplay();
+        }
+      });
+
+      // Clear event log
+      clearBtn.addEventListener("click", () => {
+        eventLog.innerHTML =
+          '<div class="log-entry"><span class="timestamp">[--:--:--]</span><span class="event-name">cleared</span></div>';
+      });
+
+      // Quick test buttons
+      validEmailBtn.addEventListener("click", () => {
+        emailInput.value = "test@operator.com";
+        component.setAttribute("operator-email", "test@operator.com");
+        logEvent("email-applied", { email: "test@operator.com" });
+        updateStateDisplay();
+      });
+
+      invalidEmailBtn.addEventListener("click", () => {
+        emailInput.value = "invalid@nonexistent.com";
+        component.setAttribute("operator-email", "invalid@nonexistent.com");
+        logEvent("email-applied", { email: "invalid@nonexistent.com" });
+        updateStateDisplay();
+      });
+
+      clearEmailBtn.addEventListener("click", () => {
+        emailInput.value = "";
+        component.removeAttribute("operator-email");
+        logEvent("email-cleared", {});
+        updateStateDisplay();
+      });
+
+      // Listen to component events
+      component.addEventListener("underwriting-ready", (e) => {
+        logEvent("underwriting-ready", e.detail);
+        updateStateDisplay();
+      });
+
+      component.addEventListener("underwriting-error", (e) => {
+        logEvent("underwriting-error", e.detail, true);
+        updateStateDisplay();
+      });
+
+      component.addEventListener("underwriting-modal-open", (e) => {
+        logEvent("underwriting-modal-open", e.detail);
+      });
+
+      component.addEventListener("underwriting-modal-close", (e) => {
+        logEvent("underwriting-modal-close", e.detail);
+      });
+
+      // Initial state display
+      updateStateDisplay();
+    </script>
+  </body>
+</html>
