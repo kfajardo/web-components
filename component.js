@@ -24,17 +24,18 @@
  */
 
 // Import and re-export BisonJibPayAPI
-import { BisonJibPayAPI } from './api.js';
+import { BisonJibPayAPI } from "./api.js";
 
 // Import web components (they auto-register when imported)
-import './operator-onboarding.js';
-import './operator-payment.js';
-import './wio-payment.js';
+import "./operator-onboarding.js";
+import "./operator-payment.js";
+import "./wio-payment.js";
+import "./wio-payment-linking.js";
 
 // Re-export the API class for programmatic access
 export { BisonJibPayAPI };
 
 // Also make available globally for non-module usage
-if (typeof window !== 'undefined') {
+if (typeof window !== "undefined") {
   window.BisonJibPayAPI = BisonJibPayAPI;
 }

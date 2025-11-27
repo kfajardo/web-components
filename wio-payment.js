@@ -379,6 +379,7 @@ class WioPayment extends HTMLElement {
       });
       return;
     }
+    let accID = "";
 
     try {
       this._state.isLoading = true;
@@ -388,7 +389,7 @@ class WioPayment extends HTMLElement {
       const plaidTokenResult = await this.api.generatePlaidToken(
         this._state.wioEmail
       );
-      this._state.plaidToken = plaidTokenResult.link_token;
+      this._state.plaidToken = plaidTokenResult.data.linkToken;
       console.log("WioPayment: Plaid token generated successfully");
 
       // 4. Generate Moov token
@@ -396,7 +397,9 @@ class WioPayment extends HTMLElement {
       const moovTokenResult = await this.api.generateMoovToken(
         this._state.wioEmail
       );
-      this._state.moovToken = moovTokenResult.accessToken;
+      this._state.moovToken = moovTokenResult.data.accessToken;
+      accID = moovTokenResult.data.moovAccountId;
+
       console.log("WioPayment: Moov token generated successfully");
     } catch (error) {
       this.handleError({
@@ -430,6 +433,7 @@ class WioPayment extends HTMLElement {
         );
       },
       onExit: (err, metadata) => {
+        console.log("PLAID ERROR", err, metadata);
         if (err) {
           console.error("WioPayment: Plaid flow exited with error", err);
           this.handleError({
@@ -454,8 +458,11 @@ class WioPayment extends HTMLElement {
             public_token,
             bank_account_id
           );
-          console.log("WioPayment: Processor token generated successfully");
-          return result.processor_token;
+          console.log(
+            "WioPayment: Processor token generated successfully",
+            result.data.processorToken
+          );
+          return result.data.processorToken;
         } catch (error) {
           console.error("WioPayment: Failed to create processor token", error);
           this.handleError({
@@ -466,11 +473,11 @@ class WioPayment extends HTMLElement {
         }
       },
     };
-
+    console.log("accountID", accID);
     // 7. Configure the Moov drop
     this._moovRef.token = this._state.moovToken;
-    this._moovRef.accountID = this._state.wioEmail;
-    this._moovRef.paymentMethodTypes = ["bankAccount"];
+    this._moovRef.accountID = accID;
+    this._moovRef.paymentMethodTypes = ["plaid"];
     this._moovRef.showLogo = true;
 
     // 8. Set up callbacks

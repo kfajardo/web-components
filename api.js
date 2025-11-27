@@ -95,6 +95,15 @@ class BisonJibPayAPI {
     });
   }
 
+  async getAccountByEmail(operatorEmail) {
+    const param = new URLSearchParams();
+    param.append("email", operatorEmail);
+
+    return this.request(`/api/embeddable/moov-account-id?${param.toString()}`, {
+      method: "GET",
+    });
+  }
+
   /**
    * Generate Moov access token for operator
    *
@@ -111,25 +120,39 @@ class BisonJibPayAPI {
    */
   async generateMoovToken(operatorEmail) {
     console.log("CALLED GENERATE MOOV TOKEN");
+
+    const account = await this.getAccountByEmail(operatorEmail);
+    const accountId = account.data.moovAccountId;
+    console.log("MOOV ACCOUNT ID", account.data.moovAccountId);
+    let accountScopes = [
+      "/accounts/{ACCOUNT_ID}/bank-accounts.read",
+      "/accounts/{ACCOUNT_ID}/bank-accounts.write",
+      "/accounts/{ACCOUNT_ID}/capabilities.read",
+      "/accounts/{ACCOUNT_ID}/capabilities.write",
+      "/accounts/{ACCOUNT_ID}/cards.read",
+      "/accounts/{ACCOUNT_ID}/cards.write",
+      "/accounts/{ACCOUNT_ID}/profile.read",
+      "/accounts/{ACCOUNT_ID}/profile.write",
+      "/accounts/{ACCOUNT_ID}/representatives.read",
+      "/accounts/{ACCOUNT_ID}/representatives.write",
+    ];
+
+    if (accountId) {
+      accountScopes = accountScopes.map((value) =>
+        value.replace("{ACCOUNT_ID}", accountId)
+      );
+    }
+
     return this.request("/api/embeddable/moov-access-token", {
       method: "POST",
       body: JSON.stringify({
         email: operatorEmail,
         scopes: [
-          "accounts.read",
-          "accounts.write",
-          "fed.read",
-          "profile-enrichment.read",
-          "bank-accounts.read",
-          "bank-accounts.write",
-          "capabilities.read",
-          "capabilities.write",
-          "cards.read",
-          "cards.write",
-          "profile.read",
-          "profile.write",
-          "representatives.read",
-          "representatives.write",
+          "/accounts.read",
+          "/accounts.write",
+          "/fed.read",
+          "/profile-enrichment.read",
+          ...accountScopes,
         ],
       }),
     });
@@ -156,8 +179,8 @@ class BisonJibPayAPI {
         clientName: wioEmail,
         countryCodes: ["US"],
         user: {
-          clientUserId: "susan-garcia",
-          legalName: "Susan Garcia",
+          clientUserId: "wio-email",
+          legalName: "Wio User",
         },
         products: ["transactions"],
         client_name: "Personal Finance App",
@@ -181,11 +204,11 @@ class BisonJibPayAPI {
    * console.log(result.processor_token);
    */
   async createProcessorToken(publicToken, bankAccountId) {
-    return this.request("/api/embeddable/plaid/create-processor-token", {
+    return this.request("/api/embeddable/plaid/processor-token", {
       method: "POST",
       body: JSON.stringify({
-        public_token: publicToken,
-        bank_account_id: bankAccountId,
+        publicToken: publicToken,
+        accountId: bankAccountId,
       }),
     });
   }
