@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Operator Management Demo</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Oxygen, Ubuntu, sans-serif;
+        background: #f5f5f5;
+        min-height: 100vh;
+        padding: 40px 20px;
+      }
+
+      .container {
+        max-width: 1000px;
+        margin: 0 auto;
+      }
+
+      h1 {
+        color: #325240;
+        margin-bottom: 8px;
+      }
+
+      .subtitle {
+        color: #6b7280;
+        margin-bottom: 32px;
+      }
+
+      .demo-section {
+        background: white;
+        border-radius: 12px;
+        padding: 24px;
+        margin-bottom: 24px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+      }
+
+      .demo-section h2 {
+        color: #1f2937;
+        font-size: 18px;
+        margin-bottom: 16px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid #e5e7eb;
+      }
+
+      .demo-row {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 16px;
+      }
+
+      .demo-row:last-child {
+        margin-bottom: 0;
+      }
+
+      label {
+        font-size: 14px;
+        font-weight: 500;
+        color: #374151;
+        min-width: 120px;
+      }
+
+      input[type="email"] {
+        flex: 1;
+        padding: 10px 14px;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        font-size: 14px;
+      }
+
+      input[type="email"]:focus {
+        outline: none;
+        border-color: #325240;
+        box-shadow: 0 0 0 3px rgba(50, 82, 64, 0.1);
+      }
+
+      .btn {
+        padding: 10px 20px;
+        background: #325240;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background 0.2s ease;
+      }
+
+      .btn:hover {
+        background: #2a4536;
+      }
+
+      .btn-secondary {
+        background: #6b7280;
+      }
+
+      .btn-secondary:hover {
+        background: #4b5563;
+      }
+
+      .btn-success {
+        background: #10b981;
+      }
+
+      .btn-success:hover {
+        background: #059669;
+      }
+
+      .btn-danger {
+        background: #ef4444;
+      }
+
+      .btn-danger:hover {
+        background: #dc2626;
+      }
+
+      .event-log {
+        background: #1f2937;
+        border-radius: 8px;
+        padding: 16px;
+        color: #e5e7eb;
+        font-family: "Monaco", "Menlo", "Ubuntu Mono", monospace;
+        font-size: 13px;
+        max-height: 250px;
+        overflow-y: auto;
+      }
+
+      .event-log .log-entry {
+        margin-bottom: 8px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #374151;
+      }
+
+      .event-log .log-entry:last-child {
+        margin-bottom: 0;
+        padding-bottom: 0;
+        border-bottom: none;
+      }
+
+      .event-log .timestamp {
+        color: #9ca3af;
+        margin-right: 8px;
+      }
+
+      .event-log .event-name {
+        color: #10b981;
+        font-weight: bold;
+      }
+
+      .event-log .event-name.error {
+        color: #ef4444;
+      }
+
+      .event-log .event-name.info {
+        color: #3b82f6;
+      }
+
+      .event-log .event-detail {
+        color: #60a5fa;
+        margin-left: 16px;
+        display: block;
+        word-break: break-all;
+      }
+
+      .component-wrapper {
+        padding: 20px;
+        background: #f9fafb;
+        border-radius: 8px;
+        min-height: 200px;
+      }
+
+      .state-display {
+        margin-top: 16px;
+        padding: 12px;
+        background: #f3f4f6;
+        border-radius: 6px;
+        font-size: 13px;
+        text-align: left;
+      }
+
+      .state-display code {
+        display: block;
+        white-space: pre-wrap;
+        color: #374151;
+      }
+
+      .btn-clear {
+        padding: 6px 12px;
+        background: #6b7280;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-size: 12px;
+        cursor: pointer;
+        float: right;
+      }
+
+      .btn-clear:hover {
+        background: #4b5563;
+      }
+
+      .info-box {
+        background: #eff6ff;
+        border: 1px solid #bfdbfe;
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 24px;
+      }
+
+      .info-box h3 {
+        color: #1e40af;
+        font-size: 14px;
+        margin-bottom: 8px;
+      }
+
+      .info-box p {
+        color: #3b82f6;
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      .info-box code {
+        background: #dbeafe;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: monospace;
+      }
+
+      .mode-indicator {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-size: 14px;
+        font-weight: 500;
+      }
+
+      .mode-indicator.onboarding {
+        background: #fef3c7;
+        color: #92400e;
+      }
+
+      .mode-indicator.underwriting {
+        background: #d1fae5;
+        color: #065f46;
+      }
+
+      .mode-indicator.loading {
+        background: #e5e7eb;
+        color: #6b7280;
+      }
+
+      .mode-indicator.none {
+        background: #f3f4f6;
+        color: #9ca3af;
+      }
+
+      .current-mode {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+
+      .current-mode span {
+        font-size: 14px;
+        color: #6b7280;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Operator Management Demo</h1>
+      <p class="subtitle">
+        Hybrid component: Shows onboarding for new operators, underwriting for
+        existing ones
+      </p>
+
+      <div class="info-box">
+        <h3>How it works</h3>
+        <p>
+          1. Enter an operator email and click "Check Operator"<br />
+          2. The component calls <code>getAccountByEmail</code> API<br />
+          3. <strong>If email NOT found:</strong> Shows
+          <code>&lt;operator-onboarding&gt;</code> form<br />
+          4. <strong>If email EXISTS:</strong> Shows
+          <code>&lt;operator-underwriting&gt;</code> button<br />
+          5. Events are forwarded from child components to the parent
+        </p>
+      </div>
+
+      <div class="demo-section">
+        <h2>Quick Test Scenarios</h2>
+        <div class="demo-row">
+          <button class="btn btn-success" id="existingEmailBtn">
+            Test Existing Email (Shows Underwriting)
+          </button>
+          <button class="btn btn-danger" id="newEmailBtn">
+            Test New Email (Shows Onboarding)
+          </button>
+          <button class="btn btn-secondary" id="clearBtn">Clear Email</button>
+        </div>
+      </div>
+
+      <div class="demo-section">
+        <h2>Manual Test</h2>
+        <div class="demo-row">
+          <label for="emailInput">Operator Email:</label>
+          <input
+            type="email"
+            id="emailInput"
+            placeholder="operator@example.com"
+            value="" />
+          <button class="btn" id="applyBtn">Check Operator</button>
+        </div>
+      </div>
+
+      <div class="demo-section">
+        <h2>Component Output</h2>
+
+        <div class="current-mode">
+          <span>Current Mode:</span>
+          <span class="mode-indicator none" id="modeIndicator">No email</span>
+        </div>
+
+        <div class="component-wrapper">
+          <operator-management id="managementComponent"></operator-management>
+        </div>
+
+        <div class="state-display">
+          <strong>Component State:</strong>
+          <code id="stateDisplay"
+            >{ operatorEmail: null, moovAccountId: null, mode: null, isLoading:
+            false }</code
+          >
+        </div>
+      </div>
+
+      <div class="demo-section">
+        <h2>
+          Event Log <button class="btn-clear" id="clearLogBtn">Clear</button>
+        </h2>
+        <div class="event-log" id="eventLog">
+          <div class="log-entry">
+            <span class="timestamp">[--:--:--]</span>
+            <span class="event-name info">waiting</span>
+            <span class="event-detail">Enter an email to get started</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Load components -->
+    <script type="module">
+      import { BisonJibPayAPI } from "./api.js";
+      import "./operator-onboarding.js";
+      import "./operator-underwriting.js";
+      import "./operator-management.js";
+
+      // Make API available globally for the components
+      window.BisonJibPayAPI = BisonJibPayAPI;
+
+      // Get DOM elements
+      const component = document.getElementById("managementComponent");
+      const emailInput = document.getElementById("emailInput");
+      const applyBtn = document.getElementById("applyBtn");
+      const eventLog = document.getElementById("eventLog");
+      const stateDisplay = document.getElementById("stateDisplay");
+      const modeIndicator = document.getElementById("modeIndicator");
+      const clearLogBtn = document.getElementById("clearLogBtn");
+      const existingEmailBtn = document.getElementById("existingEmailBtn");
+      const newEmailBtn = document.getElementById("newEmailBtn");
+      const clearBtn = document.getElementById("clearBtn");
+
+      // Log event to event log
+      function logEvent(eventName, detail, type = "success") {
+        const now = new Date();
+        const timestamp = now.toTimeString().split(" ")[0];
+
+        const entry = document.createElement("div");
+        entry.className = "log-entry";
+        entry.innerHTML = `
+        <span class="timestamp">[${timestamp}]</span>
+        <span class="event-name ${type}">${eventName}</span>
+        <span class="event-detail">${JSON.stringify(detail, null, 2)}</span>
+      `;
+
+        eventLog.insertBefore(entry, eventLog.firstChild);
+      }
+
+      // Update state display
+      function updateStateDisplay() {
+        const state = {
+          operatorEmail: component.operatorEmail,
+          moovAccountId: component.moovAccountId,
+          mode: component.mode,
+          isLoading: component.isLoading,
+        };
+        stateDisplay.textContent = JSON.stringify(state, null, 2);
+
+        // Update mode indicator
+        updateModeIndicator(component.mode, component.isLoading);
+      }
+
+      // Update mode indicator
+      function updateModeIndicator(mode, isLoading) {
+        modeIndicator.className = "mode-indicator";
+
+        if (isLoading) {
+          modeIndicator.className += " loading";
+          modeIndicator.textContent = "⏳ Loading...";
+        } else if (mode === "onboarding") {
+          modeIndicator.className += " onboarding";
+          modeIndicator.textContent = "📝 Onboarding";
+        } else if (mode === "underwriting") {
+          modeIndicator.className += " underwriting";
+          modeIndicator.textContent = "✅ Underwriting";
+        } else {
+          modeIndicator.className += " none";
+          modeIndicator.textContent = "No email";
+        }
+      }
+
+      // Apply email to component
+      applyBtn.addEventListener("click", () => {
+        const email = emailInput.value.trim();
+        if (email) {
+          component.setAttribute("operator-email", email);
+          logEvent("email-applied", { email }, "info");
+          updateStateDisplay();
+        }
+      });
+
+      // Clear event log
+      clearLogBtn.addEventListener("click", () => {
+        eventLog.innerHTML =
+          '<div class="log-entry"><span class="timestamp">[--:--:--]</span><span class="event-name info">cleared</span></div>';
+      });
+
+      // Quick test buttons
+      existingEmailBtn.addEventListener("click", () => {
+        // Use an email that should exist in the system (for testing)
+        const email = "existing@operator.com";
+        emailInput.value = email;
+        component.setAttribute("operator-email", email);
+        logEvent("test-existing-email", { email }, "info");
+        updateStateDisplay();
+      });
+
+      newEmailBtn.addEventListener("click", () => {
+        // Use an email that should NOT exist in the system (for testing)
+        const email = "newoperator_" + Date.now() + "@test.com";
+        emailInput.value = email;
+        component.setAttribute("operator-email", email);
+        logEvent("test-new-email", { email }, "info");
+        updateStateDisplay();
+      });
+
+      clearBtn.addEventListener("click", () => {
+        emailInput.value = "";
+        component.removeAttribute("operator-email");
+        logEvent("email-cleared", {}, "info");
+        updateStateDisplay();
+      });
+
+      // Listen to component events
+      component.addEventListener("management-mode-determined", (e) => {
+        logEvent("management-mode-determined", e.detail, "success");
+        updateStateDisplay();
+      });
+
+      component.addEventListener("onboarding-complete", (e) => {
+        logEvent("onboarding-complete", e.detail, "success");
+        updateStateDisplay();
+      });
+
+      component.addEventListener("onboarding-failed", (e) => {
+        logEvent("onboarding-failed", e.detail, "error");
+        updateStateDisplay();
+      });
+
+      component.addEventListener("underwriting-ready", (e) => {
+        logEvent("underwriting-ready", e.detail, "success");
+        updateStateDisplay();
+      });
+
+      component.addEventListener("underwriting-error", (e) => {
+        logEvent("underwriting-error", e.detail, "error");
+        updateStateDisplay();
+      });
+
+      component.addEventListener("underwriting-modal-open", (e) => {
+        logEvent("underwriting-modal-open", e.detail, "info");
+      });
+
+      component.addEventListener("underwriting-modal-close", (e) => {
+        logEvent("underwriting-modal-close", e.detail, "info");
+      });
+
+      // Initial state display
+      updateStateDisplay();
+
+      // Periodically update state display to catch async changes
+      setInterval(updateStateDisplay, 500);
+    </script>
+  </body>
+</html>

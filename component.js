@@ -30,6 +30,7 @@ import { BisonJibPayAPI } from "./api.js";
 import "./operator-onboarding.js";
 import "./operator-payment.js";
 import "./operator-underwriting.js";
+import "./operator-management.js";
 import "./wio-payment.js";
 import "./wio-payment-linking.js";
 

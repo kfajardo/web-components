@@ -36,7 +36,7 @@ class OperatorOnboarding extends HTMLElement {
     this.embeddableKey =
       this.getAttribute("embeddable-key") ||
       "R80WMkbNN8457RofiMYx03DL65P06IaVT30Q2emYJUBQwYCzRC";
-    
+
     // Check if BisonJibPayAPI is available
     if (typeof BisonJibPayAPI === "undefined") {
       console.error(
@@ -49,6 +49,7 @@ class OperatorOnboarding extends HTMLElement {
 
     // Initialize state
     this.state = {
+      isModalOpen: false,
       currentStep: 0,
       totalSteps: 4, // Business, Representatives, Bank, Underwriting
       isSubmitted: false,
@@ -330,6 +331,8 @@ class OperatorOnboarding extends HTMLElement {
   // ==================== STATE MANAGEMENT ====================
 
   setState(newState) {
+    const wasModalOpen = this.state.isModalOpen;
+
     this.state = {
       ...this.state,
       ...newState,
@@ -346,6 +349,9 @@ class OperatorOnboarding extends HTMLElement {
         ...(newState.uiState || {}),
       },
     };
+
+    // Track if modal was already open to skip animations on content updates
+    this._skipModalAnimation = wasModalOpen && this.state.isModalOpen;
     this.render();
   }
 
@@ -756,7 +762,7 @@ class OperatorOnboarding extends HTMLElement {
 
     // Update state with loaded data
     this.setState({
-      formData: newFormData
+      formData: newFormData,
     });
   }
 
@@ -831,13 +837,13 @@ class OperatorOnboarding extends HTMLElement {
     if (this.onSubmit && typeof this.onSubmit === "function") {
       try {
         const result = await this.onSubmit(formData);
-        
+
         // If callback returns false, cancel submission
         if (result === false) {
           console.log("Form submission cancelled by onSubmit callback");
           return;
         }
-        
+
         // If callback returns modified data, use it
         if (result && typeof result === "object") {
           processedData = result;
@@ -923,38 +929,95 @@ class OperatorOnboarding extends HTMLElement {
     }
   }
 
+  // ==================== MODAL METHODS ====================
+
+  openModal() {
+    this.setState({ isModalOpen: true });
+    this.dispatchEvent(
+      new CustomEvent("onboarding-modal-open", {
+        bubbles: true,
+        composed: true,
+      })
+    );
+  }
+
+  closeModal() {
+    this.setState({ isModalOpen: false });
+    this.dispatchEvent(
+      new CustomEvent("onboarding-modal-close", {
+        bubbles: true,
+        composed: true,
+      })
+    );
+  }
+
   // ==================== RENDERING ====================
 
   render() {
+    // Always render the button + modal structure
+    this.shadowRoot.innerHTML = `
+      ${this.renderStyles()}
+      ${this.renderButton()}
+      ${this.state.isModalOpen ? this.renderModal() : ""}
+    `;
+    this.attachEventListeners();
+  }
+
+  renderButton() {
+    return `
+      <button class="onboarding-trigger-btn" type="button">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+          <circle cx="8.5" cy="7" r="4"></circle>
+          <line x1="20" y1="8" x2="20" y2="14"></line>
+          <line x1="23" y1="11" x2="17" y2="11"></line>
+        </svg>
+        Start Onboarding
+      </button>
+    `;
+  }
+
+  renderModal() {
+    const animateClass = this._skipModalAnimation ? "" : "animate";
+    return `
+      <div class="modal-overlay ${animateClass}">
+        <div class="modal-container ${animateClass}">
+          <button class="modal-close-btn" type="button" aria-label="Close modal">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+          ${this.renderModalContent()}
+        </div>
+      </div>
+    `;
+  }
+
+  renderModalContent() {
     // Show submission failure page
     if (this.state.isSubmissionFailed) {
-      this.shadowRoot.innerHTML = `
-        ${this.renderStyles()}
-        <div class="onboarding-container">
+      return `
+        <div class="modal-body-full">
           ${this.renderSubmissionFailurePage()}
         </div>
       `;
-      this.attachSubmissionFailureListeners();
-      return;
     }
 
     // Show success page if form is submitted
     if (this.state.isSubmitted) {
-      this.shadowRoot.innerHTML = `
-        ${this.renderStyles()}
-        <div class="onboarding-container">
+      return `
+        <div class="modal-body-full">
           ${this.renderSuccessPage()}
         </div>
       `;
-      return;
     }
 
     // Show loading during submission
     if (this.state.uiState.isLoading) {
-      this.shadowRoot.innerHTML = `
-        ${this.renderStyles()}
-        <div class="onboarding-container">
-          <div class="step-content" style="text-align: center; padding: calc(var(--spacing-lg) * 2);">
+      return `
+        <div class="modal-body-full">
+          <div class="loading-content">
             <h2>Submitting Your Application...</h2>
             <p style="color: var(--gray-medium); margin-bottom: var(--spacing-lg);">
               Please wait while we process your information.
@@ -963,19 +1026,42 @@ class OperatorOnboarding extends HTMLElement {
           </div>
         </div>
       `;
-      return;
     }
 
-    // Show main stepper form
-    this.shadowRoot.innerHTML = `
-      ${this.renderStyles()}
-      <div class="onboarding-container">
-        ${this.renderStepperHeader()}
-        ${this.renderCurrentStep()}
-        ${this.renderNavigationFooter()}
+    // Show main stepper form with fixed header/footer layout
+    return `
+      <div class="modal-layout">
+        <div class="modal-header">
+          <div class="form-logo">
+            <img src="https://bisonpaywell.com/lovable-uploads/28831244-e8b3-4e7b-8dbb-c016f9f9d54f.png" alt="Logo" />
+          </div>
+          ${this.renderStepperHeader()}
+        </div>
+        <div class="modal-body">
+          ${this.renderFormContent()}
+        </div>
+        <div class="modal-footer">
+          ${this.renderNavigationFooter()}
+        </div>
       </div>
     `;
-    this.attachEventListeners();
+  }
+
+  renderFormContent() {
+    const stepId = this.STEPS[this.state.currentStep].id;
+
+    switch (stepId) {
+      case "business-details":
+        return this.renderBusinessDetailsForm();
+      case "representatives":
+        return this.renderRepresentativesForm();
+      case "bank-details":
+        return this.renderBankDetailsForm();
+      case "underwriting":
+        return this.renderUnderwritingForm();
+      default:
+        return "";
+    }
   }
 
   renderStyles() {
@@ -1001,6 +1087,151 @@ class OperatorOnboarding extends HTMLElement {
           --spacing-md: 16px;
           --spacing-lg: 24px;
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+          display: inline-block;
+        }
+
+        /* Trigger Button */
+        .onboarding-trigger-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          padding: 12px 24px;
+          background: var(--primary-color);
+          color: white;
+          border: none;
+          border-radius: var(--border-radius);
+          font-size: 14px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .onboarding-trigger-btn:hover {
+          background: #2a4536;
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(50, 82, 64, 0.3);
+        }
+
+        .onboarding-trigger-btn:active {
+          transform: translateY(0);
+        }
+
+        .onboarding-trigger-btn svg {
+          flex-shrink: 0;
+        }
+
+        /* Modal Overlay */
+        .modal-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0, 0, 0, 0.5);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 10000;
+          padding: 20px;
+        }
+
+        .modal-overlay.animate {
+          animation: fadeIn 0.2s ease;
+        }
+
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+
+        /* Modal Container */
+        .modal-container {
+          background: white;
+          border-radius: var(--border-radius-lg);
+          max-width: 900px;
+          width: 100%;
+          max-height: 90vh;
+          overflow: hidden;
+          position: relative;
+          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+          display: flex;
+          flex-direction: column;
+        }
+
+        .modal-container.animate {
+          animation: slideUp 0.3s ease;
+        }
+
+        /* Modal Layout - Fixed Header/Footer with Scrollable Body */
+        .modal-layout {
+          display: flex;
+          flex-direction: column;
+          height: 100%;
+          max-height: 90vh;
+          overflow: hidden;
+        }
+
+        .modal-header {
+          flex-shrink: 0;
+          padding: var(--spacing-lg);
+          border-bottom: 1px solid var(--border-color);
+          background: white;
+        }
+
+        .modal-body {
+          flex: 1;
+          overflow-y: auto;
+          padding: var(--spacing-lg);
+          min-height: 0;
+        }
+
+        .modal-footer {
+          flex-shrink: 0;
+          padding: var(--spacing-lg);
+          border-top: 1px solid var(--border-color);
+          background: white;
+        }
+
+        .modal-body-full {
+          padding: var(--spacing-lg);
+          overflow-y: auto;
+          max-height: calc(90vh - 60px);
+        }
+
+        .loading-content {
+          text-align: center;
+          padding: calc(var(--spacing-lg) * 2);
+        }
+
+        @keyframes slideUp {
+          from {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        /* Modal Close Button */
+        .modal-close-btn {
+          position: absolute;
+          top: 16px;
+          right: 16px;
+          background: none;
+          border: none;
+          cursor: pointer;
+          padding: 8px;
+          border-radius: 50%;
+          color: var(--gray-medium);
+          transition: all 0.2s ease;
+          z-index: 10;
+        }
+
+        .modal-close-btn:hover {
+          background: var(--gray-light);
+          color: #333;
         }
         
         .onboarding-container {
@@ -1009,12 +1240,10 @@ class OperatorOnboarding extends HTMLElement {
           padding: var(--spacing-lg);
         }
         
-        /* Logo inside form */
+        /* Logo inside modal header */
         .form-logo {
           text-align: center;
-          margin-bottom: var(--spacing-lg);
-          padding-bottom: var(--spacing-lg);
-          border-bottom: 1px solid var(--border-color);
+          margin-bottom: var(--spacing-md);
         }
         
         .form-logo img {
@@ -1026,7 +1255,6 @@ class OperatorOnboarding extends HTMLElement {
         .stepper-header {
           display: flex;
           justify-content: space-between;
-          margin-bottom: var(--spacing-lg);
           position: relative;
         }
         
@@ -1105,6 +1333,21 @@ class OperatorOnboarding extends HTMLElement {
         }
         
         .step-content > p {
+          color: var(--gray-medium);
+          margin-bottom: var(--spacing-lg);
+        }
+
+        /* Form Section - for scrollable content in modal */
+        .form-section {
+          background: white;
+        }
+
+        .form-section h2 {
+          margin-bottom: var(--spacing-sm);
+          color: #333;
+        }
+
+        .form-section > p {
           color: var(--gray-medium);
           margin-bottom: var(--spacing-lg);
         }
@@ -1242,6 +1485,7 @@ class OperatorOnboarding extends HTMLElement {
           display: flex;
           justify-content: space-between;
           gap: var(--spacing-md);
+          margin: 0;
         }
         
         .navigation-footer button {
@@ -1580,33 +1824,23 @@ class OperatorOnboarding extends HTMLElement {
   }
 
   renderCurrentStep() {
-    const stepId = this.STEPS[this.state.currentStep].id;
-
-    switch (stepId) {
-      case "business-details":
-        return this.renderBusinessDetailsStep();
-      case "representatives":
-        return this.renderRepresentativesStep();
-      case "bank-details":
-        return this.renderBankDetailsStep();
-      case "underwriting":
-        return this.renderUnderwritingStep();
-      default:
-        return "";
-    }
+    // This method is kept for backwards compatibility
+    // but the modal now uses renderFormContent() instead
+    return this.renderFormContent();
   }
 
   renderUnderwritingStep() {
+    return this.renderUnderwritingForm();
+  }
+
+  renderUnderwritingForm() {
     const data = this.state.formData.underwriting;
     const underwritingDocuments = data.underwritingDocuments || [];
     const error = this.getFieldError("underwritingDocuments");
     const showErrors = this.state.uiState.showErrors;
 
     return `
-      <div class="step-content">
-        <div class="form-logo">
-          <img src="https://bisonpaywell.com/lovable-uploads/28831244-e8b3-4e7b-8dbb-c016f9f9d54f.png" alt="Logo" />
-        </div>
+      <div class="form-section">
         <h2>Underwriting Documents</h2>
         <p>Upload supporting documents (required, max 10 files, 10MB each)</p>
         
@@ -1674,6 +1908,10 @@ class OperatorOnboarding extends HTMLElement {
     `;
   }
 
+  renderBusinessDetailsStep() {
+    return this.renderBusinessDetailsForm();
+  }
+
   renderFileList(files) {
     return `
       <div class="uploaded-files">
@@ -1721,14 +1959,11 @@ class OperatorOnboarding extends HTMLElement {
     `;
   }
 
-  renderBusinessDetailsStep() {
+  renderBusinessDetailsForm() {
     const data = this.state.formData.businessDetails;
 
     return `
-      <div class="step-content">
-        <div class="form-logo">
-          <img src="https://bisonpaywell.com/lovable-uploads/28831244-e8b3-4e7b-8dbb-c016f9f9d54f.png" alt="Logo" />
-        </div>
+      <div class="form-section">
         <h2>Business Information</h2>
         <p>Provide your business details</p>
         
@@ -1839,13 +2074,14 @@ class OperatorOnboarding extends HTMLElement {
   }
 
   renderRepresentativesStep() {
+    return this.renderRepresentativesForm();
+  }
+
+  renderRepresentativesForm() {
     const representatives = this.state.formData.representatives;
 
     return `
-      <div class="step-content">
-        <div class="form-logo">
-          <img src="https://bisonpaywell.com/lovable-uploads/28831244-e8b3-4e7b-8dbb-c016f9f9d54f.png" alt="Logo" />
-        </div>
+      <div class="form-section">
         <h2>Business Representatives</h2>
         <p>Add business representatives (optional)</p>
         
@@ -1996,13 +2232,14 @@ class OperatorOnboarding extends HTMLElement {
   }
 
   renderBankDetailsStep() {
+    return this.renderBankDetailsForm();
+  }
+
+  renderBankDetailsForm() {
     const data = this.state.formData.bankDetails;
 
     return `
-      <div class="step-content">
-        <div class="form-logo">
-          <img src="https://bisonpaywell.com/lovable-uploads/28831244-e8b3-4e7b-8dbb-c016f9f9d54f.png" alt="Logo" />
-        </div>
+      <div class="form-section">
         <h2>Bank Account</h2>
         <p>Link your bank account</p>
         
@@ -2250,11 +2487,50 @@ class OperatorOnboarding extends HTMLElement {
   attachEventListeners() {
     const shadow = this.shadowRoot;
 
-    // Form inputs - blur validation
-    shadow.querySelectorAll("input, select").forEach((input) => {
-      input.addEventListener("blur", (e) => this.handleFieldBlur(e));
-      input.addEventListener("input", (e) => this.handleFieldInput(e));
-    });
+    // Trigger button to open modal
+    const triggerBtn = shadow.querySelector(".onboarding-trigger-btn");
+    if (triggerBtn) {
+      triggerBtn.addEventListener("click", () => this.openModal());
+    }
+
+    // Modal close button
+    const closeBtn = shadow.querySelector(".modal-close-btn");
+    if (closeBtn) {
+      closeBtn.addEventListener("click", () => this.closeModal());
+    }
+
+    // Close on overlay click (outside modal)
+    const overlay = shadow.querySelector(".modal-overlay");
+    if (overlay) {
+      overlay.addEventListener("click", (e) => {
+        if (e.target === overlay) {
+          this.closeModal();
+        }
+      });
+    }
+
+    // Close on Escape key
+    if (this.state.isModalOpen) {
+      this._escapeHandler = (e) => {
+        if (e.key === "Escape") {
+          this.closeModal();
+        }
+      };
+      document.addEventListener("keydown", this._escapeHandler);
+    }
+
+    // Attach submission failure listeners if needed
+    if (this.state.isSubmissionFailed) {
+      this.attachSubmissionFailureListeners();
+    }
+
+    // Form inputs - blur validation (only when modal is open)
+    if (this.state.isModalOpen) {
+      shadow.querySelectorAll("input, select").forEach((input) => {
+        input.addEventListener("blur", (e) => this.handleFieldBlur(e));
+        input.addEventListener("input", (e) => this.handleFieldInput(e));
+      });
+    }
 
     // Navigation buttons - use mousedown to prevent blur interference
     const nextBtn = shadow.querySelector(".btn-next");
@@ -2775,6 +3051,10 @@ class OperatorOnboarding extends HTMLElement {
 
   disconnectedCallback() {
     // Component is removed from the DOM
+    // Clean up escape key handler
+    if (this._escapeHandler) {
+      document.removeEventListener("keydown", this._escapeHandler);
+    }
   }
 
   attributeChangedCallback(name, oldValue, newValue) {
