@@ -223,6 +223,155 @@ class BisonJibPayAPI {
       }),
     });
   }
+
+  /**
+   * Get payment methods by moovAccountId directly
+   *
+   * This method fetches all available payment methods for the given moovAccountId.
+   * Use this when you already have the moovAccountId cached to avoid extra API calls.
+   *
+   * @param {string} moovAccountId - The Moov account ID
+   * @returns {Promise<{success: boolean, message: string, data: Array<{paymentMethodID: string, paymentMethodType: string, wallet?: object, bankAccount?: object, card?: object, applePay?: object}>, errors: string[], timestamp: string, traceId: string}>}
+   *
+   * @example
+   * const api = new BisonJibPayAPI(baseURL, embeddableKey);
+   * const paymentMethods = await api.getPaymentMethodsByAccountId('moov-account-id');
+   * console.log(paymentMethods.data); // Array of payment methods
+   */
+  async getPaymentMethodsByAccountId(moovAccountId) {
+    if (!moovAccountId) {
+      throw {
+        status: 400,
+        data: {
+          success: false,
+          message: "Moov account ID is required",
+          errors: ["moovAccountId parameter is missing"],
+        },
+      };
+    }
+
+    return this.request(`/api/embeddable/payment-methods/${moovAccountId}`, {
+      method: "GET",
+    });
+  }
+
+  /**
+   * Get payment methods for an operator by email
+   *
+   * This method first retrieves the operator's moovAccountId by email,
+   * then fetches all available payment methods for that account.
+   * Note: If you already have the moovAccountId, use getPaymentMethodsByAccountId() instead
+   * to avoid the extra API call.
+   *
+   * @param {string} operatorEmail - Operator's email address
+   * @returns {Promise<{success: boolean, message: string, data: Array<{paymentMethodID: string, paymentMethodType: string, wallet?: object, bankAccount?: object, card?: object, applePay?: object}>, errors: string[], timestamp: string, traceId: string}>}
+   *
+   * @example
+   * const api = new BisonJibPayAPI(baseURL, embeddableKey);
+   * const paymentMethods = await api.getPaymentMethods('operator@example.com');
+   * console.log(paymentMethods.data); // Array of payment methods
+   */
+  async getPaymentMethods(operatorEmail) {
+    // First, get the account by email to retrieve moovAccountId
+    const account = await this.getAccountByEmail(operatorEmail);
+    const moovAccountId = account.data?.moovAccountId || account.moovAccountId;
+
+    if (!moovAccountId) {
+      throw {
+        status: 404,
+        data: {
+          success: false,
+          message: "Moov account ID not found for the given email",
+          errors: ["No moovAccountId associated with this operator"],
+        },
+      };
+    }
+
+    // Use the direct method to fetch payment methods
+    return this.getPaymentMethodsByAccountId(moovAccountId);
+  }
+
+  /**
+   * Delete a payment method by moovAccountId and paymentMethodId directly
+   *
+   * Use this when you already have the moovAccountId cached to avoid extra API calls.
+   *
+   * @param {string} moovAccountId - The Moov account ID
+   * @param {string} paymentMethodId - The ID of the payment method to delete
+   * @returns {Promise<{success: boolean, message: string, data: string, errors: string[], timestamp: string, traceId: string}>}
+   *
+   * @example
+   * const api = new BisonJibPayAPI(baseURL, embeddableKey);
+   * const result = await api.deletePaymentMethodByAccountId('moov-account-id', 'pm_123456');
+   * console.log(result.success); // true if deleted successfully
+   */
+  async deletePaymentMethodByAccountId(moovAccountId, paymentMethodId) {
+    if (!moovAccountId) {
+      throw {
+        status: 400,
+        data: {
+          success: false,
+          message: "Moov account ID is required",
+          errors: ["moovAccountId parameter is missing"],
+        },
+      };
+    }
+
+    if (!paymentMethodId) {
+      throw {
+        status: 400,
+        data: {
+          success: false,
+          message: "Payment method ID is required",
+          errors: ["paymentMethodId parameter is missing"],
+        },
+      };
+    }
+
+    return this.request(
+      `/api/embeddable/bank-account/${moovAccountId}/${paymentMethodId}`,
+      {
+        method: "DELETE",
+      }
+    );
+  }
+
+  /**
+   * Delete a payment method by ID
+   *
+   * This method first retrieves the operator's moovAccountId by email,
+   * then deletes the specified payment method.
+   * Note: If you already have the moovAccountId, use deletePaymentMethodByAccountId() instead
+   * to avoid the extra API call.
+   *
+   * @param {string} operatorEmail - Operator's email address
+   * @param {string} paymentMethodId - The ID of the payment method to delete
+   * @returns {Promise<{success: boolean, message: string, data: string, errors: string[], timestamp: string, traceId: string}>}
+   *
+   * @example
+   * const api = new BisonJibPayAPI(baseURL, embeddableKey);
+   * const result = await api.deletePaymentMethodById('operator@example.com', 'pm_123456');
+   * console.log(result.success); // true if deleted successfully
+   */
+  async deletePaymentMethodById(operatorEmail, paymentMethodId) {
+    // First, get the account by email to retrieve moovAccountId
+    const account = await this.getAccountByEmail(operatorEmail);
+    const moovAccountId = account.data?.moovAccountId || account.moovAccountId;
+
+    if (!moovAccountId) {
+      throw {
+        status: 404,
+        data: {
+          success: false,
+          message: "Moov account ID not found for the given email",
+          errors: ["No moovAccountId associated with this operator"],
+        },
+      };
+    }
+
+    // Use the direct method to delete payment method
+    return this.deletePaymentMethodByAccountId(moovAccountId, paymentMethodId);
+  }
 }
 
 // Export for module usage (ES6)

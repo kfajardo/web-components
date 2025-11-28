@@ -1104,6 +1104,8 @@ class OperatorOnboarding extends HTMLElement {
           font-weight: 500;
           cursor: pointer;
           transition: all 0.2s ease;
+          height: 40px;
+          box-sizing: border-box;
         }
 
         .onboarding-trigger-btn:hover {
@@ -1495,6 +1497,8 @@ class OperatorOnboarding extends HTMLElement {
           font-size: 14px;
           font-weight: 500;
           cursor: pointer;
+          height: 40px;
+          box-sizing: border-box;
         }
         
         .btn-back {

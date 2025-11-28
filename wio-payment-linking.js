@@ -60,25 +60,18 @@ class WioPaymentLinking extends HTMLElement {
       plaidLoaded: false,
       plaidLinkToken: null,
       initializationError: false,
-      // Mock bank accounts data
-      bankAccounts: [
-        {
-          id: "1",
-          bankName: "Chase Bank",
-          holderName: "John Doe",
-          bankAccountType: "checking",
-          lastFourAccountNumber: "4532",
-          status: "verified",
-        },
-        {
-          id: "2",
-          bankName: "Bank of America",
-          holderName: "John Doe",
-          bankAccountType: "savings",
-          lastFourAccountNumber: "7891",
-          status: "pending",
-        },
-      ],
+      // Payment methods from API
+      bankAccounts: [],
+      isLoadingPaymentMethods: false,
+      isRefetchingPaymentMethods: false,
+      paymentMethodsError: null,
+      // Delete confirmation modal
+      deleteConfirmation: {
+        isOpen: false,
+        accountId: null,
+        account: null,
+        isDeleting: false,
+      },
     };
 
     // Render the component
@@ -300,7 +293,7 @@ class WioPaymentLinking extends HTMLElement {
       addBankBtn.addEventListener("click", this.openPlaidLink.bind(this));
     }
 
-    // Setup menu event listeners
+    // Setup delete button event listeners
     this.setupMenuListeners();
 
     // ESC key to close modal
@@ -310,165 +303,242 @@ class WioPaymentLinking extends HTMLElement {
       }
     };
     document.addEventListener("keydown", this._escHandler);
-
-    // Click outside to close menu dropdowns
-    this._outsideClickHandler = (e) => {
-      const menus = this.shadowRoot.querySelectorAll(".menu-dropdown.open");
-      menus.forEach((menu) => {
-        const menuContainer = menu.closest(".menu-container");
-        if (menuContainer && !menuContainer.contains(e.target)) {
-          menu.classList.remove("open");
-        }
-      });
-    };
-    this.shadowRoot.addEventListener("click", this._outsideClickHandler);
   }
 
   /**
-   * Setup event listeners for menu buttons
+   * Setup event listeners for delete buttons
    */
   setupMenuListeners() {
-    const menuBtns = this.shadowRoot.querySelectorAll(".menu-btn");
-    const deleteItems = this.shadowRoot.querySelectorAll(
-      '.menu-item[data-action="delete"]'
-    );
-    const setDefaultItems = this.shadowRoot.querySelectorAll(
-      '.menu-item[data-action="set-default"]'
-    );
+    const deleteBtns = this.shadowRoot.querySelectorAll(".delete-btn");
 
-    menuBtns.forEach((btn) => {
+    deleteBtns.forEach((btn) => {
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
         const accountId = btn.dataset.accountId;
-        this.toggleMenu(accountId);
-      });
-    });
-
-    deleteItems.forEach((item) => {
-      item.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const accountId = item.dataset.accountId;
         this.handleDeleteAccount(accountId);
       });
     });
-
-    setDefaultItems.forEach((item) => {
-      item.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const accountId = item.dataset.accountId;
-        this.handleSetDefault(accountId);
-      });
-    });
   }
 
   /**
-   * Toggle menu dropdown visibility
-   * @param {string} accountId - Account ID to toggle menu for
-   */
-  toggleMenu(accountId) {
-    // Close all other menus first
-    const allMenus = this.shadowRoot.querySelectorAll(".menu-dropdown");
-    allMenus.forEach((menu) => {
-      if (menu.dataset.menuId !== accountId) {
-        menu.classList.remove("open");
-      }
-    });
-
-    // Toggle the target menu
-    const targetMenu = this.shadowRoot.querySelector(
-      `.menu-dropdown[data-menu-id="${accountId}"]`
-    );
-    if (targetMenu) {
-      const isOpening = !targetMenu.classList.contains("open");
-      targetMenu.classList.toggle("open");
-
-      // Position the menu when opening
-      if (isOpening) {
-        const menuBtn = this.shadowRoot.querySelector(
-          `.menu-btn[data-account-id="${accountId}"]`
-        );
-        if (menuBtn) {
-          const rect = menuBtn.getBoundingClientRect();
-          targetMenu.style.top = `${rect.bottom + 4}px`;
-          targetMenu.style.right = `${window.innerWidth - rect.right}px`;
-        }
-      }
-    }
-  }
-
-  /**
-   * Handle delete account action
+   * Handle delete account action - shows confirmation modal
    * @param {string} accountId - Account ID to delete
    */
   handleDeleteAccount(accountId) {
     console.log("WioPaymentLinking: Delete account requested for:", accountId);
 
-    // Close the menu
-    const menu = this.shadowRoot.querySelector(
-      `.menu-dropdown[data-menu-id="${accountId}"]`
-    );
-    if (menu) {
-      menu.classList.remove("open");
+    // Find the account to get details for the confirmation modal
+    const account = this._state.bankAccounts.find((a) => a.id === accountId);
+
+    // Show confirmation modal
+    this._state.deleteConfirmation = {
+      isOpen: true,
+      accountId,
+      account,
+      isDeleting: false,
+    };
+    this.updateDeleteConfirmationModal();
+  }
+
+  /**
+   * Cancel delete operation
+   */
+  cancelDelete() {
+    this._state.deleteConfirmation = {
+      isOpen: false,
+      accountId: null,
+      account: null,
+      isDeleting: false,
+    };
+    this.updateDeleteConfirmationModal();
+  }
+
+  /**
+   * Confirm and execute delete operation
+   */
+  async confirmDelete() {
+    const { accountId, account } = this._state.deleteConfirmation;
+
+    if (!accountId) {
+      console.warn("WioPaymentLinking: No account ID for deletion");
+      return;
     }
+
+    // Set deleting state
+    this._state.deleteConfirmation.isDeleting = true;
+    this.updateDeleteConfirmationModal();
 
     // Dispatch delete event for consumer to handle
     this.dispatchEvent(
       new CustomEvent("payment-method-delete", {
         detail: {
           accountId,
-          account: this._state.bankAccounts.find((a) => a.id === accountId),
+          account,
         },
         bubbles: true,
         composed: true,
       })
     );
 
-    // For demo purposes, remove from local state
-    // In production, this would be handled by the consumer after API call
-    this._state.bankAccounts = this._state.bankAccounts.filter(
-      (a) => a.id !== accountId
-    );
-    this.updateBankAccountsList();
+    // Call the API to delete the payment method
+    // Use cached moovAccountId to avoid extra API call
+    if (this.api && this._state.moovAccountId) {
+      try {
+        console.log("WioPaymentLinking: Deleting payment method via API...");
+        await this.api.deletePaymentMethodByAccountId(
+          this._state.moovAccountId,
+          accountId
+        );
+        console.log("WioPaymentLinking: Payment method deleted successfully");
+
+        // Remove from local state after successful API call
+        this._state.bankAccounts = this._state.bankAccounts.filter(
+          (a) => a.id !== accountId
+        );
+
+        // Close confirmation modal
+        this._state.deleteConfirmation = {
+          isOpen: false,
+          accountId: null,
+          account: null,
+          isDeleting: false,
+        };
+
+        this.updateBankAccountsList();
+        this.updateDeleteConfirmationModal();
+
+        // Dispatch success event
+        this.dispatchEvent(
+          new CustomEvent("payment-method-deleted", {
+            detail: {
+              accountId,
+              account,
+            },
+            bubbles: true,
+            composed: true,
+          })
+        );
+      } catch (error) {
+        console.error(
+          "WioPaymentLinking: Failed to delete payment method",
+          error
+        );
+
+        // Reset deleting state but keep modal open
+        this._state.deleteConfirmation.isDeleting = false;
+        this.updateDeleteConfirmationModal();
+
+        // Dispatch error event
+        this.dispatchEvent(
+          new CustomEvent("payment-method-delete-error", {
+            detail: {
+              accountId,
+              account,
+              error:
+                error.data?.message ||
+                error.message ||
+                "Failed to delete payment method",
+            },
+            bubbles: true,
+            composed: true,
+          })
+        );
+      }
+    } else {
+      // Fallback: remove from local state if no API
+      this._state.bankAccounts = this._state.bankAccounts.filter(
+        (a) => a.id !== accountId
+      );
+
+      // Close confirmation modal
+      this._state.deleteConfirmation = {
+        isOpen: false,
+        accountId: null,
+        account: null,
+        isDeleting: false,
+      };
+
+      this.updateBankAccountsList();
+      this.updateDeleteConfirmationModal();
+    }
   }
 
   /**
-   * Handle set default account action
-   * @param {string} accountId - Account ID to set as default
+   * Update the delete confirmation modal in the DOM
    */
-  handleSetDefault(accountId) {
-    console.log("WioPaymentLinking: Set default requested for:", accountId);
+  updateDeleteConfirmationModal() {
+    const container = this.shadowRoot.querySelector("#deleteConfirmationModal");
+    if (container) {
+      container.innerHTML = this.renderDeleteConfirmationModal();
+      this.setupDeleteConfirmationListeners();
+    }
+  }
 
-    // Close the menu
-    const menu = this.shadowRoot.querySelector(
-      `.menu-dropdown[data-menu-id="${accountId}"]`
+  /**
+   * Setup event listeners for delete confirmation modal
+   */
+  setupDeleteConfirmationListeners() {
+    const cancelBtn = this.shadowRoot.querySelector(".delete-cancel-btn");
+    const confirmBtn = this.shadowRoot.querySelector(".delete-confirm-btn");
+    const overlay = this.shadowRoot.querySelector(
+      ".delete-confirmation-overlay"
     );
-    if (menu) {
-      menu.classList.remove("open");
+
+    if (cancelBtn) {
+      cancelBtn.addEventListener("click", () => this.cancelDelete());
     }
 
-    // Find the account and move it to the first position
-    const accountIndex = this._state.bankAccounts.findIndex(
-      (a) => a.id === accountId
-    );
-    if (accountIndex > 0) {
-      const account = this._state.bankAccounts.splice(accountIndex, 1)[0];
-      this._state.bankAccounts.unshift(account);
+    if (confirmBtn) {
+      confirmBtn.addEventListener("click", () => this.confirmDelete());
     }
 
-    // Dispatch set default event for consumer to handle
-    this.dispatchEvent(
-      new CustomEvent("payment-method-set-default", {
-        detail: {
-          accountId,
-          account: this._state.bankAccounts.find((a) => a.id === accountId),
-        },
-        bubbles: true,
-        composed: true,
-      })
-    );
+    if (overlay) {
+      overlay.addEventListener("click", () => this.cancelDelete());
+    }
+  }
 
-    // Update the UI
-    this.updateBankAccountsList();
+  /**
+   * Render the delete confirmation modal
+   * @returns {string} HTML string for the modal
+   */
+  renderDeleteConfirmationModal() {
+    const { isOpen, account, isDeleting } = this._state.deleteConfirmation;
+
+    if (!isOpen) {
+      return "";
+    }
+
+    const bankName = account?.bankName || "this payment method";
+    const lastFour = account?.lastFourAccountNumber || "****";
+
+    return `
+      <div class="delete-confirmation-overlay"></div>
+      <div class="delete-confirmation-dialog">
+        <div class="delete-confirmation-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+        </div>
+        <h3 class="delete-confirmation-title">Delete Payment Method?</h3>
+        <p class="delete-confirmation-message">
+          Are you sure you want to delete <strong>${bankName}</strong> ending in <strong>••••${lastFour}</strong>? This action cannot be undone.
+        </p>
+        <div class="delete-confirmation-actions">
+          <button class="delete-cancel-btn" ${
+            isDeleting ? "disabled" : ""
+          }>Cancel</button>
+          <button class="delete-confirm-btn" ${isDeleting ? "disabled" : ""}>
+            ${
+              isDeleting
+                ? '<span class="delete-spinner"></span> Deleting...'
+                : "Delete"
+            }
+          </button>
+        </div>
+      </div>
+    `;
   }
 
   /**
@@ -526,6 +596,177 @@ class WioPaymentLinking extends HTMLElement {
     if (modal) {
       modal.style.display = "flex";
     }
+
+    // Prevent background scrolling when modal is open
+    document.body.style.overflow = "hidden";
+
+    // Fetch payment methods when modal opens
+    this.fetchPaymentMethods();
+  }
+
+  /**
+   * Fetch payment methods from API
+   * Uses cached moovAccountId when available to avoid extra API calls
+   * @param {boolean} isRefetch - Whether this is a refetch (keeps existing list visible)
+   */
+  async fetchPaymentMethods(isRefetch = false) {
+    if (!this._state.moovAccountId) {
+      console.warn(
+        "WioPaymentLinking: moovAccountId is required to fetch payment methods. Ensure initializeAccount() has completed."
+      );
+      return;
+    }
+
+    if (!this.api) {
+      console.error("WioPaymentLinking: API not available");
+      this._state.paymentMethodsError = "API not available";
+      this.updateBankAccountsList();
+      return;
+    }
+
+    try {
+      // Only show full loading state for initial load, not refetch
+      if (!isRefetch) {
+        this._state.isLoadingPaymentMethods = true;
+      }
+      this._state.paymentMethodsError = null;
+      this.updateBankAccountsList();
+
+      console.log(
+        "WioPaymentLinking: Fetching payment methods for moovAccountId:",
+        this._state.moovAccountId
+      );
+
+      // Use the cached moovAccountId directly to avoid extra API call
+      const response = await this.api.getPaymentMethodsByAccountId(
+        this._state.moovAccountId
+      );
+
+      if (response.success && response.data) {
+        // Filter to only include payment methods with paymentMethodType "ach-credit-same-day"
+        const achCreditSameDayMethods = response.data.filter(
+          (method) => method.paymentMethodType === "ach-credit-same-day"
+        );
+
+        // Transform API response to match the expected format
+        this._state.bankAccounts = achCreditSameDayMethods.map((method) => ({
+          // Use the correct ID for deletion based on payment method type
+          id: this.getPaymentMethodId(method),
+          paymentMethodType: method.paymentMethodType,
+          bankName: this.getBankName(method),
+          holderName: this.getHolderName(method),
+          bankAccountType: method.bankAccount?.bankAccountType || "checking",
+          lastFourAccountNumber: this.getLastFour(method),
+          status: this.getPaymentMethodStatus(method),
+          // Keep original data for reference
+          _original: method,
+        }));
+
+        console.log(
+          "WioPaymentLinking: Payment methods fetched successfully",
+          this._state.bankAccounts
+        );
+      } else {
+        this._state.bankAccounts = [];
+      }
+
+      this._state.isLoadingPaymentMethods = false;
+      this.updateBankAccountsList();
+    } catch (error) {
+      console.error(
+        "WioPaymentLinking: Failed to fetch payment methods",
+        error
+      );
+      this._state.isLoadingPaymentMethods = false;
+      this._state.paymentMethodsError =
+        error.data?.message ||
+        error.message ||
+        "Failed to fetch payment methods";
+      this.updateBankAccountsList();
+    }
+  }
+
+  /**
+   * Get bank name from payment method
+   * @param {Object} method - Payment method data
+   * @returns {string} Bank name
+   */
+  getBankName(method) {
+    if (method.bankAccount) {
+      return method.bankAccount.bankName || "Bank Account";
+    }
+    if (method.card) {
+      return method.card.brand || method.card.cardType || "Card";
+    }
+    if (method.wallet || method.paymentMethodType === "moovWallet") {
+      return "Moov Wallet";
+    }
+    if (method.applePay) {
+      return "Apple Pay";
+    }
+    return "Payment Method";
+  }
+
+  /**
+   * Get holder name from payment method
+   * @param {Object} method - Payment method data
+   * @returns {string} Holder name
+   */
+  getHolderName(method) {
+    if (method.bankAccount) {
+      return method.bankAccount.holderName || "Account Holder";
+    }
+    if (method.card) {
+      return method.card.holderName || "Card Holder";
+    }
+    return "Account Holder";
+  }
+
+  /**
+   * Get last four digits from payment method
+   * @param {Object} method - Payment method data
+   * @returns {string} Last four digits
+   */
+  getLastFour(method) {
+    if (method.bankAccount) {
+      return method.bankAccount.lastFourAccountNumber || "****";
+    }
+    if (method.card) {
+      return method.card.lastFourCardNumber || "****";
+    }
+    return "****";
+  }
+
+  /**
+   * Get payment method status
+   * @param {Object} method - Payment method data
+   * @returns {string} Status
+   */
+  getPaymentMethodStatus(method) {
+    if (method.bankAccount) {
+      return method.bankAccount.status || "verified";
+    }
+    return "verified";
+  }
+
+  /**
+   * Get the correct ID for a payment method based on its type
+   * Used for deletion - bank accounts use bankAccountID, wallets use walletID
+   * @param {Object} method - Payment method data
+   * @returns {string} The ID to use for deletion
+   */
+  getPaymentMethodId(method) {
+    if (method.bankAccount) {
+      return method.bankAccount.bankAccountID;
+    }
+    if (method.wallet) {
+      return method.wallet.walletID;
+    }
+    if (method.card) {
+      return method.card.cardID;
+    }
+    // Fallback to paymentMethodID if no specific ID is found
+    return method.paymentMethodID;
   }
 
   /**
@@ -538,6 +779,9 @@ class WioPaymentLinking extends HTMLElement {
     if (modal) {
       modal.style.display = "none";
     }
+
+    // Restore background scrolling when modal is closed
+    document.body.style.overflow = "";
 
     // Dispatch close event
     this.dispatchEvent(
@@ -709,37 +953,58 @@ class WioPaymentLinking extends HTMLElement {
           return;
         }
 
-        try {
-          const result = await this.api.addPlaidAccountToMoov(
-            public_token,
-            metadata.account_id,
-            moovAccountId
-          );
+        // Show refetching state immediately when Plaid Link closes
+        this._state.isRefetchingPaymentMethods = true;
+        this.updateBankAccountsList();
 
-          console.log("WioPaymentLinking: Plaid Link success", result);
-          this.dispatchEvent(
-            new CustomEvent("plaid-link-success", {
-              detail: { public_token, metadata, result },
-              bubbles: true,
-              composed: true,
-            })
-          );
+        console.log(
+          "WioPaymentLinking: Plaid Link onSuccess - showing loading indicator"
+        );
 
-          // Close the modal after successful linking
-          this.closeModal();
-        } catch (error) {
-          console.error(
-            "WioPaymentLinking: Failed to add Plaid account to Moov",
-            error
-          );
-          this.dispatchEvent(
-            new CustomEvent("plaid-link-error", {
-              detail: { error: error.message, metadata },
-              bubbles: true,
-              composed: true,
-            })
-          );
-        }
+        // Use requestAnimationFrame to ensure the UI updates before starting async work
+        requestAnimationFrame(async () => {
+          try {
+            console.log("WioPaymentLinking: Adding Plaid account to Moov...");
+
+            const result = await this.api.addPlaidAccountToMoov(
+              public_token,
+              metadata.account_id,
+              moovAccountId
+            );
+
+            console.log("WioPaymentLinking: Plaid Link success", result);
+
+            // Refetch payment methods to show the newly added payment method
+            await this.fetchPaymentMethods(true);
+            this._state.isRefetchingPaymentMethods = false;
+            this.updateBankAccountsList();
+
+            this.dispatchEvent(
+              new CustomEvent("plaid-link-success", {
+                detail: { public_token, metadata, result },
+                bubbles: true,
+                composed: true,
+              })
+            );
+          } catch (error) {
+            console.error(
+              "WioPaymentLinking: Failed to add Plaid account to Moov",
+              error
+            );
+
+            // Reset refetching state on error
+            this._state.isRefetchingPaymentMethods = false;
+            this.updateBankAccountsList();
+
+            this.dispatchEvent(
+              new CustomEvent("plaid-link-error", {
+                detail: { error: error.message, metadata },
+                bubbles: true,
+                composed: true,
+              })
+            );
+          }
+        });
       },
       onExit: (err, metadata) => {
         console.log("WioPaymentLinking: Plaid Link exit", err, metadata);
@@ -822,10 +1087,49 @@ class WioPaymentLinking extends HTMLElement {
    * @returns {string} HTML string for bank accounts
    */
   renderBankAccounts() {
+    // Show full loading state only for initial load (not refetch)
+    if (
+      this._state.isLoadingPaymentMethods &&
+      !this._state.isRefetchingPaymentMethods
+    ) {
+      return `
+        <div class="loading-state">
+          <div class="loading-spinner-large"></div>
+          <p>Loading payment methods...</p>
+        </div>
+      `;
+    }
+
+    // Show error state
+    if (this._state.paymentMethodsError) {
+      return `
+        <div class="error-state">
+          <svg class="error-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+          <p>${this._state.paymentMethodsError}</p>
+          <button class="retry-btn" onclick="this.getRootNode().host.fetchPaymentMethods()">Retry</button>
+        </div>
+      `;
+    }
+
     const accounts = this._state.bankAccounts || [];
+
+    // Refetching banner (non-intrusive, shown above existing list)
+    const refetchingBanner = this._state.isRefetchingPaymentMethods
+      ? `
+      <div class="refetching-banner">
+        <div class="refetching-spinner"></div>
+        <span>Fetching new payment method...</span>
+      </div>
+    `
+      : "";
 
     if (accounts.length === 0) {
       return `
+        ${refetchingBanner}
         <div class="empty-state">
           <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <rect x="3" y="10" width="18" height="11" rx="2" ry="2"></rect>
@@ -836,9 +1140,11 @@ class WioPaymentLinking extends HTMLElement {
       `;
     }
 
-    return accounts
-      .map(
-        (account, index) => `
+    return (
+      refetchingBanner +
+      accounts
+        .map(
+          (account, index) => `
       <div class="bank-account-card" data-account-id="${account.id}">
         <div class="bank-account-info">
           <div class="bank-icon-wrapper">
@@ -870,53 +1176,23 @@ class WioPaymentLinking extends HTMLElement {
           </div>
         </div>
         <div class="card-actions">
-          ${
-            index === 0
-              ? `<span class="status-badge verified">Ready</span>`
-              : `<span class="status-badge ${account.status}">${account.status}</span>`
-          }
-          <div class="menu-container">
-            <button class="menu-btn" data-account-id="${
-              account.id
-            }" aria-label="More options">
-              <svg viewBox="0 0 24 24" fill="currentColor" stroke="none">
-                <circle cx="12" cy="5" r="2"></circle>
-                <circle cx="12" cy="12" r="2"></circle>
-                <circle cx="12" cy="19" r="2"></circle>
-              </svg>
-            </button>
-            <div class="menu-dropdown" data-menu-id="${account.id}">
-              ${
-                index !== 0
-                  ? `
-              <button class="menu-item" data-action="set-default" data-account-id="${account.id}">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                </svg>
-                Set as default
-              </button>
-              `
-                  : ""
-              }
-              <button class="menu-item danger" data-action="delete" data-account-id="${
-                account.id
-              }">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <polyline points="3 6 5 6 21 6"></polyline>
-                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                  <line x1="10" y1="11" x2="10" y2="17"></line>
-                  <line x1="14" y1="11" x2="14" y2="17"></line>
-                </svg>
-                Delete
-              </button>
-            </div>
-          </div>
+          <span class="status-badge ${account.status}">${account.status}</span>
+          <button class="delete-btn" data-account-id="${
+            account.id
+          }" aria-label="Delete payment method">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              <line x1="10" y1="11" x2="10" y2="17"></line>
+              <line x1="14" y1="11" x2="14" y2="17"></line>
+            </svg>
+          </button>
         </div>
       </div>
     `
-      )
-      .join("");
+        )
+        .join("")
+    );
   }
 
   /**
@@ -942,6 +1218,8 @@ class WioPaymentLinking extends HTMLElement {
           display: inline-flex;
           align-items: center;
           gap: 8px;
+          height: 40px;
+          box-sizing: border-box;
         }
         
         .link-payment-btn:hover:not(.error):not(.loading) {
@@ -978,6 +1256,7 @@ class WioPaymentLinking extends HTMLElement {
           border-top-color: white;
           border-radius: 50%;
           animation: spin 0.8s linear infinite;
+          box-sizing: border-box;
         }
         
         .link-payment-btn.loading .loading-spinner {
@@ -1105,6 +1384,8 @@ class WioPaymentLinking extends HTMLElement {
           display: inline-flex;
           align-items: center;
           gap: 10px;
+          height: 40px;
+          box-sizing: border-box;
         }
         
         .add-bank-btn:hover {
@@ -1250,78 +1531,27 @@ class WioPaymentLinking extends HTMLElement {
           gap: 8px;
         }
         
-        .menu-container {
-          position: relative;
-        }
-        
-        .menu-btn {
+        .delete-btn {
           background: transparent;
           border: none;
-          padding: 4px;
+          padding: 6px;
           cursor: pointer;
-          border-radius: 4px;
+          border-radius: 6px;
           display: flex;
           align-items: center;
           justify-content: center;
-          transition: background 0.2s ease;
+          transition: all 0.2s ease;
+          color: #9ca3af;
         }
         
-        .menu-btn:hover {
-          background: #e5e7eb;
-        }
-        
-        .menu-btn svg {
-          width: 20px;
-          height: 20px;
-          color: #6b7280;
-        }
-        
-        .menu-dropdown {
-          position: fixed;
-          background: white;
-          border: 1px solid #e5e7eb;
-          border-radius: 8px;
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-          min-width: 150px;
-          z-index: 10100;
-          display: none;
-          overflow: hidden;
-        }
-        
-        .menu-dropdown.open {
-          display: block;
-        }
-        
-        .menu-item {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          padding: 10px 14px;
-          font-size: 14px;
-          color: #374151;
-          cursor: pointer;
-          transition: background 0.2s ease;
-          border: none;
-          background: none;
-          width: 100%;
-          text-align: left;
-        }
-        
-        .menu-item:hover {
-          background: #f3f4f6;
-        }
-        
-        .menu-item.danger {
+        .delete-btn:hover {
+          background: #fef2f2;
           color: #dc2626;
         }
         
-        .menu-item.danger:hover {
-          background: #fef2f2;
-        }
-        
-        .menu-item svg {
-          width: 16px;
-          height: 16px;
+        .delete-btn svg {
+          width: 18px;
+          height: 18px;
         }
         
         .empty-state {
@@ -1340,6 +1570,102 @@ class WioPaymentLinking extends HTMLElement {
         .empty-state p {
           font-size: 14px;
           margin: 0;
+        }
+        
+        .loading-state {
+          text-align: center;
+          padding: 32px 16px;
+          color: #6b7280;
+        }
+        
+        .loading-spinner-large {
+          width: 32px;
+          height: 32px;
+          border: 3px solid #e5e7eb;
+          border-top-color: #325240;
+          border-radius: 50%;
+          animation: spin 0.8s linear infinite;
+          margin: 0 auto 12px;
+        }
+        
+        .loading-state p {
+          font-size: 14px;
+          margin: 0;
+        }
+        
+        .error-state {
+          text-align: center;
+          padding: 32px 16px;
+          color: #dc2626;
+        }
+        
+        .error-state-icon {
+          width: 48px;
+          height: 48px;
+          margin: 0 auto 12px;
+          color: #dc2626;
+        }
+        
+        .error-state p {
+          font-size: 14px;
+          margin: 0 0 16px 0;
+          color: #6b7280;
+        }
+        
+        .retry-btn {
+          padding: 8px 16px;
+          background: #325240;
+          color: white;
+          border: none;
+          border-radius: 8px;
+          font-size: 13px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+        
+        .retry-btn:hover {
+          background: #2a4536;
+        }
+        
+        /* Refetching Banner - Non-intrusive loading indicator */
+        .refetching-banner {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+          padding: 12px 16px;
+          background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+          border: 1px solid #bbf7d0;
+          border-radius: 10px;
+          margin-bottom: 12px;
+          animation: refetchSlideIn 0.3s ease-out;
+        }
+        
+        @keyframes refetchSlideIn {
+          from {
+            opacity: 0;
+            transform: translateY(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        
+        .refetching-spinner {
+          width: 16px;
+          height: 16px;
+          border: 2px solid #bbf7d0;
+          border-top-color: #22c55e;
+          border-radius: 50%;
+          animation: spin 0.8s linear infinite;
+        }
+        
+        .refetching-banner span {
+          font-size: 13px;
+          font-weight: 500;
+          color: #15803d;
         }
         
         .divider {
@@ -1382,6 +1708,151 @@ class WioPaymentLinking extends HTMLElement {
         .powered-by span {
           font-weight: 500;
           color: #6b7280;
+        }
+        
+        /* Delete Confirmation Modal */
+        .delete-confirmation-container {
+          display: contents;
+        }
+        
+        .delete-confirmation-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0, 0, 0, 0.6);
+          z-index: 10200;
+        }
+        
+        .delete-confirmation-dialog {
+          position: fixed;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          background: white;
+          border-radius: 16px;
+          padding: 32px;
+          width: 90%;
+          max-width: 400px;
+          z-index: 10201;
+          text-align: center;
+          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+          animation: deleteModalIn 0.2s ease-out;
+        }
+        
+        @keyframes deleteModalIn {
+          from {
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(0.95);
+          }
+          to {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+          }
+        }
+        
+        .delete-confirmation-icon {
+          width: 56px;
+          height: 56px;
+          margin: 0 auto 16px;
+          background: #fef2f2;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        
+        .delete-confirmation-icon svg {
+          width: 28px;
+          height: 28px;
+          color: #dc2626;
+        }
+        
+        .delete-confirmation-title {
+          font-size: 18px;
+          font-weight: 600;
+          color: #1f2937;
+          margin: 0 0 8px 0;
+        }
+        
+        .delete-confirmation-message {
+          font-size: 14px;
+          color: #6b7280;
+          margin: 0 0 24px 0;
+          line-height: 1.5;
+        }
+        
+        .delete-confirmation-message strong {
+          color: #374151;
+        }
+        
+        .delete-confirmation-actions {
+          display: flex;
+          gap: 12px;
+          justify-content: center;
+        }
+        
+        .delete-cancel-btn {
+          padding: 10px 20px;
+          background: white;
+          color: #374151;
+          border: 1px solid #d1d5db;
+          border-radius: 8px;
+          font-size: 14px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          height: 40px;
+          box-sizing: border-box;
+        }
+        
+        .delete-cancel-btn:hover:not(:disabled) {
+          background: #f3f4f6;
+          border-color: #9ca3af;
+        }
+        
+        .delete-cancel-btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+        
+        .delete-confirm-btn {
+          padding: 10px 20px;
+          background: #dc2626;
+          color: white;
+          border: none;
+          border-radius: 8px;
+          font-size: 14px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          height: 40px;
+          box-sizing: border-box;
+          min-width: 100px;
+        }
+        
+        .delete-confirm-btn:hover:not(:disabled) {
+          background: #b91c1c;
+        }
+        
+        .delete-confirm-btn:disabled {
+          background: #f87171;
+          cursor: not-allowed;
+        }
+        
+        .delete-spinner {
+          width: 14px;
+          height: 14px;
+          border: 2px solid rgba(255, 255, 255, 0.3);
+          border-top-color: white;
+          border-radius: 50%;
+          animation: spin 0.8s linear infinite;
+          box-sizing: border-box;
         }
       </style>
       
@@ -1438,6 +1909,11 @@ class WioPaymentLinking extends HTMLElement {
             Powered by <span>Bison</span>
           </div>
         </div>
+      </div>
+      
+      <!-- Delete Confirmation Modal -->
+      <div class="delete-confirmation-container" id="deleteConfirmationModal">
+        ${this.renderDeleteConfirmationModal()}
       </div>
     `;
   }

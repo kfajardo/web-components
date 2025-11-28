@@ -61,25 +61,17 @@ class OperatorPayment extends HTMLElement {
       moovToken: null,
       error: null,
       initializationError: false,
-      // Mock bank accounts data (will be replaced with real data from Moov)
-      bankAccounts: [
-        {
-          id: "1",
-          bankName: "Chase Bank",
-          holderName: "Operator Business",
-          bankAccountType: "checking",
-          lastFourAccountNumber: "4532",
-          status: "verified",
-        },
-        {
-          id: "2",
-          bankName: "Bank of America",
-          holderName: "Operator Business",
-          bankAccountType: "savings",
-          lastFourAccountNumber: "7891",
-          status: "pending",
-        },
-      ],
+      // Payment methods from API
+      bankAccounts: [],
+      isLoadingPaymentMethods: false,
+      paymentMethodsError: null,
+      // Delete confirmation modal
+      deleteConfirmation: {
+        isOpen: false,
+        accountId: null,
+        account: null,
+        isDeleting: false,
+      },
     };
 
     // Moov drop reference
@@ -168,8 +160,10 @@ class OperatorPayment extends HTMLElement {
 
     this.setupEventListeners();
 
-    // No longer auto-initialize - token generation is deferred to when "Add Bank Account" is clicked
-    // This prevents the button from being disabled due to API errors during page load
+    // Auto-initialize if email is already set to fetch and cache moovAccountId
+    if (this._state.operatorEmail) {
+      this.initializeAccount();
+    }
   }
 
   disconnectedCallback() {
@@ -300,7 +294,7 @@ class OperatorPayment extends HTMLElement {
       addBankBtn.addEventListener("click", this.openMoovDrop.bind(this));
     }
 
-    // Setup menu event listeners
+    // Setup delete button event listeners
     this.setupMenuListeners();
 
     // ESC key to close modal
@@ -310,165 +304,307 @@ class OperatorPayment extends HTMLElement {
       }
     };
     document.addEventListener("keydown", this._escHandler);
-
-    // Click outside to close menu dropdowns
-    this._outsideClickHandler = (e) => {
-      const menus = this.shadowRoot.querySelectorAll(".menu-dropdown.open");
-      menus.forEach((menu) => {
-        const menuContainer = menu.closest(".menu-container");
-        if (menuContainer && !menuContainer.contains(e.target)) {
-          menu.classList.remove("open");
-        }
-      });
-    };
-    this.shadowRoot.addEventListener("click", this._outsideClickHandler);
   }
 
   /**
-   * Setup event listeners for menu buttons
+   * Setup event listeners for delete buttons
    */
   setupMenuListeners() {
-    const menuBtns = this.shadowRoot.querySelectorAll(".menu-btn");
-    const deleteItems = this.shadowRoot.querySelectorAll(
-      '.menu-item[data-action="delete"]'
-    );
-    const setDefaultItems = this.shadowRoot.querySelectorAll(
-      '.menu-item[data-action="set-default"]'
-    );
+    const deleteBtns = this.shadowRoot.querySelectorAll(".delete-btn");
 
-    menuBtns.forEach((btn) => {
+    deleteBtns.forEach((btn) => {
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
         const accountId = btn.dataset.accountId;
-        this.toggleMenu(accountId);
-      });
-    });
-
-    deleteItems.forEach((item) => {
-      item.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const accountId = item.dataset.accountId;
         this.handleDeleteAccount(accountId);
       });
     });
-
-    setDefaultItems.forEach((item) => {
-      item.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const accountId = item.dataset.accountId;
-        this.handleSetDefault(accountId);
-      });
-    });
   }
 
   /**
-   * Toggle menu dropdown visibility
-   * @param {string} accountId - Account ID to toggle menu for
-   */
-  toggleMenu(accountId) {
-    // Close all other menus first
-    const allMenus = this.shadowRoot.querySelectorAll(".menu-dropdown");
-    allMenus.forEach((menu) => {
-      if (menu.dataset.menuId !== accountId) {
-        menu.classList.remove("open");
-      }
-    });
-
-    // Toggle the target menu
-    const targetMenu = this.shadowRoot.querySelector(
-      `.menu-dropdown[data-menu-id="${accountId}"]`
-    );
-    if (targetMenu) {
-      const isOpening = !targetMenu.classList.contains("open");
-      targetMenu.classList.toggle("open");
-
-      // Position the menu when opening
-      if (isOpening) {
-        const menuBtn = this.shadowRoot.querySelector(
-          `.menu-btn[data-account-id="${accountId}"]`
-        );
-        if (menuBtn) {
-          const rect = menuBtn.getBoundingClientRect();
-          targetMenu.style.top = `${rect.bottom + 4}px`;
-          targetMenu.style.right = `${window.innerWidth - rect.right}px`;
-        }
-      }
-    }
-  }
-
-  /**
-   * Handle delete account action
+   * Handle delete account action - shows confirmation modal
    * @param {string} accountId - Account ID to delete
    */
   handleDeleteAccount(accountId) {
     console.log("OperatorPayment: Delete account requested for:", accountId);
 
-    // Close the menu
-    const menu = this.shadowRoot.querySelector(
-      `.menu-dropdown[data-menu-id="${accountId}"]`
-    );
-    if (menu) {
-      menu.classList.remove("open");
+    // Find the account to get details for the confirmation modal
+    const account = this._state.bankAccounts.find((a) => a.id === accountId);
+
+    // Show confirmation modal
+    this._state.deleteConfirmation = {
+      isOpen: true,
+      accountId,
+      account,
+      isDeleting: false,
+    };
+    this.updateDeleteConfirmationModal();
+  }
+
+  /**
+   * Cancel delete operation
+   */
+  cancelDelete() {
+    this._state.deleteConfirmation = {
+      isOpen: false,
+      accountId: null,
+      account: null,
+      isDeleting: false,
+    };
+    this.updateDeleteConfirmationModal();
+  }
+
+  /**
+   * Confirm and execute delete operation
+   */
+  async confirmDelete() {
+    const { accountId, account } = this._state.deleteConfirmation;
+
+    if (!accountId) {
+      console.warn("OperatorPayment: No account ID for deletion");
+      return;
     }
+
+    // Set deleting state
+    this._state.deleteConfirmation.isDeleting = true;
+    this.updateDeleteConfirmationModal();
 
     // Dispatch delete event for consumer to handle
     this.dispatchEvent(
       new CustomEvent("payment-method-delete", {
         detail: {
           accountId,
-          account: this._state.bankAccounts.find((a) => a.id === accountId),
+          account,
         },
         bubbles: true,
         composed: true,
       })
     );
 
-    // For demo purposes, remove from local state
-    // In production, this would call Moov API to delete the payment method
-    this._state.bankAccounts = this._state.bankAccounts.filter(
-      (a) => a.id !== accountId
-    );
-    this.updateBankAccountsList();
+    // Call the API to delete the payment method
+    // Use cached moovAccountId to avoid extra API call
+    if (this.api && this._state.moovAccountId) {
+      try {
+        console.log("OperatorPayment: Deleting payment method via API...");
+        await this.api.deletePaymentMethodByAccountId(
+          this._state.moovAccountId,
+          accountId
+        );
+        console.log("OperatorPayment: Payment method deleted successfully");
+
+        // Remove from local state after successful API call
+        this._state.bankAccounts = this._state.bankAccounts.filter(
+          (a) => a.id !== accountId
+        );
+
+        // Close confirmation modal
+        this._state.deleteConfirmation = {
+          isOpen: false,
+          accountId: null,
+          account: null,
+          isDeleting: false,
+        };
+
+        this.updateBankAccountsList();
+        this.updateDeleteConfirmationModal();
+
+        // Dispatch success event
+        this.dispatchEvent(
+          new CustomEvent("payment-method-deleted", {
+            detail: {
+              accountId,
+              account,
+            },
+            bubbles: true,
+            composed: true,
+          })
+        );
+      } catch (error) {
+        console.error(
+          "OperatorPayment: Failed to delete payment method",
+          error
+        );
+
+        // Reset deleting state but keep modal open
+        this._state.deleteConfirmation.isDeleting = false;
+        this.updateDeleteConfirmationModal();
+
+        // Dispatch error event
+        this.dispatchEvent(
+          new CustomEvent("payment-method-delete-error", {
+            detail: {
+              accountId,
+              account,
+              error:
+                error.data?.message ||
+                error.message ||
+                "Failed to delete payment method",
+            },
+            bubbles: true,
+            composed: true,
+          })
+        );
+      }
+    } else if (this.api && this._state.operatorEmail) {
+      // Fallback to email-based method if moovAccountId is not cached
+      try {
+        console.log(
+          "OperatorPayment: Deleting payment method via API (using email)..."
+        );
+        await this.api.deletePaymentMethodById(
+          this._state.operatorEmail,
+          accountId
+        );
+        console.log("OperatorPayment: Payment method deleted successfully");
+
+        // Remove from local state after successful API call
+        this._state.bankAccounts = this._state.bankAccounts.filter(
+          (a) => a.id !== accountId
+        );
+
+        // Close confirmation modal
+        this._state.deleteConfirmation = {
+          isOpen: false,
+          accountId: null,
+          account: null,
+          isDeleting: false,
+        };
+
+        this.updateBankAccountsList();
+        this.updateDeleteConfirmationModal();
+
+        // Dispatch success event
+        this.dispatchEvent(
+          new CustomEvent("payment-method-deleted", {
+            detail: {
+              accountId,
+              account,
+            },
+            bubbles: true,
+            composed: true,
+          })
+        );
+      } catch (error) {
+        console.error(
+          "OperatorPayment: Failed to delete payment method",
+          error
+        );
+
+        // Reset deleting state but keep modal open
+        this._state.deleteConfirmation.isDeleting = false;
+        this.updateDeleteConfirmationModal();
+
+        // Dispatch error event
+        this.dispatchEvent(
+          new CustomEvent("payment-method-delete-error", {
+            detail: {
+              accountId,
+              account,
+              error:
+                error.data?.message ||
+                error.message ||
+                "Failed to delete payment method",
+            },
+            bubbles: true,
+            composed: true,
+          })
+        );
+      }
+    } else {
+      // Fallback: remove from local state if no API
+      this._state.bankAccounts = this._state.bankAccounts.filter(
+        (a) => a.id !== accountId
+      );
+
+      // Close confirmation modal
+      this._state.deleteConfirmation = {
+        isOpen: false,
+        accountId: null,
+        account: null,
+        isDeleting: false,
+      };
+
+      this.updateBankAccountsList();
+      this.updateDeleteConfirmationModal();
+    }
   }
 
   /**
-   * Handle set default account action
-   * @param {string} accountId - Account ID to set as default
+   * Update the delete confirmation modal in the DOM
    */
-  handleSetDefault(accountId) {
-    console.log("OperatorPayment: Set default requested for:", accountId);
+  updateDeleteConfirmationModal() {
+    const container = this.shadowRoot.querySelector("#deleteConfirmationModal");
+    if (container) {
+      container.innerHTML = this.renderDeleteConfirmationModal();
+      this.setupDeleteConfirmationListeners();
+    }
+  }
 
-    // Close the menu
-    const menu = this.shadowRoot.querySelector(
-      `.menu-dropdown[data-menu-id="${accountId}"]`
+  /**
+   * Setup event listeners for delete confirmation modal
+   */
+  setupDeleteConfirmationListeners() {
+    const cancelBtn = this.shadowRoot.querySelector(".delete-cancel-btn");
+    const confirmBtn = this.shadowRoot.querySelector(".delete-confirm-btn");
+    const overlay = this.shadowRoot.querySelector(
+      ".delete-confirmation-overlay"
     );
-    if (menu) {
-      menu.classList.remove("open");
+
+    if (cancelBtn) {
+      cancelBtn.addEventListener("click", () => this.cancelDelete());
     }
 
-    // Find the account and move it to the first position
-    const accountIndex = this._state.bankAccounts.findIndex(
-      (a) => a.id === accountId
-    );
-    if (accountIndex > 0) {
-      const account = this._state.bankAccounts.splice(accountIndex, 1)[0];
-      this._state.bankAccounts.unshift(account);
+    if (confirmBtn) {
+      confirmBtn.addEventListener("click", () => this.confirmDelete());
     }
 
-    // Dispatch set default event for consumer to handle
-    this.dispatchEvent(
-      new CustomEvent("payment-method-set-default", {
-        detail: {
-          accountId,
-          account: this._state.bankAccounts.find((a) => a.id === accountId),
-        },
-        bubbles: true,
-        composed: true,
-      })
-    );
+    if (overlay) {
+      overlay.addEventListener("click", () => this.cancelDelete());
+    }
+  }
 
-    // Update the UI
-    this.updateBankAccountsList();
+  /**
+   * Render the delete confirmation modal
+   * @returns {string} HTML string for the modal
+   */
+  renderDeleteConfirmationModal() {
+    const { isOpen, account, isDeleting } = this._state.deleteConfirmation;
+
+    if (!isOpen) {
+      return "";
+    }
+
+    const bankName = account?.bankName || "this payment method";
+    const lastFour = account?.lastFourAccountNumber || "****";
+
+    return `
+      <div class="delete-confirmation-overlay"></div>
+      <div class="delete-confirmation-dialog">
+        <div class="delete-confirmation-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+        </div>
+        <h3 class="delete-confirmation-title">Delete Payment Method?</h3>
+        <p class="delete-confirmation-message">
+          Are you sure you want to delete <strong>${bankName}</strong> ending in <strong>••••${lastFour}</strong>? This action cannot be undone.
+        </p>
+        <div class="delete-confirmation-actions">
+          <button class="delete-cancel-btn" ${
+            isDeleting ? "disabled" : ""
+          }>Cancel</button>
+          <button class="delete-confirm-btn" ${isDeleting ? "disabled" : ""}>
+            ${
+              isDeleting
+                ? '<span class="delete-spinner"></span> Deleting...'
+                : "Delete"
+            }
+          </button>
+        </div>
+      </div>
+    `;
   }
 
   /**
@@ -542,6 +678,199 @@ class OperatorPayment extends HTMLElement {
     if (modal) {
       modal.style.display = "flex";
     }
+
+    // Prevent background scrolling when modal is open
+    document.body.style.overflow = "hidden";
+
+    // Fetch payment methods when modal opens
+    this.fetchPaymentMethods();
+  }
+
+  /**
+   * Fetch payment methods from API
+   * Uses cached moovAccountId when available to avoid extra API calls
+   */
+  async fetchPaymentMethods() {
+    if (!this._state.operatorEmail) {
+      console.warn(
+        "OperatorPayment: Email is required to fetch payment methods"
+      );
+      return;
+    }
+
+    if (!this.api) {
+      console.error("OperatorPayment: API not available");
+      this._state.paymentMethodsError = "API not available";
+      this.updateBankAccountsList();
+      return;
+    }
+
+    try {
+      this._state.isLoadingPaymentMethods = true;
+      this._state.paymentMethodsError = null;
+      this.updateBankAccountsList();
+
+      console.log(
+        "OperatorPayment: Fetching payment methods for",
+        this._state.operatorEmail
+      );
+
+      // Use the cached moovAccountId (should be set from initializeAccount)
+      if (!this._state.moovAccountId) {
+        console.warn(
+          "OperatorPayment: moovAccountId not cached, account may not be initialized"
+        );
+        // Fallback: fetch it now if not available
+        try {
+          const accountResult = await this.api.getAccountByEmail(
+            this._state.operatorEmail
+          );
+          this._state.moovAccountId =
+            accountResult.data?.moovAccountId || accountResult.moovAccountId;
+          console.log(
+            "OperatorPayment: Fetched and cached moovAccountId:",
+            this._state.moovAccountId
+          );
+        } catch (error) {
+          console.error(
+            "OperatorPayment: Failed to fetch moovAccountId",
+            error
+          );
+          throw error;
+        }
+      }
+
+      // Use the cached moovAccountId directly
+      console.log(
+        "OperatorPayment: Using cached moovAccountId:",
+        this._state.moovAccountId
+      );
+      const response = await this.api.getPaymentMethodsByAccountId(
+        this._state.moovAccountId
+      );
+
+      if (response.success && response.data) {
+        // Filter to only include payment methods with paymentMethodType "ach-credit-same-day"
+        const achCreditSameDayMethods = response.data.filter(
+          (method) => method.paymentMethodType === "ach-credit-same-day"
+        );
+
+        // Transform API response to match the expected format
+        this._state.bankAccounts = achCreditSameDayMethods.map((method) => ({
+          // Use the correct ID for deletion based on payment method type
+          id: this.getPaymentMethodId(method),
+          paymentMethodType: method.paymentMethodType,
+          bankName: this.getBankName(method),
+          holderName: this.getHolderName(method),
+          bankAccountType: method.bankAccount?.bankAccountType || "checking",
+          lastFourAccountNumber: this.getLastFour(method),
+          status: this.getPaymentMethodStatus(method),
+          // Keep original data for reference
+          _original: method,
+        }));
+
+        console.log(
+          "OperatorPayment: Payment methods fetched successfully",
+          this._state.bankAccounts
+        );
+      } else {
+        this._state.bankAccounts = [];
+      }
+
+      this._state.isLoadingPaymentMethods = false;
+      this.updateBankAccountsList();
+    } catch (error) {
+      console.error("OperatorPayment: Failed to fetch payment methods", error);
+      this._state.isLoadingPaymentMethods = false;
+      this._state.paymentMethodsError =
+        error.data?.message ||
+        error.message ||
+        "Failed to fetch payment methods";
+      this.updateBankAccountsList();
+    }
+  }
+
+  /**
+   * Get bank name from payment method
+   * @param {Object} method - Payment method data
+   * @returns {string} Bank name
+   */
+  getBankName(method) {
+    if (method.bankAccount) {
+      return method.bankAccount.bankName || "Bank Account";
+    }
+    if (method.card) {
+      return method.card.brand || method.card.cardType || "Card";
+    }
+    if (method.wallet || method.paymentMethodType === "moovWallet") {
+      return "Moov Wallet";
+    }
+    if (method.applePay) {
+      return "Apple Pay";
+    }
+    return "Payment Method";
+  }
+
+  /**
+   * Get holder name from payment method
+   * @param {Object} method - Payment method data
+   * @returns {string} Holder name
+   */
+  getHolderName(method) {
+    if (method.bankAccount) {
+      return method.bankAccount.holderName || "Account Holder";
+    }
+    if (method.card) {
+      return method.card.holderName || "Card Holder";
+    }
+    return "Account Holder";
+  }
+
+  /**
+   * Get last four digits from payment method
+   * @param {Object} method - Payment method data
+   * @returns {string} Last four digits
+   */
+  getLastFour(method) {
+    if (method.bankAccount) {
+      return method.bankAccount.lastFourAccountNumber || "****";
+    }
+    if (method.card) {
+      return method.card.lastFourCardNumber || "****";
+    }
+    return "****";
+  }
+
+  /**
+   * Get payment method status
+   * @param {Object} method - Payment method data
+   * @returns {string} Status
+   */
+  getPaymentMethodStatus(method) {
+    if (method.bankAccount) {
+      return method.bankAccount.status || "verified";
+    }
+    return "verified";
+  }
+
+  /**
+   * Get the correct ID for a payment method based on its type
+   * Used for deletion - bank accounts use bankAccountID, wallets use walletID
+   * @param {Object} method - Payment method data
+   * @returns {string} The ID to use for deletion
+   */
+  getPaymentMethodId(method) {
+    if (method.bankAccount) {
+      return method.bankAccount.bankAccountID;
+    }
+    if (method.wallet) {
+      return method.wallet.walletID;
+    }
+    if (method.card) {
+      return method.card.cardID;
+    }
+    // Fallback to paymentMethodID if no specific ID is found
+    return method.paymentMethodID;
   }
 
   /**
@@ -554,6 +883,9 @@ class OperatorPayment extends HTMLElement {
     if (modal) {
       modal.style.display = "none";
     }
+
+    // Restore background scrolling when modal is closed
+    document.body.style.overflow = "";
 
     // Dispatch close event
     this.dispatchEvent(
@@ -571,7 +903,7 @@ class OperatorPayment extends HTMLElement {
   // ==================== INITIALIZATION METHODS ====================
 
   /**
-   * Initialize account - validates email is set (no longer auto-generates token)
+   * Initialize account - fetches account data and caches moovAccountId
    * Token generation is deferred to when "Add Bank Account" is clicked
    */
   async initializeAccount() {
@@ -591,27 +923,76 @@ class OperatorPayment extends HTMLElement {
       return;
     }
 
-    // Email is set and API is available - button should be enabled
-    // Token generation is deferred to openMoovDrop for lazy initialization
-    console.log(
-      "OperatorPayment: Account ready for",
-      this._state.operatorEmail
-    );
+    try {
+      this._state.isLoading = true;
+      this._state.error = null;
+      this._state.initializationError = false;
+      this.updateMainButtonState();
 
-    this._state.isLoading = false;
-    this._state.initializationError = false;
-    this.updateMainButtonState();
+      console.log(
+        "OperatorPayment: Initializing account for",
+        this._state.operatorEmail
+      );
 
-    // Dispatch ready event
-    this.dispatchEvent(
-      new CustomEvent("payment-linking-ready", {
-        detail: {
-          operatorEmail: this._state.operatorEmail,
-        },
-        bubbles: true,
-        composed: true,
-      })
-    );
+      // Fetch account by email to get and cache moovAccountId
+      const result = await this.api.getAccountByEmail(
+        this._state.operatorEmail
+      );
+      this._state.accountData = result.data;
+      this._state.moovAccountId = result.data?.moovAccountId || null;
+
+      console.log(
+        "OperatorPayment: Account fetched successfully, moovAccountId:",
+        this._state.moovAccountId
+      );
+
+      this._state.isLoading = false;
+      this.updateMainButtonState();
+
+      // Dispatch success event
+      this.dispatchEvent(
+        new CustomEvent("payment-linking-success", {
+          detail: {
+            ...result.data,
+            moovAccountId: this._state.moovAccountId,
+          },
+          bubbles: true,
+          composed: true,
+        })
+      );
+
+      // Dispatch ready event
+      this.dispatchEvent(
+        new CustomEvent("payment-linking-ready", {
+          detail: {
+            operatorEmail: this._state.operatorEmail,
+            moovAccountId: this._state.moovAccountId,
+          },
+          bubbles: true,
+          composed: true,
+        })
+      );
+    } catch (error) {
+      this._state.isLoading = false;
+      this._state.error = error.message || "Failed to fetch account data";
+      this._state.initializationError = true;
+
+      console.error("OperatorPayment: Account initialization failed", error);
+      this.updateMainButtonState();
+
+      // Dispatch error event
+      this.dispatchEvent(
+        new CustomEvent("payment-linking-error", {
+          detail: {
+            error: this._state.error,
+            type: "initialization",
+            originalError: error,
+          },
+          bubbles: true,
+          composed: true,
+        })
+      );
+    }
   }
 
   /**
@@ -811,6 +1192,31 @@ class OperatorPayment extends HTMLElement {
    * @returns {string} HTML string for bank accounts
    */
   renderBankAccounts() {
+    // Show loading state
+    if (this._state.isLoadingPaymentMethods) {
+      return `
+        <div class="loading-state">
+          <div class="loading-spinner-large"></div>
+          <p>Loading payment methods...</p>
+        </div>
+      `;
+    }
+
+    // Show error state
+    if (this._state.paymentMethodsError) {
+      return `
+        <div class="error-state">
+          <svg class="error-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+          <p>${this._state.paymentMethodsError}</p>
+          <button class="retry-btn" onclick="this.getRootNode().host.fetchPaymentMethods()">Retry</button>
+        </div>
+      `;
+    }
+
     const accounts = this._state.bankAccounts || [];
 
     if (accounts.length === 0) {
@@ -859,48 +1265,17 @@ class OperatorPayment extends HTMLElement {
           </div>
         </div>
         <div class="card-actions">
-          ${
-            index === 0
-              ? `<span class="status-badge verified">Ready</span>`
-              : `<span class="status-badge ${account.status}">${account.status}</span>`
-          }
-          <div class="menu-container">
-            <button class="menu-btn" data-account-id="${
-              account.id
-            }" aria-label="More options">
-              <svg viewBox="0 0 24 24" fill="currentColor" stroke="none">
-                <circle cx="12" cy="5" r="2"></circle>
-                <circle cx="12" cy="12" r="2"></circle>
-                <circle cx="12" cy="19" r="2"></circle>
-              </svg>
-            </button>
-            <div class="menu-dropdown" data-menu-id="${account.id}">
-              ${
-                index !== 0
-                  ? `
-              <button class="menu-item" data-action="set-default" data-account-id="${account.id}">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                </svg>
-                Set as default
-              </button>
-              `
-                  : ""
-              }
-              <button class="menu-item danger" data-action="delete" data-account-id="${
-                account.id
-              }">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <polyline points="3 6 5 6 21 6"></polyline>
-                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                  <line x1="10" y1="11" x2="10" y2="17"></line>
-                  <line x1="14" y1="11" x2="14" y2="17"></line>
-                </svg>
-                Delete
-              </button>
-            </div>
-          </div>
+          <span class="status-badge ${account.status}">${account.status}</span>
+          <button class="delete-btn" data-account-id="${
+            account.id
+          }" aria-label="Delete payment method">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              <line x1="10" y1="11" x2="10" y2="17"></line>
+              <line x1="14" y1="11" x2="14" y2="17"></line>
+            </svg>
+          </button>
         </div>
       </div>
     `
@@ -1239,78 +1614,27 @@ class OperatorPayment extends HTMLElement {
           gap: 8px;
         }
         
-        .menu-container {
-          position: relative;
-        }
-        
-        .menu-btn {
+        .delete-btn {
           background: transparent;
           border: none;
-          padding: 4px;
+          padding: 6px;
           cursor: pointer;
-          border-radius: 4px;
+          border-radius: 6px;
           display: flex;
           align-items: center;
           justify-content: center;
-          transition: background 0.2s ease;
+          transition: all 0.2s ease;
+          color: #9ca3af;
         }
         
-        .menu-btn:hover {
-          background: #e5e7eb;
-        }
-        
-        .menu-btn svg {
-          width: 20px;
-          height: 20px;
-          color: #6b7280;
-        }
-        
-        .menu-dropdown {
-          position: fixed;
-          background: white;
-          border: 1px solid #e5e7eb;
-          border-radius: 8px;
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-          min-width: 150px;
-          z-index: 10100;
-          display: none;
-          overflow: hidden;
-        }
-        
-        .menu-dropdown.open {
-          display: block;
-        }
-        
-        .menu-item {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          padding: 10px 14px;
-          font-size: 14px;
-          color: #374151;
-          cursor: pointer;
-          transition: background 0.2s ease;
-          border: none;
-          background: none;
-          width: 100%;
-          text-align: left;
-        }
-        
-        .menu-item:hover {
-          background: #f3f4f6;
-        }
-        
-        .menu-item.danger {
+        .delete-btn:hover {
+          background: #fef2f2;
           color: #dc2626;
         }
         
-        .menu-item.danger:hover {
-          background: #fef2f2;
-        }
-        
-        .menu-item svg {
-          width: 16px;
-          height: 16px;
+        .delete-btn svg {
+          width: 18px;
+          height: 18px;
         }
         
         .empty-state {
@@ -1329,6 +1653,62 @@ class OperatorPayment extends HTMLElement {
         .empty-state p {
           font-size: 14px;
           margin: 0;
+        }
+        
+        .loading-state {
+          text-align: center;
+          padding: 32px 16px;
+          color: #6b7280;
+        }
+        
+        .loading-spinner-large {
+          width: 32px;
+          height: 32px;
+          border: 3px solid #e5e7eb;
+          border-top-color: #325240;
+          border-radius: 50%;
+          animation: spin 0.8s linear infinite;
+          margin: 0 auto 12px;
+        }
+        
+        .loading-state p {
+          font-size: 14px;
+          margin: 0;
+        }
+        
+        .error-state {
+          text-align: center;
+          padding: 32px 16px;
+          color: #dc2626;
+        }
+        
+        .error-state-icon {
+          width: 48px;
+          height: 48px;
+          margin: 0 auto 12px;
+          color: #dc2626;
+        }
+        
+        .error-state p {
+          font-size: 14px;
+          margin: 0 0 16px 0;
+          color: #6b7280;
+        }
+        
+        .retry-btn {
+          padding: 8px 16px;
+          background: #325240;
+          color: white;
+          border: none;
+          border-radius: 8px;
+          font-size: 13px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+        
+        .retry-btn:hover {
+          background: #2a4536;
         }
         
         .divider {
@@ -1376,6 +1756,151 @@ class OperatorPayment extends HTMLElement {
         /* Hide the Moov drop by default, it will be shown when "Add Bank" is clicked */
         moov-payment-methods {
           display: none;
+        }
+        
+        /* Delete Confirmation Modal */
+        .delete-confirmation-container {
+          display: contents;
+        }
+        
+        .delete-confirmation-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0, 0, 0, 0.6);
+          z-index: 10200;
+        }
+        
+        .delete-confirmation-dialog {
+          position: fixed;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          background: white;
+          border-radius: 16px;
+          padding: 32px;
+          width: 90%;
+          max-width: 400px;
+          z-index: 10201;
+          text-align: center;
+          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+          animation: deleteModalIn 0.2s ease-out;
+        }
+        
+        @keyframes deleteModalIn {
+          from {
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(0.95);
+          }
+          to {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+          }
+        }
+        
+        .delete-confirmation-icon {
+          width: 56px;
+          height: 56px;
+          margin: 0 auto 16px;
+          background: #fef2f2;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        
+        .delete-confirmation-icon svg {
+          width: 28px;
+          height: 28px;
+          color: #dc2626;
+        }
+        
+        .delete-confirmation-title {
+          font-size: 18px;
+          font-weight: 600;
+          color: #1f2937;
+          margin: 0 0 8px 0;
+        }
+        
+        .delete-confirmation-message {
+          font-size: 14px;
+          color: #6b7280;
+          margin: 0 0 24px 0;
+          line-height: 1.5;
+        }
+        
+        .delete-confirmation-message strong {
+          color: #374151;
+        }
+        
+        .delete-confirmation-actions {
+          display: flex;
+          gap: 12px;
+          justify-content: center;
+        }
+        
+        .delete-cancel-btn {
+          padding: 10px 20px;
+          background: white;
+          color: #374151;
+          border: 1px solid #d1d5db;
+          border-radius: 8px;
+          font-size: 14px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          height: 40px;
+          box-sizing: border-box;
+        }
+        
+        .delete-cancel-btn:hover:not(:disabled) {
+          background: #f3f4f6;
+          border-color: #9ca3af;
+        }
+        
+        .delete-cancel-btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+        
+        .delete-confirm-btn {
+          padding: 10px 20px;
+          background: #dc2626;
+          color: white;
+          border: none;
+          border-radius: 8px;
+          font-size: 14px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          height: 40px;
+          box-sizing: border-box;
+          min-width: 100px;
+        }
+        
+        .delete-confirm-btn:hover:not(:disabled) {
+          background: #b91c1c;
+        }
+        
+        .delete-confirm-btn:disabled {
+          background: #f87171;
+          cursor: not-allowed;
+        }
+        
+        .delete-spinner {
+          width: 14px;
+          height: 14px;
+          border: 2px solid rgba(255, 255, 255, 0.3);
+          border-top-color: white;
+          border-radius: 50%;
+          animation: spin 0.8s linear infinite;
+          box-sizing: border-box;
         }
       </style>
       
@@ -1436,6 +1961,11 @@ class OperatorPayment extends HTMLElement {
       
       <!-- Hidden Moov payment methods drop (will be shown when Add Bank is clicked) -->
       <moov-payment-methods></moov-payment-methods>
+      
+      <!-- Delete Confirmation Modal -->
+      <div class="delete-confirmation-container" id="deleteConfirmationModal">
+        ${this.renderDeleteConfirmationModal()}
+      </div>
     `;
   }
 }

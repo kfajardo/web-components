@@ -438,6 +438,8 @@ class OperatorUnderwriting extends HTMLElement {
           display: inline-flex;
           align-items: center;
           gap: 8px;
+          height: 40px;
+          box-sizing: border-box;
         }
         
         .underwriting-btn:hover:not(.error):not(.loading):not(:disabled) {
@@ -474,6 +476,7 @@ class OperatorUnderwriting extends HTMLElement {
           border-top-color: white;
           border-radius: 50%;
           animation: spin 0.8s linear infinite;
+          box-sizing: border-box;
         }
         
         .underwriting-btn.loading .loading-spinner {
@@ -610,193 +613,14 @@ class OperatorUnderwriting extends HTMLElement {
           margin: 0;
         }
         
-        /* Timeline Container - Scrollable */
-        .timeline-container {
+        /* Modal Body */
+        .modal-body {
           width: 100%;
           flex: 1;
           overflow-y: auto;
           min-height: 0;
-          padding-right: 8px;
         }
         
-        /* Custom scrollbar for timeline */
-        .timeline-container::-webkit-scrollbar {
-          width: 6px;
-        }
-        
-        .timeline-container::-webkit-scrollbar-track {
-          background: #f1f1f1;
-          border-radius: 3px;
-        }
-        
-        .timeline-container::-webkit-scrollbar-thumb {
-          background: #c1c1c1;
-          border-radius: 3px;
-        }
-        
-        .timeline-container::-webkit-scrollbar-thumb:hover {
-          background: #a1a1a1;
-        }
-        
-        /* Timeline */
-        .timeline {
-          position: relative;
-          padding-left: 32px;
-        }
-        
-        .timeline::before {
-          content: '';
-          position: absolute;
-          left: 11px;
-          top: 0;
-          bottom: 0;
-          width: 2px;
-          background: #e5e7eb;
-        }
-        
-        /* Timeline Item */
-        .timeline-item {
-          position: relative;
-          margin-bottom: 20px;
-        }
-        
-        .timeline-item:last-child {
-          margin-bottom: 0;
-        }
-        
-        /* Timeline Icon */
-        .timeline-icon {
-          position: absolute;
-          left: -32px;
-          top: 0;
-          width: 24px;
-          height: 24px;
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 1;
-        }
-        
-        .timeline-icon.completed {
-          background: #10b981;
-        }
-        
-        .timeline-icon.in-progress {
-          background: #3b82f6;
-          animation: pulse 2s ease-in-out infinite;
-        }
-        
-        .timeline-icon.pending {
-          background: #9ca3af;
-        }
-        
-        .timeline-icon.error {
-          background: #ef4444;
-        }
-        
-        .timeline-icon svg {
-          width: 14px;
-          height: 14px;
-          stroke: white;
-          fill: none;
-        }
-        
-        @keyframes pulse {
-          0%, 100% {
-            box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4);
-          }
-          50% {
-            box-shadow: 0 0 0 8px rgba(59, 130, 246, 0);
-          }
-        }
-        
-        /* Timeline Card */
-        .timeline-card {
-          background: #f9fafb;
-          border: 1px solid #e5e7eb;
-          border-radius: 12px;
-          padding: 16px;
-          transition: all 0.2s ease;
-        }
-        
-        .timeline-card:hover {
-          border-color: #325240;
-          background: #f3f4f6;
-        }
-        
-        .timeline-card.active {
-          border-color: #3b82f6;
-          background: #eff6ff;
-        }
-        
-        .timeline-card.error {
-          border-color: #ef4444;
-          background: #fef2f2;
-        }
-        
-        .card-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
-          margin-bottom: 8px;
-        }
-        
-        .card-title {
-          font-weight: 600;
-          font-size: 15px;
-          color: #1f2937;
-          margin: 0;
-        }
-        
-        .card-status {
-          font-size: 11px;
-          font-weight: 600;
-          padding: 4px 8px;
-          border-radius: 12px;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-        }
-        
-        .card-status.completed {
-          background: #d1fae5;
-          color: #065f46;
-        }
-        
-        .card-status.in-progress {
-          background: #dbeafe;
-          color: #1e40af;
-        }
-        
-        .card-status.pending {
-          background: #f3f4f6;
-          color: #6b7280;
-        }
-        
-        .card-status.error {
-          background: #fee2e2;
-          color: #991b1b;
-        }
-        
-        .card-description {
-          font-size: 13px;
-          color: #6b7280;
-          margin: 0 0 8px 0;
-          line-height: 1.5;
-        }
-        
-        .card-timestamp {
-          font-size: 12px;
-          color: #9ca3af;
-          display: flex;
-          align-items: center;
-          gap: 4px;
-        }
-        
-        .card-timestamp svg {
-          width: 12px;
-          height: 12px;
-        }
         
         /* Powered By Footer - Static */
         .powered-by {
@@ -832,7 +656,7 @@ class OperatorUnderwriting extends HTMLElement {
             <path d="M15 7h3a5 5 0 0 1 5 5 5 5 0 0 1-5 5h-3m-6 0H6a5 5 0 0 1-5-5 5 5 0 0 1 5-5h3"></path>
             <line x1="1" y1="1" x2="23" y2="23"></line>
           </svg>
-          Start Underwriting
+          View Underwriting Status
         </button>
       </div>
       
@@ -848,11 +672,9 @@ class OperatorUnderwriting extends HTMLElement {
             <p>Track your underwriting application progress</p>
           </div>
           
-          <!-- Timeline Container -->
-          <div class="timeline-container">
-            <div class="timeline" id="underwritingTimeline">
-              ${this.renderTimeline()}
-            </div>
+          <!-- Content Area (Empty) -->
+          <div class="modal-body">
+            <!-- Underwriting content will be added here -->
           </div>
           
           <!-- Powered By Footer -->
@@ -868,90 +690,95 @@ class OperatorUnderwriting extends HTMLElement {
   }
 
   /**
-   * Render the timeline with mock underwriting status logs
+   * Render the timeline with payment methods
    * @returns {string} HTML string for timeline
    */
   renderTimeline() {
-    // Mock timeline data showing underwriting status progression
-    const timelineItems = [
-      {
-        title: "Application Submitted",
-        description:
-          "Your underwriting application has been received and is being processed.",
-        status: "completed",
-        timestamp: "Nov 27, 2025 • 10:30 AM",
-      },
-      {
-        title: "Document Verification",
-        description:
-          "Our team is reviewing the documents you submitted for verification.",
-        status: "completed",
-        timestamp: "Nov 27, 2025 • 11:45 AM",
-      },
-      {
-        title: "Identity Verification",
-        description: "Verifying business identity and ownership information.",
-        status: "completed",
-        timestamp: "Nov 27, 2025 • 2:15 PM",
-      },
-      {
-        title: "Risk Assessment",
-        description:
-          "Evaluating risk profile based on business type and transaction volume.",
-        status: "in-progress",
-        timestamp: "In Progress",
-      },
-      {
-        title: "Compliance Review",
-        description:
-          "Final compliance check and regulatory requirements verification.",
-        status: "pending",
-        timestamp: "Pending",
-      },
-      {
-        title: "Approval Decision",
-        description: "Final underwriting decision and account activation.",
-        status: "pending",
-        timestamp: "Pending",
-      },
-    ];
+    // Show loading state
+    if (this._state.isLoadingPaymentMethods) {
+      return `
+        <div class="timeline-loading">
+          <div class="loading-spinner-large"></div>
+          <p>Loading payment methods...</p>
+        </div>
+      `;
+    }
 
-    return timelineItems.map((item) => this.renderTimelineItem(item)).join("");
+    // Show error state
+    if (this._state.paymentMethodsError) {
+      return `
+        <div class="timeline-error">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+          <p>${this._state.paymentMethodsError}</p>
+          <button class="retry-btn">Retry</button>
+        </div>
+      `;
+    }
+
+    // Show empty state
+    if (
+      !this._state.paymentMethods ||
+      this._state.paymentMethods.length === 0
+    ) {
+      return `
+        <div class="timeline-empty">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
+            <line x1="1" y1="10" x2="23" y2="10"></line>
+          </svg>
+          <p>No payment methods linked yet</p>
+        </div>
+      `;
+    }
+
+    // Render payment methods as timeline items
+    return this._state.paymentMethods
+      .map((method) => this.renderPaymentMethodItem(method))
+      .join("");
   }
 
   /**
-   * Render a single timeline item
-   * @param {Object} item - Timeline item data
+   * Render a single payment method as timeline item
+   * @param {Object} method - Payment method data
    * @returns {string} HTML string for timeline item
    */
-  renderTimelineItem(item) {
-    const iconSvg = this.getStatusIcon(item.status);
-    const cardClass =
-      item.status === "in-progress"
-        ? "active"
-        : item.status === "error"
-        ? "error"
-        : "";
+  renderPaymentMethodItem(method) {
+    const icon = this.getPaymentMethodIcon(method.paymentMethodType);
+    const title = this.formatPaymentMethodTitle(method);
+    const description = this.formatPaymentMethodDescription(method);
+    const paymentMethodId = method.paymentMethodID;
 
     return `
       <div class="timeline-item">
-        <div class="timeline-icon ${item.status}">
-          ${iconSvg}
+        <div class="timeline-icon completed">
+          ${this.getPaymentTypeIconSvg(method.paymentMethodType)}
         </div>
-        <div class="timeline-card ${cardClass}">
+        <div class="timeline-card">
           <div class="card-header">
-            <h4 class="card-title">${item.title}</h4>
-            <span class="card-status ${item.status}">${this.formatStatus(
-      item.status
-    )}</span>
+            <h4 class="card-title">
+              <span class="payment-type-icon">${icon}</span>
+              ${title}
+            </h4>
+            <button class="delete-btn" data-payment-method-id="${paymentMethodId}" title="Delete payment method">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                <line x1="10" y1="11" x2="10" y2="17"></line>
+                <line x1="14" y1="11" x2="14" y2="17"></line>
+              </svg>
+            </button>
           </div>
-          <p class="card-description">${item.description}</p>
+          <p class="card-description">${description}</p>
           <div class="card-timestamp">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="12" cy="12" r="10"></circle>
               <polyline points="12 6 12 12 16 14"></polyline>
             </svg>
-            ${item.timestamp}
+            ${this.formatPaymentMethodTimestamp(method)}
           </div>
         </div>
       </div>
@@ -959,7 +786,150 @@ class OperatorUnderwriting extends HTMLElement {
   }
 
   /**
-   * Get SVG icon based on status
+   * Get emoji icon based on payment method type
+   * @param {string} type - Payment method type
+   * @returns {string} Emoji icon
+   */
+  getPaymentMethodIcon(type) {
+    const icons = {
+      card: "💳",
+      bankAccount: "🏦",
+      wallet: "💰",
+      applePay: "🍎",
+      moovWallet: "💰",
+    };
+    return icons[type] || "💳";
+  }
+
+  /**
+   * Get SVG icon for timeline based on payment type
+   * @param {string} type - Payment method type
+   * @returns {string} SVG HTML string
+   */
+  getPaymentTypeIconSvg(type) {
+    switch (type) {
+      case "card":
+        return `<svg viewBox="0 0 24 24" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>`;
+      case "bankAccount":
+        return `<svg viewBox="0 0 24 24" stroke-width="2"><path d="M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11M20 10v11M8 14v3M12 14v3M16 14v3"></path></svg>`;
+      case "wallet":
+      case "moovWallet":
+        return `<svg viewBox="0 0 24 24" stroke-width="2"><path d="M21 12V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5z"></path><path d="M16 12h.01"></path></svg>`;
+      case "applePay":
+        return `<svg viewBox="0 0 24 24" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2z"></path><path d="M12 6v2M12 16v2M6 12h2M16 12h2"></path></svg>`;
+      default:
+        return `<svg viewBox="0 0 24 24" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+    }
+  }
+
+  /**
+   * Format payment method title based on type
+   * @param {Object} method - Payment method data
+   * @returns {string} Formatted title
+   */
+  formatPaymentMethodTitle(method) {
+    switch (method.paymentMethodType) {
+      case "card":
+        if (method.card) {
+          const brand = method.card.brand || method.card.cardType || "Card";
+          return `${this.capitalizeFirst(brand)}`;
+        }
+        return "Credit/Debit Card";
+      case "bankAccount":
+        if (method.bankAccount) {
+          return method.bankAccount.bankName || "Bank Account";
+        }
+        return "Bank Account";
+      case "wallet":
+      case "moovWallet":
+        return "Moov Wallet";
+      case "applePay":
+        return "Apple Pay";
+      default:
+        return "Payment Method";
+    }
+  }
+
+  /**
+   * Format payment method description with details
+   * @param {Object} method - Payment method data
+   * @returns {string} Formatted description
+   */
+  formatPaymentMethodDescription(method) {
+    switch (method.paymentMethodType) {
+      case "card":
+        if (method.card) {
+          const lastFour = method.card.lastFourCardNumber || "****";
+          const expiry = method.card.expiration
+            ? `Expires ${method.card.expiration.month}/${method.card.expiration.year}`
+            : "";
+          return `Ending in ****${lastFour}${expiry ? ` • ${expiry}` : ""}`;
+        }
+        return "Card details unavailable";
+      case "bankAccount":
+        if (method.bankAccount) {
+          const lastFour = method.bankAccount.lastFourAccountNumber || "****";
+          const type = method.bankAccount.bankAccountType || "";
+          return `${this.capitalizeFirst(
+            type
+          )} account ending in ****${lastFour}`;
+        }
+        return "Bank account details unavailable";
+      case "wallet":
+      case "moovWallet":
+        if (method.wallet) {
+          return `Available balance: $${
+            (method.wallet.availableBalance?.value || 0) / 100
+          }`;
+        }
+        return "Digital wallet for payments";
+      case "applePay":
+        if (method.applePay) {
+          return `${method.applePay.brand || "Card"} via Apple Pay`;
+        }
+        return "Apple Pay enabled device";
+      default:
+        return "Payment method linked to your account";
+    }
+  }
+
+  /**
+   * Format timestamp for payment method
+   * @param {Object} method - Payment method data
+   * @returns {string} Formatted timestamp
+   */
+  formatPaymentMethodTimestamp(method) {
+    // Try to get creation date from various possible fields
+    const dateStr = method.createdOn || method.createdAt || method.addedAt;
+
+    if (dateStr) {
+      try {
+        const date = new Date(dateStr);
+        return `Added ${date.toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        })}`;
+      } catch (e) {
+        return "Date unavailable";
+      }
+    }
+
+    return "Recently added";
+  }
+
+  /**
+   * Capitalize first letter of string
+   * @param {string} str - String to capitalize
+   * @returns {string} Capitalized string
+   */
+  capitalizeFirst(str) {
+    if (!str) return "";
+    return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+  }
+
+  /**
+   * Get SVG icon based on status (kept for backwards compatibility)
    * @param {string} status - Status type
    * @returns {string} SVG HTML string
    */
@@ -978,7 +948,7 @@ class OperatorUnderwriting extends HTMLElement {
   }
 
   /**
-   * Format status for display
+   * Format status for display (kept for backwards compatibility)
    * @param {string} status - Status type
    * @returns {string} Formatted status text
    */

@@ -423,14 +423,15 @@ class OperatorManagement extends HTMLElement {
       `;
     }
 
-    // Loading state
+    // Loading state - show underwriting component with hidden button
     if (this._state.isLoading) {
       return `
-        <div class="loading-container">
-          <div class="loading-spinner"></div>
-          <p class="loading-text">Checking operator status...</p>
-          <p class="loading-subtext">${this._state.operatorEmail}</p>
-        </div>
+        <operator-underwriting
+          operator-email="${this._state.operatorEmail}"
+          api-base-url="${this.apiBaseURL}"
+          embeddable-key="${this.embeddableKey}"
+          style="visibility: hidden;">
+        </operator-underwriting>
       `;
     }
 
