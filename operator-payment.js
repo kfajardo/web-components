@@ -222,6 +222,44 @@ class OperatorPayment extends HTMLElement {
   // ==================== MOOV SDK LOADING ====================
 
   /**
+   * Inject Moov Bison theme styles into document body (sibling to moov-payment-methods)
+   * This ensures Moov Drops components use the Bison theme
+   */
+  injectMoovThemeStyles() {
+    if (document.getElementById("moov-bison-theme")) {
+      return; // Already injected
+    }
+
+    const styleTag = document.createElement("style");
+    styleTag.id = "moov-bison-theme";
+    styleTag.textContent = `
+      :root {
+        --moov-color-background: #FFFFFF;
+        --moov-color-background-secondary: #F9FAFB;
+        --moov-color-background-tertiary: #F3F4F6;
+        --moov-color-primary: #325240;
+        --moov-color-secondary: #2a4536;
+        --moov-color-tertiary: #E5E7EB;
+        --moov-color-info: #3B82F6;
+        --moov-color-warn: #F59E0B;
+        --moov-color-danger: #EF4444;
+        --moov-color-success: #10B981;
+        --moov-color-low-contrast: #9CA3AF;
+        --moov-color-medium-contrast: #4B5563;
+        --moov-color-high-contrast: #111827;
+        --moov-color-graphic-1: #325240;
+        --moov-color-graphic-2: #6B7280;
+        --moov-color-graphic-3: #3B82F6;
+        --moov-radius-small: 8px;
+        --moov-radius-large: 12px;
+      }
+    `;
+    // Append to body as sibling to moov-payment-methods
+    document.body.appendChild(styleTag);
+    console.log("OperatorPayment: Bison theme styles injected");
+  }
+
+  /**
    * Ensure Moov SDK is loaded
    *
    * This method dynamically loads the Moov SDK from the CDN if not already present.
@@ -258,7 +296,7 @@ class OperatorPayment extends HTMLElement {
     return new Promise((resolve, reject) => {
       const script = document.createElement("script");
       script.src = "https://js.moov.io/v1";
-      script.crossOrigin = "anonymous";
+      // script.crossOrigin = "anonymous";
       script.async = true;
 
       script.onload = () => {
@@ -774,13 +812,8 @@ class OperatorPayment extends HTMLElement {
       );
 
       if (response.success && response.data) {
-        // Filter to only include payment methods with paymentMethodType "ach-credit-same-day"
-        const achCreditSameDayMethods = response.data.filter(
-          (method) => method.paymentMethodType === "ach-credit-same-day"
-        );
-
         // Transform API response to match the expected format
-        this._state.bankAccounts = achCreditSameDayMethods.map((method) => ({
+        const allMethods = response.data.map((method) => ({
           // Use the correct ID for deletion based on payment method type
           id: this.getPaymentMethodId(method),
           paymentMethodType: method.paymentMethodType,
@@ -792,6 +825,9 @@ class OperatorPayment extends HTMLElement {
           // Keep original data for reference
           _original: method,
         }));
+
+        // Deduplicate by ID, prioritizing ach-credit-same-day, then ach-credit-standard
+        this._state.bankAccounts = this.deduplicatePaymentMethods(allMethods);
 
         console.log(
           "OperatorPayment: Payment methods fetched successfully",
@@ -812,6 +848,42 @@ class OperatorPayment extends HTMLElement {
         "Failed to fetch payment methods";
       this.updateBankAccountsList();
     }
+  }
+
+  /**
+   * Deduplicate payment methods by ID, prioritizing certain payment method types
+   * Priority: ach-credit-same-day > ach-credit-standard > others
+   * @param {Array} methods - Array of payment method objects
+   * @returns {Array} Deduplicated array with highest priority method for each ID
+   */
+  deduplicatePaymentMethods(methods) {
+    const priorityOrder = {
+      "ach-credit-same-day": 1,
+      "ach-credit-standard": 2,
+    };
+
+    const methodMap = new Map();
+
+    methods.forEach((method) => {
+      const existingMethod = methodMap.get(method.id);
+
+      if (!existingMethod) {
+        // First occurrence of this ID
+        methodMap.set(method.id, method);
+      } else {
+        // Compare priorities - lower number = higher priority
+        const existingPriority =
+          priorityOrder[existingMethod.paymentMethodType] || 999;
+        const newPriority = priorityOrder[method.paymentMethodType] || 999;
+
+        if (newPriority < existingPriority) {
+          // New method has higher priority, replace
+          methodMap.set(method.id, method);
+        }
+      }
+    });
+
+    return Array.from(methodMap.values());
   }
 
   /**
@@ -976,6 +1048,15 @@ class OperatorPayment extends HTMLElement {
         this._state.moovAccountId
       );
 
+      // Pre-fetch Moov token if we have a moovAccountId (optimization for Add Bank Account)
+      if (this._state.moovAccountId) {
+        console.log("OperatorPayment: Pre-fetching Moov token...");
+        await this.initializeMoovToken();
+        console.log(
+          "OperatorPayment: Token generated and cached during initialization"
+        );
+      }
+
       this._state.isLoading = false;
       this.updateMainButtonState();
 
@@ -1039,17 +1120,24 @@ class OperatorPayment extends HTMLElement {
 
     try {
       console.log("OperatorPayment: Generating Moov token...");
+      // Pass the cached moovAccountId to avoid redundant getAccountByEmail call
       const tokenResult = await this.api.generateMoovToken(
-        this._state.operatorEmail
+        this._state.operatorEmail,
+        this._state.moovAccountId
       );
 
-      if (!tokenResult || !tokenResult.access_token) {
+      if (!tokenResult || !tokenResult.data?.accessToken) {
         throw new Error("Failed to generate Moov token");
       }
 
-      this._state.moovToken = tokenResult.access_token;
-      this._state.moovAccountId = tokenResult.accountID || null;
-      console.log("OperatorPayment: Moov token generated successfully");
+      this._state.moovToken = tokenResult.data.accessToken;
+      // Only update moovAccountId if returned, otherwise keep existing cached value
+      if (tokenResult.data?.accountID) {
+        this._state.moovAccountId = tokenResult.data.accountID;
+      }
+      console.log(
+        "OperatorPayment: Moov token generated and cached successfully"
+      );
 
       // Dispatch success event
       this.dispatchEvent(
@@ -1090,6 +1178,12 @@ class OperatorPayment extends HTMLElement {
    * Open Moov Drop - triggered by Add Bank Account button click
    */
   async openMoovDrop() {
+    console.log("OperatorPayment: Add Bank Account button clicked");
+    console.log(
+      "OperatorPayment: Current moovToken:",
+      this._state.moovToken ? "exists (cached)" : "null (will generate)"
+    );
+
     // Ensure Moov SDK is loaded
     if (!window.Moov) {
       console.log("OperatorPayment: Moov SDK not loaded yet, waiting...");
@@ -1113,12 +1207,21 @@ class OperatorPayment extends HTMLElement {
 
     console.log("OperatorPayment: Opening Moov payment methods drop...");
 
-    // Get or create the moov-payment-methods element
-    let moovDrop = this.shadowRoot.querySelector("moov-payment-methods");
-    if (!moovDrop) {
-      moovDrop = document.createElement("moov-payment-methods");
-      this.shadowRoot.appendChild(moovDrop);
+    // Inject Bison theme styles as sibling to moov-payment-methods
+    this.injectMoovThemeStyles();
+
+    // Remove any existing moov-payment-methods element to ensure fresh state
+    const existingMoovDrop = document.getElementById("operator-payment-moov-drop");
+    if (existingMoovDrop) {
+      existingMoovDrop.remove();
+      console.log("OperatorPayment: Removed existing Moov drop element for fresh state");
     }
+
+    // Create a fresh moov-payment-methods element in the document body (light DOM)
+    // Moov components need to be in light DOM to properly render their modals
+    const moovDrop = document.createElement("moov-payment-methods");
+    moovDrop.id = "operator-payment-moov-drop";
+    document.body.appendChild(moovDrop);
 
     // Configure the Moov drop
     moovDrop.token = this._state.moovToken;
@@ -1126,10 +1229,10 @@ class OperatorPayment extends HTMLElement {
     moovDrop.microDeposits = false;
 
     // Set up callbacks
-    moovDrop.onResourceCreated = (result) => {
+    moovDrop.onResourceCreated = async (result) => {
       console.log("OperatorPayment: Payment method successfully added", result);
 
-      // Add to local bank accounts list
+      // Optimistic update: add to local bank accounts list immediately
       const newAccount = {
         id: result.paymentMethodID || Date.now().toString(),
         bankName: result.bankName || "Bank Account",
@@ -1141,6 +1244,24 @@ class OperatorPayment extends HTMLElement {
       this._state.bankAccounts.push(newAccount);
       this.updateBankAccountsList();
 
+      // Refresh the Moov token for subsequent operations
+      try {
+        const tokenResult = await this.api.generateMoovToken(
+          this._state.operatorEmail,
+          this._state.moovAccountId
+        );
+        if (tokenResult?.data?.accessToken) {
+          this._state.moovToken = tokenResult.data.accessToken;
+          moovDrop.token = this._state.moovToken;
+          console.log("OperatorPayment: Moov token refreshed");
+        }
+      } catch (error) {
+        console.error("OperatorPayment: Failed to refresh Moov token", error);
+      }
+
+      // Refetch in background to sync with server
+      this.fetchPaymentMethods();
+
       // Dispatch success event
       this.dispatchEvent(
         new CustomEvent("moov-link-success", {
@@ -1149,9 +1270,6 @@ class OperatorPayment extends HTMLElement {
           composed: true,
         })
       );
-
-      // Close the Moov drop
-      moovDrop.open = false;
     };
 
     moovDrop.onError = ({ errorType, error }) => {
@@ -1165,8 +1283,87 @@ class OperatorPayment extends HTMLElement {
       );
     };
 
+    // Add close handler for when user closes the Moov UI
+    moovDrop.onClose = () => {
+      console.log("OperatorPayment: Moov UI closed by user");
+      moovDrop.open = false;
+
+      // Dispatch close event
+      this.dispatchEvent(
+        new CustomEvent("moov-link-close", {
+          bubbles: true,
+          composed: true,
+        })
+      );
+    };
+
+    // Add cancel handler for when user clicks the X button
+    moovDrop.onCancel = () => {
+      console.log("OperatorPayment: Moov UI cancelled by user (X button)");
+      moovDrop.open = false;
+
+      // Dispatch close event
+      this.dispatchEvent(
+        new CustomEvent("moov-link-close", {
+          bubbles: true,
+          composed: true,
+        })
+      );
+    };
+
+    moovDrop.paymentMethodTypes = ["bankAccount"];
+
+    // Add click event delegation for modalClose button (inside Moov's shadow DOM)
+    // Use document-level listener since element is in shadow DOM
+    const handleModalClose = (e) => {
+      const target = e.target;
+
+      // Check if the clicked element or any parent has data-testid="modalClose"
+      const modalCloseElement =
+        target.closest && target.closest('[data-testid="modalClose"]');
+
+      // Only proceed if the modalClose element was clicked
+      if (modalCloseElement) {
+        console.log(
+          'OperatorPayment: [data-testid="modalClose"] element clicked inside Moov UI'
+        );
+        console.log("Element:", modalCloseElement);
+        console.log("Event target:", target);
+
+        // Close the Moov UI by setting moovDrop.open to false
+        this.closeMoovDrop();
+
+        console.log("OperatorPayment: Moov UI closed successfully");
+      }
+    };
+
+    // Add listener to document to catch events from shadow DOM
+    document.addEventListener("click", handleModalClose, true);
+
+    // Store handler reference for cleanup
+    if (!this._modalCloseHandlers) {
+      this._modalCloseHandlers = [];
+    }
+    this._modalCloseHandlers.push(handleModalClose);
+
     // Open the Moov drop
+    console.log("OperatorPayment: Setting moovDrop.open = true");
     moovDrop.open = true;
+
+    // Store reference to moovDrop for external access
+    this._moovRef = moovDrop;
+  }
+
+  /**
+   * Close the Moov UI
+   * Can be called externally to close the Moov drop
+   */
+  closeMoovDrop() {
+    if (this._moovRef && this._moovRef.open) {
+      console.log("OperatorPayment: Closing Moov UI");
+      this._moovRef.open = false;
+      this._moovRef = null;
+    }
   }
 
   /**
@@ -1855,11 +2052,6 @@ class OperatorPayment extends HTMLElement {
           color: #6b7280;
         }
         
-        /* Hide the Moov drop by default, it will be shown when "Add Bank" is clicked */
-        moov-payment-methods {
-          display: none;
-        }
-        
         /* Delete Confirmation Modal */
         .delete-confirmation-container {
           display: contents;
@@ -2058,9 +2250,6 @@ class OperatorPayment extends HTMLElement {
           </div>
         </div>
       </div>
-      
-      <!-- Hidden Moov payment methods drop (will be shown when Add Bank is clicked) -->
-      <moov-payment-methods></moov-payment-methods>
       
       <!-- Delete Confirmation Modal -->
       <div class="delete-confirmation-container" id="deleteConfirmationModal">

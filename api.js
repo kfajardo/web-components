@@ -117,12 +117,16 @@ class BisonJibPayAPI {
    * const tokenData = await api.generateMoovToken('operator@example.com');
    * console.log(tokenData.access_token);
    */
-  async generateMoovToken(operatorEmail) {
+  async generateMoovToken(operatorEmail, moovAccountId = null) {
     console.log("CALLED GENERATE MOOV TOKEN");
 
-    const account = await this.getAccountByEmail(operatorEmail);
-    const accountId = account.data.moovAccountId;
-    console.log("MOOV ACCOUNT ID", account.data.moovAccountId);
+    // Use provided moovAccountId or fetch it if not provided
+    let accountId = moovAccountId;
+    if (!accountId) {
+      const account = await this.getAccountByEmail(operatorEmail);
+      accountId = account.data.moovAccountId;
+    }
+    console.log("MOOV ACCOUNT ID", accountId);
     let accountScopes = [
       "/accounts/{ACCOUNT_ID}/bank-accounts.read",
       "/accounts/{ACCOUNT_ID}/bank-accounts.write",
