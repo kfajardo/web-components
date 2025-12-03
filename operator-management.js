@@ -63,6 +63,15 @@ class OperatorManagement extends HTMLElement {
       error: null,
     };
 
+    // Data to pre-populate the onboarding form
+    this._onboardingData = null;
+
+    // Callbacks for onboarding component
+    this._onboardingSuccess = null;
+    this._onboardingError = null;
+    this._onboardingSubmit = null;
+    this._onboardingConfirm = null;
+
     // Render the component
     this.render();
   }
@@ -133,6 +142,139 @@ class OperatorManagement extends HTMLElement {
    */
   get isLoading() {
     return this._state.isLoading;
+  }
+
+  /**
+   * Get the onboarding pre-population data
+   * @returns {Object|null}
+   */
+  get onboardingData() {
+    return this._onboardingData;
+  }
+
+  /**
+   * Set data to pre-populate the onboarding form
+   * @param {Object} data - Data object matching operator-onboarding's onLoad format
+   * @example
+   * management.onboardingData = {
+   *   businessDetails: {
+   *     businessName: "Acme Corp",
+   *     businessEmail: "contact@acme.com",
+   *     // ... other business fields
+   *   },
+   *   representatives: [...],
+   *   bankDetails: {...},
+   *   underwriting: {...}
+   * };
+   */
+  set onboardingData(data) {
+    if (data && typeof data === "object") {
+      this._onboardingData = data;
+
+      // If onboarding component already exists, apply data immediately
+      const onboarding = this.shadowRoot.querySelector("operator-onboarding");
+      if (onboarding) {
+        onboarding.onLoad = data;
+      }
+    } else {
+      this._onboardingData = null;
+    }
+  }
+
+  /**
+   * Get the onboarding success callback
+   * @returns {Function|null}
+   */
+  get onboardingSuccess() {
+    return this._onboardingSuccess;
+  }
+
+  /**
+   * Set callback for successful onboarding submission
+   * @param {Function} callback - Called with submission data on success
+   */
+  set onboardingSuccess(callback) {
+    if (typeof callback === "function" || callback === null) {
+      this._onboardingSuccess = callback;
+
+      // If onboarding component already exists, apply callback immediately
+      const onboarding = this.shadowRoot.querySelector("operator-onboarding");
+      if (onboarding) {
+        onboarding.onSuccess = callback;
+      }
+    }
+  }
+
+  /**
+   * Get the onboarding error callback
+   * @returns {Function|null}
+   */
+  get onboardingError() {
+    return this._onboardingError;
+  }
+
+  /**
+   * Set callback for onboarding errors
+   * @param {Function} callback - Called with error data on failure
+   */
+  set onboardingError(callback) {
+    if (typeof callback === "function" || callback === null) {
+      this._onboardingError = callback;
+
+      // If onboarding component already exists, apply callback immediately
+      const onboarding = this.shadowRoot.querySelector("operator-onboarding");
+      if (onboarding) {
+        onboarding.onError = callback;
+      }
+    }
+  }
+
+  /**
+   * Get the onboarding submit callback
+   * @returns {Function|null}
+   */
+  get onboardingSubmit() {
+    return this._onboardingSubmit;
+  }
+
+  /**
+   * Set callback for pre-submission handling
+   * @param {Function} callback - Called before form submission
+   */
+  set onboardingSubmit(callback) {
+    if (typeof callback === "function" || callback === null) {
+      this._onboardingSubmit = callback;
+
+      // If onboarding component already exists, apply callback immediately
+      const onboarding = this.shadowRoot.querySelector("operator-onboarding");
+      if (onboarding) {
+        onboarding.onSubmit = callback;
+      }
+    }
+  }
+
+  /**
+   * Get the onboarding confirm callback
+   * @returns {Function|null}
+   */
+  get onboardingConfirm() {
+    return this._onboardingConfirm;
+  }
+
+  /**
+   * Set callback for when user clicks Done on success screen
+   * @param {Function} callback - Called when user confirms successful onboarding
+   */
+  set onboardingConfirm(callback) {
+    if (typeof callback === "function" || callback === null) {
+      this._onboardingConfirm = callback;
+
+      // If onboarding component already exists, apply callback immediately
+      const onboarding = this.shadowRoot.querySelector("operator-onboarding");
+      if (onboarding) {
+        onboarding.onConfirm = callback;
+      }
+    }
   }
 
   // ==================== LIFECYCLE METHODS ====================
@@ -231,10 +373,10 @@ class OperatorManagement extends HTMLElement {
         this._state.operatorEmail
       );
 
-      // Success: Account exists - show underwriting
+      // Success: Account exists - show underwriting (keep loading state)
       this._state.moovAccountId =
         response.data?.moovAccountId || response.moovAccountId;
-      this._state.isLoading = false;
+      // Keep isLoading = true, will be set to false when underwriting-ready event fires
       this._state.mode = "underwriting";
 
       console.log(
@@ -255,7 +397,7 @@ class OperatorManagement extends HTMLElement {
         })
       );
     } catch (error) {
-      // Failure: Account doesn't exist - show onboarding
+      // Failure: Account doesn't exist - show onboarding (stop loading immediately)
       this._state.isLoading = false;
       this._state.moovAccountId = null;
       this._state.mode = "onboarding";
@@ -297,41 +439,45 @@ class OperatorManagement extends HTMLElement {
           width: 100%;
         }
         
-        .loading-container {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          padding: 48px 24px;
-          text-align: center;
+        .loading-button-container {
+          display: inline-block;
         }
         
-        .loading-spinner {
-          width: 48px;
-          height: 48px;
-          border: 4px solid #e5e7eb;
-          border-top-color: #325240;
+        .unified-loading-button {
+          padding: 12px 24px;
+          background: #6b8f7a;
+          color: white;
+          border: none;
+          border-radius: 12px;
+          font-size: 14px;
+          font-weight: 500;
+          cursor: wait;
+          transition: all 0.2s ease;
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          height: 40px;
+          box-sizing: border-box;
+        }
+        
+        .unified-loading-button:disabled {
+          cursor: not-allowed;
+        }
+        
+        .button-spinner {
+          width: 16px;
+          height: 16px;
+          border: 2px solid rgba(255, 255, 255, 0.3);
+          border-top-color: white;
           border-radius: 50%;
-          animation: spin 1s linear infinite;
-          margin-bottom: 16px;
+          animation: spin 0.8s linear infinite;
+          box-sizing: border-box;
         }
         
         @keyframes spin {
           to {
             transform: rotate(360deg);
           }
-        }
-        
-        .loading-text {
-          font-size: 16px;
-          color: #6b7280;
-          margin: 0;
-        }
-        
-        .loading-subtext {
-          font-size: 14px;
-          color: #9ca3af;
-          margin-top: 8px;
         }
         
         .empty-state {
@@ -402,8 +548,14 @@ class OperatorManagement extends HTMLElement {
       </div>
     `;
 
-    // Setup event forwarding after render
-    this.setupEventForwarding();
+    console.log("OperatorManagement: render() called", {
+      mode: this._state.mode,
+      isLoading: this._state.isLoading,
+      operatorEmail: this._state.operatorEmail,
+    });
+
+    // Setup event forwarding after render, with a delay to ensure child components are ready
+    setTimeout(() => this.setupEventForwarding(), 0);
   }
 
   /**
@@ -420,18 +572,6 @@ class OperatorManagement extends HTMLElement {
           <p class="empty-text">No operator email provided</p>
           <p class="empty-subtext">Set the operator-email attribute to get started</p>
         </div>
-      `;
-    }
-
-    // Loading state - show underwriting component with hidden button
-    if (this._state.isLoading) {
-      return `
-        <operator-underwriting
-          operator-email="${this._state.operatorEmail}"
-          api-base-url="${this.apiBaseURL}"
-          embeddable-key="${this.embeddableKey}"
-          style="visibility: hidden;">
-        </operator-underwriting>
       `;
     }
 
@@ -463,12 +603,42 @@ class OperatorManagement extends HTMLElement {
     }
 
     if (this._state.mode === "underwriting") {
+      // Show loading button overlay while underwriting is initializing
+      const loadingOverlay = this._state.isLoading
+        ? `
+        <div class="loading-button-container">
+          <button class="unified-loading-button" disabled>
+            <span class="button-spinner"></span>
+            Checking operator status...
+          </button>
+        </div>
+      `
+        : "";
+
       return `
+        ${loadingOverlay}
         <operator-underwriting
           operator-email="${this._state.operatorEmail}"
           api-base-url="${this.apiBaseURL}"
-          embeddable-key="${this.embeddableKey}">
+          embeddable-key="${this.embeddableKey}"
+          style="${
+            this._state.isLoading
+              ? "visibility: hidden; position: absolute;"
+              : ""
+          }">
         </operator-underwriting>
+      `;
+    }
+
+    // Loading state - show unified loading button (only if no mode determined yet)
+    if (this._state.isLoading) {
+      return `
+        <div class="loading-button-container">
+          <button class="unified-loading-button" disabled>
+            <span class="button-spinner"></span>
+            Checking operator status...
+          </button>
+        </div>
       `;
     }
 
@@ -486,18 +656,66 @@ class OperatorManagement extends HTMLElement {
   setupEventForwarding() {
     // Forward onboarding events
     const onboarding = this.shadowRoot.querySelector("operator-onboarding");
+
+    console.log("OperatorManagement: setupEventForwarding called", {
+      onboardingFound: !!onboarding,
+      hasSuccessCallback: !!this._onboardingSuccess,
+      hasErrorCallback: !!this._onboardingError,
+      hasSubmitCallback: !!this._onboardingSubmit,
+      hasOnboardingData: !!this._onboardingData,
+    });
+
     if (onboarding) {
+      // Pre-populate form data if onboardingData was set
+      if (this._onboardingData) {
+        onboarding.onLoad = this._onboardingData;
+      }
+
+      // Apply callbacks if they were set
+      if (this._onboardingSuccess) {
+        console.log("OperatorManagement: Applying onSuccess callback to onboarding");
+        onboarding.onSuccess = this._onboardingSuccess;
+      }
+      if (this._onboardingError) {
+        onboarding.onError = this._onboardingError;
+      }
+      if (this._onboardingSubmit) {
+        onboarding.onSubmit = this._onboardingSubmit;
+      }
+      if (this._onboardingConfirm) {
+        onboarding.onConfirm = this._onboardingConfirm;
+      }
+
       onboarding.addEventListener("formComplete", (e) => {
         this.dispatchEvent(
           new CustomEvent("onboarding-complete", {
-            detail: e.detail,
+            detail: {
+              ...e.detail,
+              operatorEmail: this._state.operatorEmail,
+            },
             bubbles: true,
             composed: true,
           })
         );
-        // After successful onboarding, re-check status to potentially switch to underwriting
+        // Note: checkOperatorStatus is now triggered when user clicks "Done" button
+      });
+
+      // Listen for confirm button click to re-check status
+      onboarding.addEventListener("onboardingConfirmed", (e) => {
+        this.dispatchEvent(
+          new CustomEvent("onboarding-confirmed", {
+            detail: {
+              ...e.detail,
+              operatorEmail: this._state.operatorEmail,
+            },
+            bubbles: true,
+            composed: true,
+          })
+        );
+
+        // After user confirms, re-check status to potentially switch to underwriting
         console.log(
-          "OperatorManagement: Onboarding complete, re-checking status..."
+          "OperatorManagement: Onboarding confirmed, re-checking status..."
         );
         // Give the backend time to process
         setTimeout(() => this.checkOperatorStatus(), 1000);
@@ -518,6 +736,19 @@ class OperatorManagement extends HTMLElement {
     const underwriting = this.shadowRoot.querySelector("operator-underwriting");
     if (underwriting) {
       underwriting.addEventListener("underwriting-ready", (e) => {
+        // Hide the unified loading button when underwriting is ready
+        this._state.isLoading = false;
+
+        // Just hide the loading overlay and show the underwriting component
+        const loadingOverlay = this.shadowRoot.querySelector(
+          ".loading-button-container"
+        );
+        if (loadingOverlay) {
+          loadingOverlay.style.display = "none";
+        }
+        underwriting.style.visibility = "visible";
+        underwriting.style.position = "static";
+
         this.dispatchEvent(
           new CustomEvent("underwriting-ready", {
             detail: e.detail,
@@ -528,6 +759,19 @@ class OperatorManagement extends HTMLElement {
       });
 
       underwriting.addEventListener("underwriting-error", (e) => {
+        // Hide the unified loading button on error too
+        this._state.isLoading = false;
+
+        // Just hide the loading overlay and show the underwriting component
+        const loadingOverlay = this.shadowRoot.querySelector(
+          ".loading-button-container"
+        );
+        if (loadingOverlay) {
+          loadingOverlay.style.display = "none";
+        }
+        underwriting.style.visibility = "visible";
+        underwriting.style.position = "static";
+
         this.dispatchEvent(
           new CustomEvent("underwriting-error", {
             detail: e.detail,

@@ -179,6 +179,7 @@ class OperatorOnboarding extends HTMLElement {
     this._onSuccessCallback = null;
     this._onErrorCallback = null;
     this._onSubmitCallback = null;
+    this._onConfirmCallback = null;
     this._initialData = null;
 
     this.render();
@@ -190,6 +191,10 @@ class OperatorOnboarding extends HTMLElement {
   }
 
   set onSuccess(callback) {
+    console.log("OperatorOnboarding: onSuccess setter called", {
+      callbackType: typeof callback,
+      isFunction: typeof callback === "function",
+    });
     if (typeof callback === "function" || callback === null) {
       this._onSuccessCallback = callback;
     }
@@ -214,6 +219,17 @@ class OperatorOnboarding extends HTMLElement {
   set onSubmit(callback) {
     if (typeof callback === "function" || callback === null) {
       this._onSubmitCallback = callback;
+    }
+  }
+
+  // Getter and setter for onConfirm property (for success confirmation button)
+  get onConfirm() {
+    return this._onConfirmCallback;
+  }
+
+  set onConfirm(callback) {
+    if (typeof callback === "function" || callback === null) {
+      this._onConfirmCallback = callback;
     }
   }
 
@@ -760,10 +776,78 @@ class OperatorOnboarding extends HTMLElement {
       };
     }
 
-    // Update state with loaded data
-    this.setState({
+    // Update state with loaded data and initial step if provided
+    const newState = {
       formData: newFormData,
-    });
+    };
+
+    // Set initial step if provided (0-indexed)
+    if (typeof data.initialStep === "number" && data.initialStep >= 0 && data.initialStep < this.state.totalSteps) {
+      newState.currentStep = data.initialStep;
+    }
+
+    this.setState(newState);
+  }
+
+  /**
+   * Reset form to initial state or to onLoad values if provided
+   */
+  resetForm() {
+    // Default empty form data
+    const defaultFormData = {
+      businessDetails: {
+        businessName: "",
+        doingBusinessAs: "",
+        ein: "",
+        businessWebsite: "",
+        businessPhoneNumber: "",
+        businessEmail: "",
+        BusinessAddress1: "",
+        businessCity: "",
+        businessState: "",
+        businessPostalCode: "",
+      },
+      representatives: [],
+      underwriting: {
+        underwritingDocuments: [],
+      },
+      bankDetails: {
+        bankAccountHolderName: "",
+        bankAccountType: "checking",
+        bankRoutingNumber: "",
+        bankAccountNumber: "",
+      },
+    };
+
+    // Default validation state
+    const defaultValidationState = {
+      step0: { isValid: false, errors: {} },
+      step1: { isValid: true, errors: {} },
+      step2: { isValid: false, errors: {} },
+      step3: { isValid: false, errors: {} },
+    };
+
+    // Reset to defaults
+    this.state = {
+      ...this.state,
+      currentStep: 0,
+      isSubmitted: false,
+      isFailed: false,
+      isSubmissionFailed: false,
+      formData: defaultFormData,
+      validationState: defaultValidationState,
+      completedSteps: new Set(),
+      uiState: {
+        isLoading: false,
+        showErrors: false,
+        errorMessage: null,
+      },
+    };
+
+    // If we have initial data from onLoad, re-apply it
+    if (this._initialData) {
+      this.loadInitialData(this._initialData);
+    }
   }
 
   // ==================== UTILITIES ====================
@@ -821,6 +905,8 @@ class OperatorOnboarding extends HTMLElement {
   // ==================== FORM COMPLETION ====================
 
   async handleFormCompletion(shouldFail = false) {
+    console.log("OperatorOnboarding: handleFormCompletion STARTED");
+
     const completedSteps = new Set(this.state.completedSteps);
     completedSteps.add(this.state.currentStep);
 
@@ -861,35 +947,93 @@ class OperatorOnboarding extends HTMLElement {
       uiState: { isLoading: true },
     });
 
-    // Simulate processing (2 seconds)
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-
     console.log("Form Submission - Complete Data:", processedData);
 
-    if (shouldFail) {
-      // Handle submission failure
+    // Check if API is available
+    if (!this.api) {
+      console.error("OperatorOnboarding: API not available for registration");
       this.handleSubmissionFailure(processedData);
       return;
     }
 
-    // Update state to show success page
-    this.setState({
-      isSubmitted: true,
-      uiState: { isLoading: false },
-    });
+    try {
+      // Build FormData for API submission
+      const apiFormData = new FormData();
 
-    // Emit custom event
-    this.dispatchEvent(
-      new CustomEvent("formComplete", {
-        detail: processedData,
-        bubbles: true,
-        composed: true,
-      })
-    );
+      // Add business details
+      const businessDetails = processedData.businessDetails;
+      apiFormData.append("businessName", businessDetails.businessName || "");
+      apiFormData.append("doingBusinessAs", businessDetails.doingBusinessAs || "");
+      apiFormData.append("ein", businessDetails.ein || "");
+      apiFormData.append("businessWebsite", businessDetails.businessWebsite || "");
+      apiFormData.append("businessPhoneNumber", businessDetails.businessPhoneNumber || "");
+      apiFormData.append("businessEmail", businessDetails.businessEmail || "");
+      apiFormData.append("businessAddress1", businessDetails.BusinessAddress1 || "");
+      apiFormData.append("businessCity", businessDetails.businessCity || "");
+      apiFormData.append("businessState", businessDetails.businessState || "");
+      apiFormData.append("businessPostalCode", businessDetails.businessPostalCode || "");
 
-    // Call onSuccess callback if provided
-    if (this.onSuccess && typeof this.onSuccess === "function") {
-      this.onSuccess(processedData);
+      // Add representatives as JSON string
+      if (processedData.representatives && processedData.representatives.length > 0) {
+        apiFormData.append("representatives", JSON.stringify(processedData.representatives));
+      }
+
+      // Add bank details
+      const bankDetails = processedData.bankDetails;
+      apiFormData.append("bankAccountHolderName", bankDetails.bankAccountHolderName || "");
+      apiFormData.append("bankAccountType", bankDetails.bankAccountType || "checking");
+      apiFormData.append("bankRoutingNumber", bankDetails.bankRoutingNumber || "");
+      apiFormData.append("bankAccountNumber", bankDetails.bankAccountNumber || "");
+
+      // Add underwriting documents (files)
+      const underwritingDocs = processedData.underwriting?.underwritingDocuments || [];
+      underwritingDocs.forEach((file) => {
+        if (file instanceof File) {
+          apiFormData.append("underwritingDocuments", file);
+        }
+      });
+
+      console.log("OperatorOnboarding: Calling registerOperator API");
+      console.log("OperatorOnboarding: FormData entries:");
+      for (const [key, value] of apiFormData.entries()) {
+        console.log(`  ${key}:`, value instanceof File ? `File(${value.name})` : value);
+      }
+      const response = await this.api.registerOperator(apiFormData);
+      console.log("OperatorOnboarding: registerOperator API response", response);
+
+      if (shouldFail || !response.success) {
+        // Handle submission failure
+        this.handleSubmissionFailure(processedData);
+        return;
+      }
+
+      // Update state to show success page
+      this.setState({
+        isSubmitted: true,
+        uiState: { isLoading: false },
+      });
+
+      // Emit custom event
+      this.dispatchEvent(
+        new CustomEvent("formComplete", {
+          detail: { ...processedData, apiResponse: response },
+          bubbles: true,
+          composed: true,
+        })
+      );
+
+      // Call onSuccess callback if provided
+      console.log("OperatorOnboarding: Checking onSuccess callback", {
+        hasCallback: !!this.onSuccess,
+        callbackType: typeof this.onSuccess,
+      });
+      if (this.onSuccess && typeof this.onSuccess === "function") {
+        console.log("OperatorOnboarding: Calling onSuccess callback");
+        this.onSuccess({ ...processedData, apiResponse: response });
+      }
+    } catch (error) {
+      console.error("OperatorOnboarding: registerOperator API error", error);
+      this.handleSubmissionFailure(processedData);
     }
   }
 
@@ -929,10 +1073,50 @@ class OperatorOnboarding extends HTMLElement {
     }
   }
 
+  /**
+   * Handle success confirmation button click
+   * Dispatches event and calls onConfirm callback, then closes modal
+   */
+  handleSuccessConfirm() {
+    const confirmData = {
+      formData: this.state.formData,
+      timestamp: new Date().toISOString(),
+    };
+
+    // Dispatch custom event
+    this.dispatchEvent(
+      new CustomEvent("onboardingConfirmed", {
+        detail: confirmData,
+        bubbles: true,
+        composed: true,
+      })
+    );
+
+    // Call onConfirm callback if provided
+    if (this.onConfirm && typeof this.onConfirm === "function") {
+      this.onConfirm(confirmData);
+    }
+
+    // Close the modal
+    this.closeModal();
+  }
+
   // ==================== MODAL METHODS ====================
 
   openModal() {
     this.setState({ isModalOpen: true });
+
+    // Apply animation classes after modal is rendered
+    requestAnimationFrame(() => {
+      const modal = this.shadowRoot.querySelector(".modal-overlay");
+      if (modal) {
+        modal.classList.add("show", "animating-in");
+        setTimeout(() => {
+          modal.classList.remove("animating-in");
+        }, 200);
+      }
+    });
+
     this.dispatchEvent(
       new CustomEvent("onboarding-modal-open", {
         bubbles: true,
@@ -942,13 +1126,53 @@ class OperatorOnboarding extends HTMLElement {
   }
 
   closeModal() {
-    this.setState({ isModalOpen: false });
-    this.dispatchEvent(
-      new CustomEvent("onboarding-modal-close", {
-        bubbles: true,
-        composed: true,
-      })
-    );
+    // Clean up escape key handler
+    if (this._escapeHandler) {
+      document.removeEventListener("keydown", this._escapeHandler);
+      this._escapeHandler = null;
+    }
+
+    // Get the modal overlay for animation
+    const overlay = this.shadowRoot.querySelector(".modal-overlay");
+
+    if (overlay) {
+      // Add animating-out class to trigger exit animation
+      overlay.classList.add("animating-out");
+      overlay.classList.remove("show");
+
+      // Wait for animation to complete before removing from DOM
+      setTimeout(() => {
+        // Reset form to initial state (or onLoad values if provided)
+        this.resetForm();
+
+        // Update state to remove modal from DOM
+        this.setState({ isModalOpen: false });
+
+        // Restore body scroll
+        document.body.style.overflow = "";
+
+        // Dispatch close event
+        this.dispatchEvent(
+          new CustomEvent("onboarding-modal-close", {
+            bubbles: true,
+            composed: true,
+          })
+        );
+      }, 150); // Match the fadeOut animation duration (150ms)
+    } else {
+      // Reset form to initial state (or onLoad values if provided)
+      this.resetForm();
+
+      // Fallback if overlay not found - close immediately
+      this.setState({ isModalOpen: false });
+      document.body.style.overflow = "";
+      this.dispatchEvent(
+        new CustomEvent("onboarding-modal-close", {
+          bubbles: true,
+          composed: true,
+        })
+      );
+    }
   }
 
   // ==================== RENDERING ====================
@@ -978,16 +1202,22 @@ class OperatorOnboarding extends HTMLElement {
   }
 
   renderModal() {
-    const animateClass = this._skipModalAnimation ? "" : "animate";
+    // Add 'show' class if modal was already open to prevent flash during re-renders
+    const showClass = this._skipModalAnimation ? "show" : "";
+    // Hide close button during submission and on success screen (require confirm button)
+    const hideCloseButton = this.state.uiState.isLoading || this.state.isSubmitted;
+
     return `
-      <div class="modal-overlay ${animateClass}">
-        <div class="modal-container ${animateClass}">
-          <button class="modal-close-btn" type="button" aria-label="Close modal">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-          </button>
+      <div class="modal-overlay ${showClass}">
+        <div class="modal-container">
+          ${!hideCloseButton ? `
+            <button class="modal-close-btn" type="button" aria-label="Close modal">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          ` : ''}
           ${this.renderModalContent()}
         </div>
       </div>
@@ -1135,15 +1365,29 @@ class OperatorOnboarding extends HTMLElement {
           justify-content: center;
           z-index: 10000;
           padding: 20px;
+          opacity: 0;
         }
 
-        .modal-overlay.animate {
-          animation: fadeIn 0.2s ease;
+        .modal-overlay.show {
+          opacity: 1;
+        }
+
+        .modal-overlay.animating-in {
+          animation: fadeIn 200ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+
+        .modal-overlay.animating-out {
+          animation: fadeOut 150ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
         }
 
         @keyframes fadeIn {
           from { opacity: 0; }
           to { opacity: 1; }
+        }
+
+        @keyframes fadeOut {
+          from { opacity: 1; }
+          to { opacity: 0; }
         }
 
         /* Modal Container */
@@ -1158,10 +1402,43 @@ class OperatorOnboarding extends HTMLElement {
           box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
           display: flex;
           flex-direction: column;
+          opacity: 0;
+          transform: scale(0.95) translateY(-10px);
         }
 
-        .modal-container.animate {
-          animation: slideUp 0.3s ease;
+        .modal-overlay.show .modal-container {
+          opacity: 1;
+          transform: scale(1) translateY(0);
+        }
+
+        .modal-overlay.animating-in .modal-container {
+          animation: slideInScale 200ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+
+        .modal-overlay.animating-out .modal-container {
+          animation: slideOutScale 150ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+
+        @keyframes slideInScale {
+          from {
+            opacity: 0;
+            transform: scale(0.95) translateY(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+          }
+        }
+
+        @keyframes slideOutScale {
+          from {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+          }
+          to {
+            opacity: 0;
+            transform: scale(0.95) translateY(-10px);
+          }
         }
 
         /* Modal Layout - Fixed Header/Footer with Scrollable Body */
@@ -1205,16 +1482,6 @@ class OperatorOnboarding extends HTMLElement {
           padding: calc(var(--spacing-lg) * 2);
         }
 
-        @keyframes slideUp {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
 
         /* Modal Close Button */
         .modal-close-btn {
@@ -1530,7 +1797,31 @@ class OperatorOnboarding extends HTMLElement {
         .btn-next:hover {
           background: #0056b3;
         }
-        
+
+        /* Success Confirmation Button */
+        .btn-confirm-success {
+          margin-top: var(--spacing-lg);
+          padding: 14px 32px;
+          background: var(--primary-color);
+          color: white;
+          border: none;
+          border-radius: var(--border-radius);
+          font-size: 16px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .btn-confirm-success:hover {
+          background: #2a4536;
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(50, 82, 64, 0.3);
+        }
+
+        .btn-confirm-success:active {
+          transform: translateY(0);
+        }
+
         /* Loading & Messages */
         .loading-spinner {
           border: 3px solid var(--gray-light);
@@ -1794,6 +2085,358 @@ class OperatorOnboarding extends HTMLElement {
           color: #333;
           font-weight: 500;
           font-size: 14px;
+        }
+
+        /* ==================== MOBILE RESPONSIVE STYLES ==================== */
+
+        /* Tablet breakpoint (768px and below) */
+        @media screen and (max-width: 768px) {
+          .modal-overlay {
+            padding: 10px;
+          }
+
+          .modal-container {
+            max-height: 95vh;
+            border-radius: var(--border-radius);
+          }
+
+          .modal-header {
+            padding: var(--spacing-md);
+          }
+
+          .modal-body {
+            padding: var(--spacing-md);
+          }
+
+          .modal-footer {
+            padding: var(--spacing-md);
+          }
+
+          .modal-body-full {
+            padding: var(--spacing-md);
+            max-height: calc(95vh - 50px);
+          }
+
+          .modal-close-btn {
+            top: 12px;
+            right: 12px;
+            padding: 6px;
+          }
+
+          /* Stepper - show only current step label on tablet */
+          .stepper-header {
+            gap: var(--spacing-sm);
+          }
+
+          .step-circle {
+            width: 36px;
+            height: 36px;
+            font-size: 14px;
+          }
+
+          .step-label {
+            font-size: 11px;
+          }
+
+          /* Form grid - single column on tablet */
+          .form-grid {
+            grid-template-columns: 1fr;
+            gap: var(--spacing-sm);
+          }
+
+          .step-content {
+            padding: var(--spacing-md);
+          }
+
+          .step-content h2 {
+            font-size: 20px;
+          }
+
+          /* Representative cards */
+          .representative-card {
+            padding: var(--spacing-sm);
+          }
+
+          .card-header h3 {
+            font-size: 14px;
+          }
+
+          /* Navigation footer */
+          .navigation-footer {
+            flex-wrap: wrap;
+            gap: var(--spacing-sm);
+          }
+
+          .navigation-footer button {
+            padding: 10px 16px;
+            font-size: 13px;
+            height: 38px;
+          }
+
+          /* Drag drop area */
+          .drag-drop-area {
+            padding: var(--spacing-lg);
+          }
+
+          /* Success/Error containers */
+          .success-icon,
+          .error-icon {
+            width: 100px;
+            height: 100px;
+          }
+
+          .success-container h2,
+          .error-container h2 {
+            font-size: 24px;
+          }
+
+          .success-details {
+            padding: var(--spacing-md);
+          }
+        }
+
+        /* Mobile breakpoint (480px and below) */
+        @media screen and (max-width: 480px) {
+          .modal-overlay {
+            padding: 0;
+          }
+
+          .modal-container {
+            max-height: 100vh;
+            height: 100vh;
+            border-radius: 0;
+          }
+
+          .modal-layout {
+            max-height: 100vh;
+          }
+
+          .modal-body-full {
+            max-height: calc(100vh - 50px);
+          }
+
+          .modal-header {
+            padding: var(--spacing-sm) var(--spacing-md);
+          }
+
+          .modal-body {
+            padding: var(--spacing-sm) var(--spacing-md);
+          }
+
+          .modal-footer {
+            padding: var(--spacing-sm) var(--spacing-md);
+          }
+
+          .modal-close-btn {
+            top: 8px;
+            right: 8px;
+          }
+
+          /* Stepper - compact mobile version */
+          .stepper-header {
+            justify-content: center;
+            gap: 4px;
+          }
+
+          .stepper-header::before {
+            top: 16px;
+          }
+
+          .step-indicator {
+            flex: 0 0 auto;
+            min-width: 50px;
+          }
+
+          .step-circle {
+            width: 32px;
+            height: 32px;
+            font-size: 12px;
+          }
+
+          .step-label {
+            font-size: 10px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 60px;
+          }
+
+          /* Form fields */
+          .form-field {
+            margin-bottom: var(--spacing-sm);
+          }
+
+          .form-field label {
+            font-size: 13px;
+            margin-bottom: 4px;
+          }
+
+          .form-field input,
+          .form-field select {
+            padding: 8px;
+            font-size: 16px; /* Prevents iOS zoom on focus */
+          }
+
+          .step-content {
+            padding: var(--spacing-sm);
+            margin-bottom: var(--spacing-sm);
+          }
+
+          .step-content h2 {
+            font-size: 18px;
+          }
+
+          .step-content > p {
+            font-size: 13px;
+            margin-bottom: var(--spacing-sm);
+          }
+
+          .form-section h2 {
+            font-size: 18px;
+          }
+
+          .form-section > p {
+            font-size: 13px;
+          }
+
+          /* Representative cards */
+          .representative-card {
+            padding: var(--spacing-sm);
+            margin-bottom: var(--spacing-sm);
+          }
+
+          .card-header {
+            margin-bottom: var(--spacing-sm);
+            padding-bottom: 4px;
+          }
+
+          .card-header h3 {
+            font-size: 13px;
+          }
+
+          .remove-btn {
+            font-size: 12px;
+            padding: 4px;
+          }
+
+          .add-representative-btn {
+            padding: 10px;
+            font-size: 13px;
+          }
+
+          /* Navigation footer - stack buttons on mobile */
+          .navigation-footer {
+            flex-direction: column-reverse;
+            gap: var(--spacing-sm);
+          }
+
+          .navigation-footer button {
+            width: 100%;
+            padding: 12px;
+            font-size: 14px;
+            height: 44px; /* Touch-friendly height */
+          }
+
+          .btn-skip {
+            margin-left: 0;
+          }
+
+          /* Radio group - stack on mobile */
+          .radio-group {
+            flex-direction: column;
+            gap: var(--spacing-sm);
+          }
+
+          /* Drag drop area */
+          .drag-drop-area {
+            padding: var(--spacing-md);
+          }
+
+          .drag-drop-content svg {
+            width: 40px;
+            height: 40px;
+          }
+
+          /* File items */
+          .file-item {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: var(--spacing-sm);
+          }
+
+          /* Success/Error containers */
+          .success-icon,
+          .error-icon {
+            width: 80px;
+            height: 80px;
+          }
+
+          .success-icon svg,
+          .error-icon svg {
+            width: 40px;
+            height: 40px;
+          }
+
+          .success-container h2,
+          .error-container h2 {
+            font-size: 20px;
+          }
+
+          .success-container p,
+          .error-container p {
+            font-size: 14px;
+          }
+
+          .success-details {
+            padding: var(--spacing-sm);
+            margin: var(--spacing-md) 0;
+          }
+
+          .success-details h3 {
+            font-size: 16px;
+          }
+
+          .detail-item {
+            flex-direction: column;
+            gap: 4px;
+          }
+
+          .detail-label,
+          .detail-value {
+            font-size: 13px;
+          }
+
+          /* Trigger button - full width on mobile */
+          .onboarding-trigger-btn {
+            width: 100%;
+            justify-content: center;
+          }
+        }
+
+        /* Small mobile breakpoint (320px and below) */
+        @media screen and (max-width: 320px) {
+          .step-label {
+            display: none;
+          }
+
+          .step-circle {
+            width: 28px;
+            height: 28px;
+            font-size: 11px;
+          }
+
+          .stepper-header::before {
+            top: 14px;
+          }
+
+          .step-content h2,
+          .form-section h2 {
+            font-size: 16px;
+          }
+
+          .navigation-footer button {
+            font-size: 13px;
+          }
         }
       </style>
     `;
@@ -2408,6 +3051,10 @@ class OperatorOnboarding extends HTMLElement {
             businessDetails.businessEmail
           }</strong>
         </p>
+
+        <button class="btn-confirm-success" type="button">
+          Done
+        </button>
       </div>
     `;
   }
@@ -2503,19 +3150,37 @@ class OperatorOnboarding extends HTMLElement {
       closeBtn.addEventListener("click", () => this.closeModal());
     }
 
-    // Close on overlay click (outside modal)
+    // Close on overlay click (outside modal) - stop event from bubbling from modal-container
+    // Prevent closing during submission and on success screen (require confirm button)
     const overlay = shadow.querySelector(".modal-overlay");
+    const modalContainer = shadow.querySelector(".modal-container");
     if (overlay) {
       overlay.addEventListener("click", (e) => {
+        // Prevent closing during submission or on success screen
+        if (this.state.uiState.isLoading || this.state.isSubmitted) {
+          return;
+        }
+        // Only close if clicking exactly on the overlay, not inside the modal
         if (e.target === overlay) {
           this.closeModal();
         }
       });
+
+      // Prevent clicks inside modal container from bubbling to overlay
+      if (modalContainer) {
+        modalContainer.addEventListener("click", (e) => {
+          e.stopPropagation();
+        });
+      }
     }
 
-    // Close on Escape key
+    // Close on Escape key (prevent during submission and on success screen)
     if (this.state.isModalOpen) {
       this._escapeHandler = (e) => {
+        // Prevent closing during submission or on success screen
+        if (this.state.uiState.isLoading || this.state.isSubmitted) {
+          return;
+        }
         if (e.key === "Escape") {
           this.closeModal();
         }
@@ -2526,6 +3191,12 @@ class OperatorOnboarding extends HTMLElement {
     // Attach submission failure listeners if needed
     if (this.state.isSubmissionFailed) {
       this.attachSubmissionFailureListeners();
+    }
+
+    // Success confirmation button
+    const confirmBtn = shadow.querySelector(".btn-confirm-success");
+    if (confirmBtn) {
+      confirmBtn.addEventListener("click", () => this.handleSuccessConfirm());
     }
 
     // Form inputs - blur validation (only when modal is open)
@@ -2764,39 +3435,20 @@ class OperatorOnboarding extends HTMLElement {
       }
     }
 
-    // Update state based on step
+    // Update state based on step - directly modify state without re-rendering
     const stepId = this.STEPS[this.state.currentStep].id;
 
     if (stepId === "business-details") {
-      this.setState({
-        formData: {
-          businessDetails: {
-            ...this.state.formData.businessDetails,
-            [name]: input.value,
-          },
-        },
-      });
+      this.state.formData.businessDetails[name] = input.value;
     } else if (stepId === "representatives" && repIndex !== undefined) {
-      this.updateRepresentative(parseInt(repIndex), name, input.value);
+      const idx = parseInt(repIndex);
+      if (this.state.formData.representatives[idx]) {
+        this.state.formData.representatives[idx][name] = input.value;
+      }
     } else if (stepId === "underwriting") {
-      // TODO: Add underwriting field handling here when fields are added
-      this.setState({
-        formData: {
-          underwriting: {
-            ...this.state.formData.underwriting,
-            [name]: input.value,
-          },
-        },
-      });
+      this.state.formData.underwriting[name] = input.value;
     } else if (stepId === "bank-details") {
-      this.setState({
-        formData: {
-          bankDetails: {
-            ...this.state.formData.bankDetails,
-            [name]: input.value,
-          },
-        },
-      });
+      this.state.formData.bankDetails[name] = input.value;
     }
   }
 

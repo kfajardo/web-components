@@ -34,7 +34,8 @@ class WioPaymentLinking extends HTMLElement {
 
     // API Configuration
     this.apiBaseURL =
-      this.getAttribute("api-base-url") || "http://localhost:5120";
+      this.getAttribute("api-base-url") ||
+      "https://bison-jib-development.azurewebsites.net";
     this.embeddableKey =
       this.getAttribute("embeddable-key") ||
       "R80WMkbNN8457RofiMYx03DL65P06IaVT30Q2emYJUBQwYCzRC";
@@ -594,7 +595,13 @@ class WioPaymentLinking extends HTMLElement {
     this._state.isOpen = true;
     const modal = this.shadowRoot.querySelector(".modal");
     if (modal) {
-      modal.style.display = "flex";
+      // Show modal and start animation
+      modal.classList.add("show", "animating-in");
+
+      // Remove animating-in class after animation completes
+      setTimeout(() => {
+        modal.classList.remove("animating-in");
+      }, 200);
     }
 
     // Prevent background scrolling when modal is open
@@ -777,7 +784,13 @@ class WioPaymentLinking extends HTMLElement {
     this._state.isLoading = false;
     const modal = this.shadowRoot.querySelector(".modal");
     if (modal) {
-      modal.style.display = "none";
+      // Start close animation
+      modal.classList.add("animating-out");
+
+      // Hide modal after animation completes
+      setTimeout(() => {
+        modal.classList.remove("show", "animating-out");
+      }, 150);
     }
 
     // Restore background scrolling when modal is closed
@@ -1214,7 +1227,7 @@ class WioPaymentLinking extends HTMLElement {
           font-size: 14px;
           font-weight: 500;
           cursor: pointer;
-          transition: all 0.3s ease;
+          transition: all 0.2s ease;
           display: inline-flex;
           align-items: center;
           gap: 8px;
@@ -1224,10 +1237,13 @@ class WioPaymentLinking extends HTMLElement {
         
         .link-payment-btn:hover:not(.error):not(.loading) {
           background: #2a4536;
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(50, 82, 64, 0.3);
         }
         
         .link-payment-btn:active:not(.error):not(.loading) {
           background: #1e3328;
+          transform: translateY(0);
         }
         
         .link-payment-btn.error {
@@ -1321,6 +1337,66 @@ class WioPaymentLinking extends HTMLElement {
           z-index: 10000;
           align-items: center;
           justify-content: center;
+        }
+        
+        .modal.show {
+          display: flex;
+        }
+        
+        .modal.animating-in .modal-overlay {
+          animation: fadeIn 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .modal.animating-in .modal-content {
+          animation: slideInScale 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .modal.animating-out .modal-overlay {
+          animation: fadeOut 0.15s cubic-bezier(0.4, 0, 1, 1);
+        }
+        
+        .modal.animating-out .modal-content {
+          animation: slideOutScale 0.15s cubic-bezier(0.4, 0, 1, 1);
+        }
+        
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+          }
+          to {
+            opacity: 1;
+          }
+        }
+        
+        @keyframes fadeOut {
+          from {
+            opacity: 1;
+          }
+          to {
+            opacity: 0;
+          }
+        }
+        
+        @keyframes slideInScale {
+          from {
+            opacity: 0;
+            transform: scale(0.95) translateY(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+          }
+        }
+        
+        @keyframes slideOutScale {
+          from {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+          }
+          to {
+            opacity: 0;
+            transform: scale(0.98) translateY(-8px);
+          }
         }
         
         .modal-overlay {
@@ -1858,7 +1934,7 @@ class WioPaymentLinking extends HTMLElement {
       
       <!-- Main Button -->
       <div class="btn-wrapper">
-        <span class="tooltip">User is not integrated to the Bison system</span>
+        <span class="tooltip">User is not onboarded to the Bison system</span>
         <button class="link-payment-btn">
           <span class="loading-spinner"></span>
           <svg class="broken-link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1903,10 +1979,8 @@ class WioPaymentLinking extends HTMLElement {
           
           <!-- Powered by Bison -->
           <div class="powered-by">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
-            </svg>
-            Powered by <span>Bison</span>
+            Powered by
+            <img src="./bison_logo.png" alt="Bison" style="height: 16px; margin-left: 4px;" onerror="this.onerror=null; this.src='https://bisonpaywell.com/lovable-uploads/28831244-e8b3-4e7b-8dbb-c016f9f9d54f.png';">
           </div>
         </div>
       </div>

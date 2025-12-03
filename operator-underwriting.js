@@ -62,6 +62,10 @@ class OperatorUnderwriting extends HTMLElement {
       isError: false,
       isModalOpen: false,
       error: null,
+      underwritingHistory: null,
+      isLoadingUnderwritingHistory: false,
+      underwritingHistoryError: null,
+      hasInitialized: false, // Guard to prevent multiple initializations
     };
 
     // Render the component
@@ -172,6 +176,7 @@ class OperatorUnderwriting extends HTMLElement {
         this._state.moovAccountId = null;
         this._state.isError = false;
         this._state.error = null;
+        this._state.hasInitialized = false; // Allow re-initialization for new email
         // Trigger API call
         if (newValue && this.isConnected) {
           this.initializeAccount();
@@ -209,6 +214,14 @@ class OperatorUnderwriting extends HTMLElement {
       return;
     }
 
+    // Prevent multiple simultaneous initializations
+    if (this._state.isLoading || this._state.hasInitialized) {
+      console.log(
+        "OperatorUnderwriting: Already initializing or initialized, skipping"
+      );
+      return;
+    }
+
     // Validate API is available
     if (!this.api) {
       console.error(
@@ -216,6 +229,7 @@ class OperatorUnderwriting extends HTMLElement {
       );
       this._state.isError = true;
       this._state.error = "API not available";
+      this._state.hasInitialized = true;
       this.updateButtonState();
       return;
     }
@@ -241,6 +255,7 @@ class OperatorUnderwriting extends HTMLElement {
         response.data?.moovAccountId || response.moovAccountId;
       this._state.isLoading = false;
       this._state.isError = false;
+      this._state.hasInitialized = true;
 
       console.log(
         "OperatorUnderwriting: Account validated, moovAccountId:",
@@ -263,6 +278,7 @@ class OperatorUnderwriting extends HTMLElement {
       this._state.isError = true;
       this._state.isLoading = false;
       this._state.moovAccountId = null;
+      this._state.hasInitialized = true;
       this._state.error =
         error.data?.message || error.message || "Failed to validate operator";
 
@@ -345,12 +361,24 @@ class OperatorUnderwriting extends HTMLElement {
   /**
    * Open the modal
    */
-  openModal() {
+  async openModal() {
     this._state.isModalOpen = true;
     const modal = this.shadowRoot.querySelector(".modal");
     if (modal) {
-      modal.style.display = "flex";
+      // Show modal and start animation
+      modal.classList.add("show", "animating-in");
+
+      // Remove animating-in class after animation completes
+      setTimeout(() => {
+        modal.classList.remove("animating-in");
+      }, 200);
     }
+
+    // Prevent background scrolling when modal is open
+    document.body.style.overflow = "hidden";
+
+    // Fetch underwriting history when modal opens
+    await this.fetchUnderwritingHistory();
 
     // Emit modal open event
     this.dispatchEvent(
@@ -372,8 +400,17 @@ class OperatorUnderwriting extends HTMLElement {
     this._state.isModalOpen = false;
     const modal = this.shadowRoot.querySelector(".modal");
     if (modal) {
-      modal.style.display = "none";
+      // Start close animation
+      modal.classList.add("animating-out");
+
+      // Hide modal after animation completes
+      setTimeout(() => {
+        modal.classList.remove("show", "animating-out");
+      }, 150);
     }
+
+    // Restore background scrolling when modal is closed
+    document.body.style.overflow = "";
 
     // Emit modal close event
     this.dispatchEvent(
@@ -386,6 +423,143 @@ class OperatorUnderwriting extends HTMLElement {
         composed: true,
       })
     );
+  }
+
+  /**
+   * Fetch underwriting history using the saved moovAccountId
+   */
+  async fetchUnderwritingHistory() {
+    // Validate we have a moovAccountId
+    if (!this._state.moovAccountId) {
+      console.warn(
+        "OperatorUnderwriting: Cannot fetch underwriting history - no moovAccountId"
+      );
+      return;
+    }
+
+    // Validate API is available
+    if (!this.api) {
+      console.error(
+        "OperatorUnderwriting: BisonJibPayAPI is not available for fetching underwriting history"
+      );
+      return;
+    }
+
+    // Set loading state
+    this._state.isLoadingUnderwritingHistory = true;
+    this._state.underwritingHistoryError = null;
+    this.updateModalContent();
+
+    try {
+      console.log(
+        "OperatorUnderwriting: Fetching underwriting history for moovAccountId:",
+        this._state.moovAccountId
+      );
+
+      const response = await this.api.fetchUnderwritingByAccountId(
+        this._state.moovAccountId
+      );
+
+      // Success: Store underwriting history
+      this._state.underwritingHistory = response.data || [];
+      this._state.isLoadingUnderwritingHistory = false;
+
+      console.log(
+        "OperatorUnderwriting: Underwriting history fetched successfully:",
+        this._state.underwritingHistory
+      );
+
+      // Emit success event
+      this.dispatchEvent(
+        new CustomEvent("underwriting-history-loaded", {
+          detail: {
+            moovAccountId: this._state.moovAccountId,
+            history: this._state.underwritingHistory,
+          },
+          bubbles: true,
+          composed: true,
+        })
+      );
+    } catch (error) {
+      // Failure: Set error state
+      this._state.isLoadingUnderwritingHistory = false;
+      this._state.underwritingHistoryError =
+        error.data?.message ||
+        error.message ||
+        "Failed to load underwriting history";
+
+      console.error(
+        "OperatorUnderwriting: Failed to fetch underwriting history:",
+        error
+      );
+
+      // Emit error event
+      this.dispatchEvent(
+        new CustomEvent("underwriting-history-error", {
+          detail: {
+            error: this._state.underwritingHistoryError,
+            moovAccountId: this._state.moovAccountId,
+            originalError: error,
+          },
+          bubbles: true,
+          composed: true,
+        })
+      );
+    }
+
+    this.updateModalContent();
+  }
+
+  /**
+   * Update modal content based on underwriting history state
+   */
+  updateModalContent() {
+    const modalBody = this.shadowRoot.querySelector(".modal-body");
+    if (!modalBody) return;
+
+    if (this._state.isLoadingUnderwritingHistory) {
+      modalBody.innerHTML = `
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px 24px; text-align: center;">
+          <div style="width: 48px; height: 48px; border: 4px solid #e5e7eb; border-top-color: #325240; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 16px;"></div>
+          <p style="font-size: 16px; color: #6b7280; margin: 0;">Loading underwriting history...</p>
+        </div>
+      `;
+    } else if (this._state.underwritingHistoryError) {
+      modalBody.innerHTML = `
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px 24px; text-align: center; background: #fef2f2; border: 1px solid #fee2e2; border-radius: 12px;">
+          <svg style="width: 64px; height: 64px; color: #ef4444; margin-bottom: 16px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+          <p style="font-size: 16px; color: #991b1b; margin: 0;">Failed to load underwriting history</p>
+          <p style="font-size: 14px; color: #dc2626; margin-top: 8px;">${this._state.underwritingHistoryError}</p>
+        </div>
+      `;
+    } else if (
+      this._state.underwritingHistory &&
+      this._state.underwritingHistory.length > 0
+    ) {
+      // Log underwriting data when available
+      console.log(
+        "OperatorUnderwriting: Underwriting data:",
+        this._state.underwritingHistory
+      );
+
+      modalBody.innerHTML = this.renderUnderwritingTimeline(
+        this._state.underwritingHistory
+      );
+    } else {
+      modalBody.innerHTML = `
+        <div style="display: flex; margin: 24px 0; flex-direction: column; align-items: center; justify-content: center; padding: 48px 24px; text-align: center; background: #f9fafb; border: 1px dashed #d1d5db; border-radius: 12px;">
+          <svg style="width: 64px; height: 64px; color: #9ca3af; margin-bottom: 16px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+          </svg>
+          <p style="font-size: 16px; color: #6b7280; margin: 0;">No underwriting history found</p>
+          <p style="font-size: 14px; color: #9ca3af; margin-top: 8px;">This operator has no underwriting records yet</p>
+        </div>
+      `;
+    }
   }
 
   /**
@@ -434,7 +608,7 @@ class OperatorUnderwriting extends HTMLElement {
           font-size: 14px;
           font-weight: 500;
           cursor: pointer;
-          transition: all 0.3s ease;
+          transition: all 0.2s ease;
           display: inline-flex;
           align-items: center;
           gap: 8px;
@@ -543,6 +717,66 @@ class OperatorUnderwriting extends HTMLElement {
           justify-content: center;
         }
         
+        .modal.show {
+          display: flex;
+        }
+        
+        .modal.animating-in .modal-overlay {
+          animation: fadeIn 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .modal.animating-in .modal-content {
+          animation: slideInScale 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .modal.animating-out .modal-overlay {
+          animation: fadeOut 0.15s cubic-bezier(0.4, 0, 1, 1);
+        }
+        
+        .modal.animating-out .modal-content {
+          animation: slideOutScale 0.15s cubic-bezier(0.4, 0, 1, 1);
+        }
+        
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+          }
+          to {
+            opacity: 1;
+          }
+        }
+        
+        @keyframes fadeOut {
+          from {
+            opacity: 1;
+          }
+          to {
+            opacity: 0;
+          }
+        }
+        
+        @keyframes slideInScale {
+          from {
+            opacity: 0;
+            transform: scale(0.95) translateY(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+          }
+        }
+        
+        @keyframes slideOutScale {
+          from {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+          }
+          to {
+            opacity: 0;
+            transform: scale(0.98) translateY(-8px);
+          }
+        }
+        
         .modal-overlay {
           position: absolute;
           top: 0;
@@ -594,7 +828,6 @@ class OperatorUnderwriting extends HTMLElement {
         /* Modal Header - Static */
         .modal-header {
           text-align: center;
-          margin-bottom: 24px;
           padding-bottom: 16px;
           border-bottom: 1px solid #e5e7eb;
           flex-shrink: 0;
@@ -628,7 +861,6 @@ class OperatorUnderwriting extends HTMLElement {
           align-items: center;
           justify-content: center;
           gap: 6px;
-          margin-top: 24px;
           padding-top: 16px;
           border-top: 1px solid #e5e7eb;
           font-size: 11px;
@@ -649,7 +881,7 @@ class OperatorUnderwriting extends HTMLElement {
       
       <!-- Main Button -->
       <div class="btn-wrapper">
-        <span class="tooltip">Operator is not integrated to the Bison system</span>
+        <span class="tooltip">Operator is not onboarded to the Bison system</span>
         <button class="underwriting-btn">
           <span class="loading-spinner"></span>
           <svg class="broken-link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -672,17 +904,14 @@ class OperatorUnderwriting extends HTMLElement {
             <p>Track your underwriting application progress</p>
           </div>
           
-          <!-- Content Area (Empty) -->
+          <!-- Content Area -->
           <div class="modal-body">
-            <!-- Underwriting content will be added here -->
           </div>
           
           <!-- Powered By Footer -->
           <div class="powered-by">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
-            </svg>
-            Powered by <span>Bison</span>
+            Powered by
+            <img src="./bison_logo.png" alt="Bison" style="height: 16px; margin-left: 4px;" onerror="this.onerror=null; this.src='https://bisonpaywell.com/lovable-uploads/28831244-e8b3-4e7b-8dbb-c016f9f9d54f.png';">
           </div>
         </div>
       </div>
@@ -960,6 +1189,267 @@ class OperatorUnderwriting extends HTMLElement {
       error: "Error",
     };
     return statusMap[status] || status;
+  }
+
+  /**
+   * Render underwriting history as a timeline
+   * @param {Array} history - Array of underwriting status records
+   * @returns {string} HTML string for timeline
+   */
+  renderUnderwritingTimeline(history) {
+    if (!history || history.length === 0) {
+      return `
+        <div style="display: flex; margin: 24px 0; flex-direction: column; align-items: center; justify-content: center; padding: 48px 24px; text-align: center; background: #f9fafb; border: 1px dashed #d1d5db; border-radius: 12px;">
+          <svg style="width: 64px; height: 64px; color: #9ca3af; margin-bottom: 16px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+          </svg>
+          <p style="font-size: 16px; color: #6b7280; margin: 0;">No underwriting history found</p>
+        </div>
+      `;
+    }
+
+    // Sort by changedAt (oldest first, will be reversed in display)
+    const sortedHistory = [...history].sort((a, b) => {
+      const dateA = new Date(a.changedAt);
+      const dateB = new Date(b.changedAt);
+      return dateA - dateB;
+    });
+
+    // Reverse to show newest at top
+    const reversedHistory = [...sortedHistory].reverse();
+
+    const timelineItems = reversedHistory
+      .map((item, index) => {
+        const isNewest = index === 0;
+        const isOldest = index === reversedHistory.length - 1;
+        return this.renderUnderwritingTimelineItem(item, isNewest, isOldest);
+      })
+      .join("");
+
+    return `
+      <style>
+        .underwriting-timeline {
+          padding: 16px;
+          position: relative;
+        }
+        
+        .timeline-item {
+          display: flex;
+          gap: 12px;
+          position: relative;
+          padding-bottom: 24px;
+        }
+        
+        .timeline-item:last-child {
+          padding-bottom: 0;
+        }
+        
+        .timeline-icon-wrapper {
+          position: relative;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          flex-shrink: 0;
+        }
+        
+        .timeline-icon {
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 2;
+          position: relative;
+          background: #E5E7EB;
+          color: #6B7280;
+        }
+        
+        .timeline-icon.approved {
+          background: #D1FAE5;
+          color: #10B981;
+        }
+        
+        .timeline-icon.pending {
+          background: #FEF3C7;
+          color: #F59E0B;
+        }
+        
+        .timeline-icon.latest::before {
+          content: '';
+          position: absolute;
+          width: 100%;
+          height: 100%;
+          border-radius: 50%;
+          border: 2px solid currentColor;
+          opacity: 0.6;
+          animation: ping 1.2s cubic-bezier(0, 0, 0.2, 1) infinite;
+        }
+        
+        @keyframes ping {
+          0% {
+            transform: scale(1);
+            opacity: 0.6;
+          }
+          75%, 100% {
+            transform: scale(1.4);
+            opacity: 0;
+          }
+        }
+        
+        .timeline-line {
+          position: absolute;
+          top: 32px;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 2px;
+          height: calc(100% - 0px);
+          background: #E5E7EB;
+          z-index: 1;
+        }
+        
+        .timeline-content {
+          flex: 1;
+          background: white;
+          border: 1px solid #E5E7EB;
+          border-radius: 8px;
+          padding: 12px 16px;
+          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        }
+        
+        .timeline-status {
+          font-size: 13px;
+          font-weight: 600;
+          color: #1F2937;
+          margin: 0 0 4px 0;
+        }
+        
+        .timeline-date {
+          font-size: 12px;
+          color: #9CA3AF;
+          margin: 0;
+        }
+        
+        .timeline-badge {
+          display: inline-block;
+          padding: 2px 8px;
+          border-radius: 10px;
+          font-size: 10px;
+          font-weight: 500;
+          margin-top: 6px;
+        }
+        
+        .timeline-badge.newest {
+          background: #DBEAFE;
+          color: #1E40AF;
+        }
+        
+        .timeline-badge.oldest {
+          background: #F3F4F6;
+          color: #6B7280;
+        }
+      </style>
+      
+      <div class="underwriting-timeline">
+        ${timelineItems}
+      </div>
+    `;
+  }
+
+  /**
+   * Render a single underwriting timeline item
+   * @param {Object} item - Underwriting status record
+   * @param {boolean} isNewest - Whether this is the newest status
+   * @param {boolean} isOldest - Whether this is the oldest status
+   * @returns {string} HTML string for timeline item
+   */
+  renderUnderwritingTimelineItem(item, isNewest, isOldest) {
+    const status = item.status || "unknown";
+    const statusDisplay = this.formatUnderwritingStatus(status);
+    const icon = this.getUnderwritingStatusIcon(status);
+    const formattedDate = this.formatUnderwritingDate(item.changedAt);
+
+    return `
+      <div class="timeline-item">
+        <div class="timeline-icon-wrapper">
+          <div class="timeline-icon ${status} ${isNewest ? "latest" : ""}">
+            ${icon}
+          </div>
+          ${!isOldest ? '<div class="timeline-line"></div>' : ""}
+        </div>
+        <div class="timeline-content">
+          <h4 class="timeline-status">${statusDisplay}</h4>
+          <p class="timeline-date">${formattedDate}</p>
+          ${isNewest ? '<span class="timeline-badge newest">Latest</span>' : ""}
+          ${
+            isOldest ? '<span class="timeline-badge oldest">Initial</span>' : ""
+          }
+        </div>
+      </div>
+    `;
+  }
+
+  /**
+   * Format underwriting status for display
+   * @param {string} status - Status value
+   * @returns {string} Formatted status text
+   */
+  formatUnderwritingStatus(status) {
+    const statusMap = {
+      pending: "Pending Review",
+      approved: "Approved",
+      rejected: "Rejected",
+      under_review: "Under Review",
+      submitted: "Submitted",
+    };
+    return (
+      statusMap[status] || status.charAt(0).toUpperCase() + status.slice(1)
+    );
+  }
+
+  /**
+   * Get icon SVG for underwriting status
+   * @param {string} status - Status value
+   * @returns {string} SVG HTML string
+   */
+  getUnderwritingStatusIcon(status) {
+    switch (status) {
+      case "approved":
+        return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+      case "rejected":
+        return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
+      case "under_review":
+        return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>`;
+      case "pending":
+      default:
+        return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>`;
+    }
+  }
+
+  /**
+   * Format date for underwriting timeline
+   * @param {string} dateStr - ISO date string
+   * @returns {string} Formatted date string
+   */
+  formatUnderwritingDate(dateStr) {
+    if (!dateStr) return "Date unavailable";
+
+    try {
+      const date = new Date(dateStr);
+      const dateFormatted = date.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
+      const timeFormatted = date.toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      });
+      return `${dateFormatted} ${timeFormatted}`;
+    } catch (e) {
+      return dateStr;
+    }
   }
 }
 

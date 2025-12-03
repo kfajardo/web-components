@@ -24,8 +24,7 @@
  */
 class BisonJibPayAPI {
   constructor(baseURL, embeddableKey) {
-    // this.baseURL = baseURL || "https://bison-jib-development.azurewebsites.net";
-    this.baseURL = "http://localhost:5120";
+    this.baseURL = baseURL || "https://bison-jib-development.azurewebsites.net";
     this.embeddableKey = embeddableKey;
   }
 
@@ -371,6 +370,46 @@ class BisonJibPayAPI {
 
     // Use the direct method to delete payment method
     return this.deletePaymentMethodByAccountId(moovAccountId, paymentMethodId);
+  }
+  /**
+   * Fetch underwriting history by moovAccountId
+   *
+   * This method retrieves the underwriting history for the given moovAccountId.
+   * Use this when you already have the moovAccountId cached.
+   *
+   * Response Codes:
+   * - 200: Success with data array (may be empty)
+   * - 400: Missing or invalid moovAccountId parameter
+   * - 401: Invalid or missing X-Embeddable-Key header
+   * - 404: Moov account with specified ID not found
+   * - 500: Server error while retrieving underwriting history
+   *
+   * @param {string} moovAccountId - The Moov account ID
+   * @returns {Promise<{success: boolean, message?: string, data: Array|null, errors: string[], timestamp?: string, traceId?: string}>}
+   *
+   * @example
+   * const api = new BisonJibPayAPI(baseURL, embeddableKey);
+   * const history = await api.fetchUnderwritingByAccountId('moov-account-id');
+   * console.log(history.data); // Array of underwriting history records
+   */
+  async fetchUnderwritingByAccountId(moovAccountId) {
+    if (!moovAccountId) {
+      throw {
+        status: 400,
+        data: {
+          success: false,
+          message: "Moov account ID is required",
+          errors: ["moovAccountId parameter is missing"],
+        },
+      };
+    }
+
+    return this.request(
+      `/api/embeddable/underwriting-history/${moovAccountId}`,
+      {
+        method: "GET",
+      }
+    );
   }
 }
 
