@@ -85,6 +85,42 @@ class BisonJibPayAPI {
   }
 
   /**
+   * Verify operator email
+   * Checks if an operator is registered/onboarded in the system
+   *
+   * @param {string} email - Operator's email address
+   * @returns {Promise<{success: boolean, message: string, data?: any}>}
+   *
+   * @example
+   * const api = new BisonJibPayAPI(baseURL, embeddableKey);
+   * const result = await api.verifyOperator('operator@example.com');
+   * if (result.success) {
+   *   console.log('Operator is verified');
+   * }
+   */
+  async verifyOperator(email) {
+    return this.validateOperatorEmail(email);
+  }
+
+  /**
+   * Verify WIO email
+   * Checks if a WIO (Worker Independent Operator) has an account in the system
+   *
+   * @param {string} email - WIO's email address
+   * @returns {Promise<{success: boolean, message: string, data?: {moovAccountId: string}}>}
+   *
+   * @example
+   * const api = new BisonJibPayAPI(baseURL, embeddableKey);
+   * const result = await api.verifyWio('wio@example.com');
+   * if (result.success && result.data?.moovAccountId) {
+   *   console.log('WIO is verified with account:', result.data.moovAccountId);
+   * }
+   */
+  async verifyWio(email) {
+    return this.getAccountByEmail(email);
+  }
+
+  /**
    * Register operator
    */
   async registerOperator(formData) {
