@@ -12,12 +12,14 @@
  *   - <operator-onboarding> (Onboarding form component)
  *   - <operator-payment> (Payment methods component)
  *   - <wio-payment> (WIO payment methods with Plaid component)
+ *   - <operator-bank-account> (Simple button to add bank account via Moov)
  *
  * For individual component loading, import directly:
  *   <script src="api.js"></script>
  *   <script src="operator-onboarding.js"></script>
  *   <script src="operator-payment.js"></script>
  *   <script src="wio-payment.js"></script>
+ *   <script src="operator-bank-account.js"></script>
  *
  * @version 2.0.0
  * @license MIT
@@ -33,6 +35,7 @@ import "./operator-underwriting.js";
 import "./operator-management.js";
 import "./wio-payment.js";
 import "./wio-payment-linking.js";
+import "./operator-bank-account.js";
 
 // Re-export the API class for programmatic access
 export { BisonJibPayAPI };
