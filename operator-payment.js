@@ -1036,6 +1036,23 @@ class OperatorPayment extends HTMLElement {
         this._state.operatorEmail
       );
 
+      // First, verify the operator is registered/onboarded
+      console.log("OperatorPayment: Verifying operator...");
+      const verifyResult = await this.api.verifyOperator(
+        this._state.operatorEmail
+      );
+
+      if (!verifyResult.success) {
+        throw new Error(
+          verifyResult.message || "Operator is not registered in the system"
+        );
+      }
+
+      console.log(
+        "OperatorPayment: Operator verified successfully:",
+        verifyResult.message
+      );
+
       // Fetch account by email to get and cache moovAccountId
       const result = await this.api.getAccountByEmail(
         this._state.operatorEmail

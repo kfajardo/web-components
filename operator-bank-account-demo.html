@@ -1,0 +1,532 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OperatorBankAccount Component - Demo</title>
+
+    <!-- Moov SDK will be loaded dynamically by the component -->
+
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+        background: #f5f5f5;
+        padding: 20px;
+      }
+
+      .page-header {
+        text-align: center;
+        margin-bottom: 40px;
+        padding: 20px;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+
+      .page-header h1 {
+        color: #333;
+        margin-bottom: 10px;
+      }
+
+      .page-header p {
+        color: #666;
+        font-size: 14px;
+      }
+
+      .demo-section {
+        max-width: 900px;
+        margin: 0 auto 20px;
+        padding: 20px;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+
+      .demo-section h3 {
+        margin-bottom: 15px;
+        color: #333;
+      }
+
+      .demo-section p {
+        margin-bottom: 15px;
+        color: #666;
+        font-size: 14px;
+      }
+
+      .form-group {
+        margin-bottom: 15px;
+      }
+
+      .form-group label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: 500;
+        color: #333;
+      }
+
+      .form-group input {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 14px;
+      }
+
+      .button-group {
+        display: flex;
+        gap: 10px;
+        margin-top: 15px;
+        flex-wrap: wrap;
+      }
+
+      button {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: 500;
+        font-size: 14px;
+        transition: opacity 0.2s;
+      }
+
+      button:hover {
+        opacity: 0.9;
+      }
+
+      .btn-primary {
+        background: #325240;
+        color: white;
+      }
+
+      .btn-secondary {
+        background: #6c757d;
+        color: white;
+      }
+
+      .btn-success {
+        background: #28a745;
+        color: white;
+      }
+
+      .btn-danger {
+        background: #dc3545;
+        color: white;
+      }
+
+      .message-box {
+        padding: 15px;
+        border-radius: 4px;
+        margin-top: 15px;
+        display: none;
+      }
+
+      .message-box.visible {
+        display: block;
+      }
+
+      .message-box.success {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+      }
+
+      .message-box.error {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+      }
+
+      .message-box.info {
+        background: #d1ecf1;
+        color: #0c5460;
+        border: 1px solid #bee5eb;
+      }
+
+      code {
+        background: #f4f4f4;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-family: monospace;
+        font-size: 13px;
+      }
+
+      pre {
+        background: #1e1e1e;
+        color: #d4d4d4;
+        padding: 15px;
+        border-radius: 4px;
+        overflow-x: auto;
+        font-size: 13px;
+        margin-top: 10px;
+      }
+
+      .component-wrapper {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 30px;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        text-align: center;
+      }
+
+      .component-wrapper h3 {
+        margin-bottom: 20px;
+        color: #333;
+      }
+
+      .event-log {
+        margin-top: 20px;
+        padding: 15px;
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        max-height: 300px;
+        overflow-y: auto;
+      }
+
+      .event-log h4 {
+        margin-bottom: 10px;
+        color: #333;
+      }
+
+      .event-log pre {
+        margin: 5px 0;
+        background: #1e1e1e;
+        color: #d4d4d4;
+        padding: 10px;
+        border-radius: 4px;
+        font-size: 12px;
+        text-align: left;
+      }
+
+      .status-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 500;
+        margin-left: 10px;
+      }
+
+      .status-badge.ready {
+        background: #d4edda;
+        color: #155724;
+      }
+
+      .status-badge.loading {
+        background: #fff3cd;
+        color: #856404;
+      }
+
+      .status-badge.error {
+        background: #f8d7da;
+        color: #721c24;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page-header">
+      <h1>OperatorBankAccount Component Demo</h1>
+      <p>Test the operator bank account integration with Moov</p>
+    </div>
+
+    <!-- Demo Controls -->
+    <div class="demo-section">
+      <h3>Demo Controls</h3>
+      <p>Configure and test the OperatorBankAccount component:</p>
+      <p
+        style="
+          font-size: 13px;
+          color: #856404;
+          background: #fff3cd;
+          padding: 10px;
+          border-radius: 4px;
+          margin-bottom: 15px;
+        ">
+        <strong>⚠️ Important:</strong> When you set the operator email, the
+        component automatically calls <code>verifyOperator(email)</code>,
+        <code>getAccountByEmail(email)</code>, and
+        <code>generateMoovToken(email, moovAccountId)</code> behind the scenes.
+        Watch the event log to see the verification process!
+      </p>
+
+      <div class="form-group">
+        <label for="operatorEmailInput">Operator Email</label>
+        <input
+          type="email"
+          id="operatorEmailInput"
+          placeholder="david.miller@caminoresources.com"
+          value="david.miller@caminoresources.com" />
+      </div>
+
+      <div class="form-group">
+        <label for="apiUrlInput">API URL (Optional)</label>
+        <input
+          type="text"
+          id="apiUrlInput"
+          placeholder="http://localhost:5120"
+          value="http://localhost:5120" />
+      </div>
+
+      <div class="button-group">
+        <button class="btn-primary" onclick="initializeComponent()">
+          Set Operator Email
+        </button>
+        <button class="btn-secondary" onclick="getComponentState()">
+          Get Component State
+        </button>
+        <button class="btn-danger" onclick="clearEventLog()">
+          Clear Event Log
+        </button>
+      </div>
+
+      <div id="messageBox" class="message-box"></div>
+    </div>
+
+    <!-- Component Container -->
+    <div class="component-wrapper">
+      <h3>
+        OperatorBankAccount Component
+        <span id="statusBadge" class="status-badge loading"
+          >Initializing...</span
+        >
+      </h3>
+      <p style="color: #666; margin-bottom: 20px">
+        Click the button below to add a bank account via Moov
+      </p>
+      <operator-bank-account id="addBank"></operator-bank-account>
+
+      <!-- Event Log -->
+      <div class="event-log">
+        <h4>Event Log</h4>
+        <div id="eventLog"></div>
+      </div>
+    </div>
+
+    <!-- Load the components -->
+    <!-- Load api.js as a module to properly define BisonJibPayAPI -->
+    <script type="module">
+      // Import BisonJibPayAPI and make it globally available
+      import { BisonJibPayAPI } from "./api.js";
+      window.BisonJibPayAPI = BisonJibPayAPI;
+      console.log("✅ BisonJibPayAPI loaded and available globally");
+    </script>
+    <script src="operator-bank-account.js"></script>
+
+    <script>
+      // Get references
+      const addBankComponent = document.getElementById("addBank");
+      const messageBox = document.getElementById("messageBox");
+      const eventLog = document.getElementById("eventLog");
+      const statusBadge = document.getElementById("statusBadge");
+
+      /**
+       * Log an event to the event log
+       */
+      function logEvent(eventName, data) {
+        const timestamp = new Date().toLocaleTimeString();
+        const eventEntry = document.createElement("pre");
+        eventEntry.textContent = `[${timestamp}] ${eventName}\n${JSON.stringify(
+          data,
+          null,
+          2
+        )}`;
+        eventLog.insertBefore(eventEntry, eventLog.firstChild);
+
+        // Keep only the last 10 events
+        while (eventLog.children.length > 10) {
+          eventLog.removeChild(eventLog.lastChild);
+        }
+      }
+
+      /**
+       * Clear the event log
+       */
+      window.clearEventLog = function () {
+        eventLog.innerHTML = "";
+        showMessage("Event log cleared", "info");
+      };
+
+      /**
+       * Show a message to the user
+       */
+      function showMessage(message, type = "info") {
+        messageBox.textContent = message;
+        messageBox.className = `message-box visible ${type}`;
+
+        // Auto-hide after 5 seconds for success/info messages
+        if (type !== "error") {
+          setTimeout(() => {
+            messageBox.className = "message-box";
+          }, 5000);
+        }
+      }
+
+      /**
+       * Update status badge
+       */
+      function updateStatus(status, text) {
+        statusBadge.className = `status-badge ${status}`;
+        statusBadge.textContent = text;
+      }
+
+      /**
+       * Initialize the component with operator email
+       */
+      window.initializeComponent = function () {
+        const email = document.getElementById("operatorEmailInput").value;
+        const apiUrl = document.getElementById("apiUrlInput").value;
+
+        if (!email) {
+          showMessage("Please enter an operator email", "error");
+          return;
+        }
+
+        // IMPORTANT: Set API URL FIRST before setting email
+        // Setting email triggers verification, so API URL must be set beforehand
+        if (apiUrl) {
+          addBankComponent.apiUrl = apiUrl;
+        }
+
+        // Set operator email (triggers verification internally)
+        // This will automatically call:
+        // 1. api.verifyOperator(email)
+        // 2. api.getAccountByEmail(email) to get moovAccountId
+        // 3. api.generateMoovToken(email, moovAccountId)
+        addBankComponent.email = email;
+
+        showMessage(
+          `Component initialized for: ${email}. Verifying operator...`,
+          "info"
+        );
+        updateStatus("loading", "Verifying...");
+        logEvent("component-initialized", {
+          email,
+          apiUrl,
+          note: "Component will automatically call verifyOperator, getAccountByEmail, and generateMoovToken",
+        });
+      };
+
+      /**
+       * Get component state
+       */
+      window.getComponentState = function () {
+        const state = {
+          email: addBankComponent.email,
+          moovAccountId: addBankComponent.moovAccountId,
+          apiUrl: addBankComponent.apiUrl,
+        };
+
+        console.log("Component State:", state);
+        logEvent("component-state", state);
+        showMessage("Component state logged to console", "info");
+      };
+
+      /**
+       * Set up event listeners
+       */
+
+      // Ready event - fired when operator is verified and component is ready
+      // This fires AFTER the component successfully calls:
+      // 1. verifyOperator(email)
+      // 2. getAccountByEmail(email)
+      // 3. generateMoovToken(email, moovAccountId)
+      addBankComponent.addEventListener(
+        "operator-bank-account-ready",
+        (event) => {
+          console.log("✅ Component ready:", event.detail);
+          console.log("✅ Operator verified successfully via API");
+          console.log(
+            "✅ moovAccountId retrieved:",
+            event.detail.moovAccountId
+          );
+          logEvent("operator-bank-account-ready", {
+            ...event.detail,
+            apiCalls: "verifyOperator → getAccountByEmail → generateMoovToken",
+          });
+          updateStatus("ready", "Ready");
+          showMessage(
+            `✅ Operator verified! Component ready for ${event.detail.email}`,
+            "success"
+          );
+        }
+      );
+
+      // Error event - fired when verification fails
+      // This fires if verifyOperator, getAccountByEmail, or generateMoovToken fails
+      addBankComponent.addEventListener(
+        "operator-bank-account-error",
+        (event) => {
+          console.error("❌ Component error:", event.detail);
+          console.error(
+            "❌ Verification failed - operator may not exist or API error occurred"
+          );
+          logEvent("operator-bank-account-error", {
+            ...event.detail,
+            possibleCauses:
+              "verifyOperator failed, getAccountByEmail failed, or token generation failed",
+          });
+          updateStatus("error", "Error");
+          showMessage(`Error: ${event.detail.error}`, "error");
+        }
+      );
+
+      // Bank account added event - fired when a bank account is successfully added
+      addBankComponent.addEventListener("bank-account-added", (event) => {
+        console.log("✅ Bank account added:", event.detail);
+        logEvent("bank-account-added", event.detail);
+        showMessage("Bank account added successfully!", "success");
+      });
+
+      // Bank account error event - fired when adding a bank account fails
+      addBankComponent.addEventListener("bank-account-error", (event) => {
+        console.error("❌ Bank account error:", event.detail);
+        logEvent("bank-account-error", event.detail);
+        showMessage(
+          `Error adding bank account: ${event.detail.error}`,
+          "error"
+        );
+      });
+
+      // Moov drop close event - fired when the Moov UI is closed
+      addBankComponent.addEventListener("moov-drop-close", (event) => {
+        console.log("Moov UI closed");
+        logEvent("moov-drop-close", {});
+        showMessage("Moov UI closed", "info");
+      });
+
+      /**
+       * Set up callback handlers (alternative to event listeners)
+       */
+      addBankComponent.onSuccess = function (result) {
+        console.log("✅ onSuccess callback:", result);
+        logEvent("onSuccess-callback", result);
+      };
+
+      addBankComponent.onFail = function (error) {
+        console.error("❌ onFail callback:", error);
+        logEvent("onFail-callback", error);
+      };
+
+      // Log component status
+      console.log("✅ OperatorBankAccount Component Demo Loaded");
+      console.log("📝 Use the controls above to test the component");
+      console.log("🔧 Check browser console for detailed logs");
+
+      // Show initial message
+      showMessage(
+        'Component ready. Enter operator email and click "Set Operator Email"',
+        "info"
+      );
+    </script>
+  </body>
+</html>

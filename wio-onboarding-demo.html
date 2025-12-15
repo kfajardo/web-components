@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WIO Onboarding Component - Demo</title>
+
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+        background: #f5f5f5;
+        padding: 20px;
+      }
+
+      .page-header {
+        text-align: center;
+        margin-bottom: 40px;
+        padding: 20px;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+
+      .page-header h1 {
+        color: #333;
+        margin-bottom: 10px;
+      }
+
+      .page-header p {
+        color: #666;
+        font-size: 14px;
+      }
+
+      .demo-section {
+        max-width: 1200px;
+        margin: 0 auto 20px;
+        padding: 20px;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+
+      .demo-section h3 {
+        margin-bottom: 15px;
+        color: #333;
+      }
+
+      .demo-section p {
+        margin-bottom: 15px;
+        color: #666;
+        font-size: 14px;
+      }
+
+      .button-group {
+        display: flex;
+        gap: 10px;
+        margin-top: 15px;
+        flex-wrap: wrap;
+      }
+
+      button {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: 500;
+        font-size: 14px;
+        transition: opacity 0.2s;
+      }
+
+      button:hover {
+        opacity: 0.9;
+      }
+
+      .btn-primary {
+        background: #325240;
+        color: white;
+      }
+
+      .btn-secondary {
+        background: #6c757d;
+        color: white;
+      }
+
+      .btn-success {
+        background: #28a745;
+        color: white;
+      }
+
+      .btn-danger {
+        background: #dc3545;
+        color: white;
+      }
+
+      .btn-info {
+        background: #17a2b8;
+        color: white;
+      }
+
+      .message-box {
+        padding: 15px;
+        border-radius: 4px;
+        margin-top: 15px;
+        display: none;
+      }
+
+      .message-box.visible {
+        display: block;
+      }
+
+      .message-box.success {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+      }
+
+      .message-box.error {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+      }
+
+      .message-box.info {
+        background: #d1ecf1;
+        color: #0c5460;
+        border: 1px solid #bee5eb;
+      }
+
+      .component-wrapper {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+        background: #f5f5f5;
+        border-radius: 8px;
+      }
+
+      .event-log {
+        margin-top: 20px;
+        padding: 15px;
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        max-height: 400px;
+        overflow-y: auto;
+      }
+
+      .event-log h4 {
+        margin-bottom: 10px;
+        color: #333;
+      }
+
+      .event-log pre {
+        margin: 5px 0;
+        background: #1e1e1e;
+        color: #d4d4d4;
+        padding: 10px;
+        border-radius: 4px;
+        font-size: 12px;
+        text-align: left;
+        overflow-x: auto;
+      }
+
+      .form-section {
+        margin-bottom: 15px;
+      }
+
+      .form-section label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: 500;
+        color: #333;
+      }
+
+      .form-section input,
+      .form-section select {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 14px;
+      }
+
+      .grid-2 {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 15px;
+      }
+
+      .status-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 500;
+        margin-left: 10px;
+      }
+
+      .status-badge.ready {
+        background: #d4edda;
+        color: #155724;
+      }
+
+      .status-badge.loading {
+        background: #fff3cd;
+        color: #856404;
+      }
+
+      .status-badge.error {
+        background: #f8d7da;
+        color: #721c24;
+      }
+
+      @media (max-width: 768px) {
+        .grid-2 {
+          grid-template-columns: 1fr;
+        }
+
+        .button-group {
+          flex-direction: column;
+        }
+
+        .button-group button {
+          width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page-header">
+      <h1>WIO Onboarding Component Demo</h1>
+      <p>Test the inline multi-stepper onboarding form (no modal required)</p>
+    </div>
+
+    <!-- Demo Controls -->
+    <div class="demo-section">
+      <h3>Demo Controls</h3>
+      <p>Control and test the WIO Onboarding component:</p>
+
+      <div class="button-group">
+        <button class="btn-primary" onclick="prePopulateForm()">
+          Pre-populate Form
+        </button>
+        <button class="btn-info" onclick="prePopulateStep2()">
+          Pre-populate & Start at Step 2
+        </button>
+        <button class="btn-secondary" onclick="resetForm()">
+          Reset Form
+        </button>
+        <button class="btn-success" onclick="getFormState()">
+          Get Form State
+        </button>
+        <button class="btn-danger" onclick="clearEventLog()">
+          Clear Event Log
+        </button>
+      </div>
+
+      <div id="messageBox" class="message-box"></div>
+    </div>
+
+    <!-- Pre-populate Data Form -->
+    <div class="demo-section">
+      <h3>Custom Pre-populate Data</h3>
+      <p>Customize the data to pre-populate in the form:</p>
+
+      <div class="grid-2">
+        <div class="form-section">
+          <label for="businessName">Business Name</label>
+          <input
+            type="text"
+            id="businessName"
+            value="ACME Corporation"
+            placeholder="Enter business name"
+          />
+        </div>
+
+        <div class="form-section">
+          <label for="businessEmail">Business Email</label>
+          <input
+            type="email"
+            id="businessEmail"
+            value="contact@acme.com"
+            placeholder="Enter business email"
+          />
+        </div>
+
+        <div class="form-section">
+          <label for="ein">EIN</label>
+          <input
+            type="text"
+            id="ein"
+            value="12-3456789"
+            placeholder="12-3456789"
+          />
+        </div>
+
+        <div class="form-section">
+          <label for="businessPhone">Business Phone</label>
+          <input
+            type="tel"
+            id="businessPhone"
+            value="(555) 123-4567"
+            placeholder="(555) 123-4567"
+          />
+        </div>
+      </div>
+
+      <div class="button-group">
+        <button class="btn-primary" onclick="prePopulateCustomData()">
+          Apply Custom Data
+        </button>
+      </div>
+    </div>
+
+    <!-- Component Container -->
+    <div class="component-wrapper">
+      <h3 style="text-align: center; margin-bottom: 20px; color: #333;">
+        WIO Onboarding Form
+        <span id="statusBadge" class="status-badge ready">Ready</span>
+      </h3>
+
+      <!-- The component renders inline - no button needed! -->
+      <wio-onboarding id="onboarding"></wio-onboarding>
+
+      <!-- Event Log -->
+      <div class="event-log">
+        <h4>Event Log</h4>
+        <div id="eventLog"></div>
+      </div>
+    </div>
+
+    <!-- Load the components -->
+    <script src="api.js"></script>
+    <script src="wio-onboarding.js"></script>
+
+    <script>
+      // Get references
+      const onboardingComponent = document.getElementById("onboarding");
+      const messageBox = document.getElementById("messageBox");
+      const eventLog = document.getElementById("eventLog");
+      const statusBadge = document.getElementById("statusBadge");
+
+      /**
+       * Log an event to the event log
+       */
+      function logEvent(eventName, data) {
+        const timestamp = new Date().toLocaleTimeString();
+        const eventEntry = document.createElement("pre");
+
+        // Sanitize data for logging (remove large file objects)
+        const sanitizedData = JSON.parse(JSON.stringify(data, (key, value) => {
+          if (key === 'underwritingDocuments' && Array.isArray(value)) {
+            return value.map(file => ({
+              name: file.name,
+              size: file.size,
+              type: file.type
+            }));
+          }
+          return value;
+        }));
+
+        eventEntry.textContent = `[${timestamp}] ${eventName}\n${JSON.stringify(
+          sanitizedData,
+          null,
+          2
+        )}`;
+        eventLog.insertBefore(eventEntry, eventLog.firstChild);
+
+        // Keep only the last 15 events
+        while (eventLog.children.length > 15) {
+          eventLog.removeChild(eventLog.lastChild);
+        }
+      }
+
+      /**
+       * Clear the event log
+       */
+      window.clearEventLog = function () {
+        eventLog.innerHTML = "";
+        showMessage("Event log cleared", "info");
+      };
+
+      /**
+       * Show a message to the user
+       */
+      function showMessage(message, type = "info") {
+        messageBox.textContent = message;
+        messageBox.className = `message-box visible ${type}`;
+
+        // Auto-hide after 5 seconds for success/info messages
+        if (type !== "error") {
+          setTimeout(() => {
+            messageBox.className = "message-box";
+          }, 5000);
+        }
+      }
+
+      /**
+       * Update status badge
+       */
+      function updateStatus(status, text) {
+        statusBadge.className = `status-badge ${status}`;
+        statusBadge.textContent = text;
+      }
+
+      /**
+       * Pre-populate form with sample data
+       */
+      window.prePopulateForm = function () {
+        const sampleData = {
+          businessDetails: {
+            businessName: "ACME Corporation",
+            doingBusinessAs: "ACME Co.",
+            ein: "12-3456789",
+            businessWebsite: "https://acme.com",
+            businessPhoneNumber: "(555) 123-4567",
+            businessEmail: "contact@acme.com",
+            BusinessAddress1: "123 Main Street",
+            businessCity: "New York",
+            businessState: "NY",
+            businessPostalCode: "10001",
+          },
+          representatives: [
+            {
+              id: crypto.randomUUID(),
+              representativeFirstName: "John",
+              representativeLastName: "Doe",
+              representativeJobTitle: "CEO",
+              representativePhone: "(555) 987-6543",
+              representativeEmail: "john.doe@acme.com",
+              representativeDateOfBirth: "1980-01-15",
+              representativeAddress: "456 Oak Avenue",
+              representativeCity: "New York",
+              representativeState: "NY",
+              representativeZip: "10002",
+            },
+          ],
+          bankDetails: {
+            bankAccountHolderName: "ACME Corporation",
+            bankAccountType: "checking",
+            bankRoutingNumber: "021000021",
+            bankAccountNumber: "1234567890",
+          },
+        };
+
+        onboardingComponent.onLoad = sampleData;
+        showMessage("Form pre-populated with sample data", "success");
+        logEvent("form-prepopulated", sampleData);
+      };
+
+      /**
+       * Pre-populate and start at step 2 (Bank Details)
+       */
+      window.prePopulateStep2 = function () {
+        const sampleData = {
+          businessDetails: {
+            businessName: "ACME Corporation",
+            doingBusinessAs: "ACME Co.",
+            ein: "12-3456789",
+            businessWebsite: "https://acme.com",
+            businessPhoneNumber: "(555) 123-4567",
+            businessEmail: "contact@acme.com",
+            BusinessAddress1: "123 Main Street",
+            businessCity: "New York",
+            businessState: "NY",
+            businessPostalCode: "10001",
+          },
+          initialStep: 2, // Start at Bank Details step
+        };
+
+        onboardingComponent.onLoad = sampleData;
+        showMessage("Form pre-populated and started at Step 2 (Bank Details)", "success");
+        logEvent("form-prepopulated-step-2", sampleData);
+      };
+
+      /**
+       * Pre-populate with custom data from form
+       */
+      window.prePopulateCustomData = function () {
+        const customData = {
+          businessDetails: {
+            businessName: document.getElementById("businessName").value,
+            businessEmail: document.getElementById("businessEmail").value,
+            ein: document.getElementById("ein").value,
+            businessPhoneNumber: document.getElementById("businessPhone").value,
+            doingBusinessAs: document.getElementById("businessName").value,
+            businessWebsite: "https://example.com",
+            BusinessAddress1: "123 Main St",
+            businessCity: "San Francisco",
+            businessState: "CA",
+            businessPostalCode: "94105",
+          },
+        };
+
+        onboardingComponent.onLoad = customData;
+        showMessage("Form pre-populated with custom data", "success");
+        logEvent("custom-prepopulate", customData);
+      };
+
+      /**
+       * Reset the form
+       */
+      window.resetForm = function () {
+        onboardingComponent.resetForm();
+        showMessage("Form has been reset", "info");
+        logEvent("form-reset", {});
+      };
+
+      /**
+       * Get current form state
+       */
+      window.getFormState = function () {
+        const state = {
+          currentStep: onboardingComponent.state.currentStep,
+          completedSteps: Array.from(onboardingComponent.state.completedSteps),
+          isSubmitted: onboardingComponent.state.isSubmitted,
+          formData: onboardingComponent.state.formData,
+        };
+
+        console.log("Current Form State:", state);
+        logEvent("form-state-requested", state);
+        showMessage("Form state logged to console and event log", "info");
+      };
+
+      /**
+       * Set up event listeners
+       */
+
+      // Form completion event
+      onboardingComponent.addEventListener("formComplete", (event) => {
+        console.log("✅ Form completed:", event.detail);
+        logEvent("formComplete", event.detail);
+        updateStatus("ready", "Completed");
+        showMessage("Form submitted successfully!", "success");
+      });
+
+      // Submission failed event
+      onboardingComponent.addEventListener("submissionFailed", (event) => {
+        console.error("❌ Submission failed:", event.detail);
+        logEvent("submissionFailed", event.detail);
+        updateStatus("error", "Failed");
+        showMessage(`Submission failed: ${event.detail.message}`, "error");
+      });
+
+      // Onboarding confirmed event (after clicking Done)
+      onboardingComponent.addEventListener("onboardingConfirmed", (event) => {
+        console.log("✅ Onboarding confirmed:", event.detail);
+        logEvent("onboardingConfirmed", event.detail);
+        updateStatus("ready", "Ready");
+        showMessage("Onboarding confirmed and form reset", "success");
+      });
+
+      /**
+       * Set up callback handlers (alternative to event listeners)
+       */
+      onboardingComponent.onSuccess = function (data) {
+        console.log("✅ onSuccess callback:", data);
+        logEvent("onSuccess-callback", data);
+      };
+
+      onboardingComponent.onError = function (error) {
+        console.error("❌ onError callback:", error);
+        logEvent("onError-callback", error);
+      };
+
+      onboardingComponent.onSubmit = function (formData) {
+        console.log("📝 onSubmit callback (before API call):", formData);
+        logEvent("onSubmit-callback", formData);
+
+        // You can modify the data here or cancel submission by returning false
+        // return false; // This would cancel the submission
+
+        // Return modified data or nothing to continue with original data
+        return formData;
+      };
+
+      onboardingComponent.onConfirm = function (data) {
+        console.log("✅ onConfirm callback:", data);
+        logEvent("onConfirm-callback", data);
+      };
+
+      // Log component status
+      console.log("✅ WioOnboarding Component Demo Loaded");
+      console.log("📝 The form is displayed inline below");
+      console.log("🔧 Check browser console for detailed logs");
+
+      // Show initial message
+      showMessage(
+        "WIO Onboarding component is ready. The form is displayed inline below.",
+        "info"
+      );
+
+      // Initial event log
+      logEvent("demo-loaded", {
+        message: "WIO Onboarding demo initialized",
+        component: "wio-onboarding",
+        displayMode: "inline",
+      });
+    </script>
+  </body>
+</html>

@@ -113,6 +113,12 @@ class OperatorBankAccount extends HTMLElement {
     // Trigger verification if email changed and component is connected
     if (value && value !== oldEmail && this.isConnected) {
       this.verifyAndInitialize();
+    } else if (!value && this.isConnected) {
+      // No email provided, show error state
+      this._state.isLoading = false;
+      this._state.initializationError = true;
+      this._state.error = "Email is required";
+      this.updateButtonState();
     }
   }
 
@@ -186,8 +192,10 @@ class OperatorBankAccount extends HTMLElement {
     if (this._state.email) {
       this.verifyAndInitialize();
     } else {
-      // No email provided yet, show loading state (email may be set via JavaScript)
-      this._state.isLoading = true;
+      // No email provided yet, show error state with tooltip
+      this._state.isLoading = false;
+      this._state.initializationError = true;
+      this._state.error = "Email is required";
       this.updateButtonState();
     }
   }
@@ -201,7 +209,10 @@ class OperatorBankAccount extends HTMLElement {
 
     switch (name) {
       case "email":
-        console.log("OperatorBankAccount: attributeChangedCallback - email:", newValue);
+        console.log(
+          "OperatorBankAccount: attributeChangedCallback - email:",
+          newValue
+        );
         this._state.email = newValue;
         // Reset state when email changes
         this._state.moovToken = null;
@@ -282,10 +293,14 @@ class OperatorBankAccount extends HTMLElement {
 
     const existingScript = document.querySelector('script[src*="moov.js"]');
     if (existingScript) {
-      console.log("OperatorBankAccount: Moov SDK script found, waiting for load...");
+      console.log(
+        "OperatorBankAccount: Moov SDK script found, waiting for load..."
+      );
       return new Promise((resolve, reject) => {
         existingScript.addEventListener("load", () => {
-          console.log("OperatorBankAccount: Moov SDK loaded from existing script");
+          console.log(
+            "OperatorBankAccount: Moov SDK loaded from existing script"
+          );
           resolve();
         });
         existingScript.addEventListener("error", () =>
@@ -405,21 +420,40 @@ class OperatorBankAccount extends HTMLElement {
    * Verify operator and initialize Moov token
    */
   async verifyAndInitialize() {
+    console.log(
+      "🔍 OperatorBankAccount: verifyAndInitialize() called with email:",
+      this._state.email
+    );
+
     if (!this._state.email) {
-      console.warn("OperatorBankAccount: Email is required for verification");
+      console.warn(
+        "❌ OperatorBankAccount: Email is required for verification"
+      );
       this._state.isLoading = false;
       this._state.initializationError = true;
       this.updateButtonState();
       return;
     }
 
+    console.log("🔧 OperatorBankAccount: Checking if API is available...");
     // Ensure API is available (lazy initialization)
     if (!this.ensureAPI()) {
+      console.error(
+        "❌ OperatorBankAccount: ensureAPI() returned false - BisonJibPayAPI is not available"
+      );
+      console.error("❌ This is why verifyOperator is NOT being called!");
+      console.error(
+        "💡 Solution: Load component.js with type='module' or use api.js directly"
+      );
       this._state.isLoading = false;
       this._state.initializationError = true;
       this.updateButtonState();
       return;
     }
+
+    console.log(
+      "✅ OperatorBankAccount: API is available, proceeding with verification..."
+    );
 
     try {
       this._state.isLoading = true;
@@ -427,7 +461,10 @@ class OperatorBankAccount extends HTMLElement {
       this._state.initializationError = false;
       this.updateButtonState();
 
-      console.log("OperatorBankAccount: Verifying operator:", this._state.email);
+      console.log(
+        "OperatorBankAccount: Verifying operator:",
+        this._state.email
+      );
 
       // Step 1: Verify operator exists
       const verifyResult = await this.api.verifyOperator(this._state.email);
@@ -446,7 +483,10 @@ class OperatorBankAccount extends HTMLElement {
       }
 
       this._state.moovAccountId = accountResult.data.moovAccountId;
-      console.log("OperatorBankAccount: moovAccountId:", this._state.moovAccountId);
+      console.log(
+        "OperatorBankAccount: moovAccountId:",
+        this._state.moovAccountId
+      );
 
       // Step 3: Generate Moov token
       await this.generateMoovToken();
@@ -578,7 +618,9 @@ class OperatorBankAccount extends HTMLElement {
     this.injectMoovThemeStyles();
 
     // Remove any existing moov-payment-methods element
-    const existingMoovDrop = document.getElementById("operator-bank-account-moov-drop");
+    const existingMoovDrop = document.getElementById(
+      "operator-bank-account-moov-drop"
+    );
     if (existingMoovDrop) {
       existingMoovDrop.remove();
       console.log("OperatorBankAccount: Removed existing Moov drop element");
@@ -744,6 +786,7 @@ class OperatorBankAccount extends HTMLElement {
   updateButtonState() {
     const button = this.shadowRoot.querySelector(".add-bank-btn");
     const wrapper = this.shadowRoot.querySelector(".btn-wrapper");
+    const tooltip = this.shadowRoot.querySelector(".tooltip");
 
     if (!button) return;
 
@@ -760,6 +803,11 @@ class OperatorBankAccount extends HTMLElement {
       button.classList.add("error");
       button.disabled = true;
       if (wrapper) wrapper.classList.add("has-error");
+
+      // Update tooltip text based on error
+      if (tooltip && this._state.error) {
+        tooltip.textContent = this._state.error;
+      }
     }
     // Handle normal state (verified)
     else {
@@ -903,8 +951,8 @@ class OperatorBankAccount extends HTMLElement {
       </style>
 
       <div class="btn-wrapper">
-        <span class="tooltip">This operator does not have a profile</span>
-        <button class="add-bank-btn loading">
+        <span class="tooltip">Email is required</span>
+        <button class="add-bank-btn error">
           <span class="loading-spinner"></span>
           <svg class="error-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="10"></circle>
