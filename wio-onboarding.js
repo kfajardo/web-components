@@ -618,17 +618,21 @@ class WioOnboarding extends HTMLElement {
       });
     } else if (stepId === "representative-details") {
       const data = this.state.formData.representativeDetails;
-      const hasFirstName = data.representativeFirstName && data.representativeFirstName.trim();
-      const hasLastName = data.representativeLastName && data.representativeLastName.trim();
+      const hasFirstName =
+        data.representativeFirstName && data.representativeFirstName.trim();
+      const hasLastName =
+        data.representativeLastName && data.representativeLastName.trim();
 
       // If either field has a value, both become required
       if (hasFirstName || hasLastName) {
         if (!hasFirstName) {
-          errors.representativeFirstName = "Representative First Name is required";
+          errors.representativeFirstName =
+            "Representative First Name is required";
           isValid = false;
         }
         if (!hasLastName) {
-          errors.representativeLastName = "Representative Last Name is required";
+          errors.representativeLastName =
+            "Representative Last Name is required";
           isValid = false;
         }
       }
@@ -949,8 +953,14 @@ class WioOnboarding extends HTMLElement {
       console.log("=== DATA EXTRACTION DEBUG ===");
       console.log("businessDetails:", JSON.stringify(businessDetails, null, 2));
       console.log("bankDetails:", JSON.stringify(bankDetails, null, 2));
-      console.log("representativeDetails:", JSON.stringify(representativeDetails, null, 2));
-      console.log("businessVerification files count:", businessVerification?.verificationDocuments?.length || 0);
+      console.log(
+        "representativeDetails:",
+        JSON.stringify(representativeDetails, null, 2)
+      );
+      console.log(
+        "businessVerification files count:",
+        businessVerification?.verificationDocuments?.length || 0
+      );
       console.log("=== END DATA EXTRACTION DEBUG ===");
 
       // Build FormData for API submission
@@ -961,23 +971,47 @@ class WioOnboarding extends HTMLElement {
       payload.append("doingBusinessAs", businessDetails.doingBusinessAs || "");
       payload.append("ein", businessDetails.ein || "");
       payload.append("businessWebsite", businessDetails.businessWebsite || "");
-      payload.append("businessPhoneNumber", businessDetails.businessPhoneNumber || "");
+      payload.append(
+        "businessPhoneNumber",
+        businessDetails.businessPhoneNumber || ""
+      );
       payload.append("businessEmail", businessDetails.businessEmail || "");
-      payload.append("businessAddress1", businessDetails.BusinessAddress1 || "");
-      payload.append("businessAddress2", businessDetails.businessAddress2 || "");
+      payload.append(
+        "businessAddress1",
+        businessDetails.BusinessAddress1 || ""
+      );
+      payload.append(
+        "businessAddress2",
+        businessDetails.businessAddress2 || ""
+      );
       payload.append("businessCity", businessDetails.businessCity || "");
       payload.append("businessState", businessDetails.businessState || "");
-      payload.append("businessPostalCode", businessDetails.businessPostalCode || "");
+      payload.append(
+        "businessPostalCode",
+        businessDetails.businessPostalCode || ""
+      );
 
       // Add representative details
-      payload.append("representativeFirstName", representativeDetails.representativeFirstName || "");
-      payload.append("representativeLastName", representativeDetails.representativeLastName || "");
+      payload.append(
+        "representativeFirstName",
+        representativeDetails.representativeFirstName || ""
+      );
+      payload.append(
+        "representativeLastName",
+        representativeDetails.representativeLastName || ""
+      );
 
       // Add bank details
-      payload.append("bankAccountHolderName", bankDetails.bankAccountHolderName || "");
+      payload.append(
+        "bankAccountHolderName",
+        bankDetails.bankAccountHolderName || ""
+      );
       payload.append("bankRoutingNumber", bankDetails.bankRoutingNumber || "");
       payload.append("bankAccountNumber", bankDetails.bankAccountNumber || "");
-      payload.append("bankAccountType", bankDetails.bankAccountType || "checking");
+      payload.append(
+        "bankAccountType",
+        bankDetails.bankAccountType || "checking"
+      );
 
       // Add business verification documents (files)
       const verificationDocs = businessVerification.verificationDocuments || [];
@@ -991,7 +1025,10 @@ class WioOnboarding extends HTMLElement {
       console.log("=== WIO REGISTRATION DEBUG START ===");
       console.log("FormData entries:");
       for (const [key, value] of payload.entries()) {
-        console.log(`  ${key}:`, value instanceof File ? `File(${value.name})` : value);
+        console.log(
+          `  ${key}:`,
+          value instanceof File ? `File(${value.name})` : value
+        );
       }
 
       console.log("\nCalling API: registerWIO");
@@ -1045,7 +1082,7 @@ class WioOnboarding extends HTMLElement {
             ...processedData,
             apiResponse: response,
             email,
-            moovAccountId
+            moovAccountId,
           },
           bubbles: true,
           composed: true,
@@ -1053,11 +1090,11 @@ class WioOnboarding extends HTMLElement {
       );
 
       if (this.onSuccess && typeof this.onSuccess === "function") {
-        this.onSuccess({
+        await this.onSuccess({
           email,
           moovAccountId,
           formData: processedData,
-          apiResponse: response
+          apiResponse: response,
         });
       }
     } catch (error) {
@@ -1066,7 +1103,7 @@ class WioOnboarding extends HTMLElement {
     }
   }
 
-  handleSubmissionFailure(formData) {
+  async handleSubmissionFailure(formData) {
     const errorData = {
       formData,
       message: "Form submission failed. Please try again.",
@@ -1094,7 +1131,7 @@ class WioOnboarding extends HTMLElement {
     );
 
     if (this.onError && typeof this.onError === "function") {
-      this.onError(errorData);
+      await this.onError(errorData);
     }
   }
 
@@ -1120,8 +1157,10 @@ class WioOnboarding extends HTMLElement {
     this.resetForm();
   }
 
-  handleSendAgain() {
-    const email = this.state.submissionEmail || this.state.formData.businessDetails.businessEmail;
+  async handleSendAgain() {
+    const email =
+      this.state.submissionEmail ||
+      this.state.formData.businessDetails.businessEmail;
     const moovAccountId = this.state.submissionMoovAccountId;
 
     console.log("Send again clicked - calling onSuccess callback");
@@ -1143,11 +1182,11 @@ class WioOnboarding extends HTMLElement {
 
     // Call the same onSuccess callback
     if (this.onSuccess && typeof this.onSuccess === "function") {
-      this.onSuccess({
+      await this.onSuccess({
         email,
         moovAccountId,
         formData: this.state.formData,
-        resend: true
+        resend: true,
       });
     }
   }
