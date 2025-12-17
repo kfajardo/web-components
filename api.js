@@ -130,6 +130,16 @@ class BisonJibPayAPI {
     });
   }
 
+  /**
+   * Register WIO
+   */
+  async registerWIO(payload) {
+    return this.request("/api/embeddable/wio-registration", {
+      method: "POST",
+      body: payload, // FormData object
+    });
+  }
+
   async getAccountByEmail(operatorEmail) {
     const param = new URLSearchParams();
     param.append("email", operatorEmail);
@@ -453,10 +463,7 @@ class BisonJibPayAPI {
   }
 }
 
-// Export for module usage (ES6)
-export { BisonJibPayAPI };
-
-// Make available globally for script tag usage
+// Make available globally for script tag usage (primary export method)
 if (typeof window !== "undefined") {
   window.BisonJibPayAPI = BisonJibPayAPI;
 }

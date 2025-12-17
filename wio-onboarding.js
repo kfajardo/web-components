@@ -38,23 +38,42 @@ class WioOnboarding extends HTMLElement {
       "R80WMkbNN8457RofiMYx03DL65P06IaVT30Q2emYJUBQwYCzRC";
 
     // Check if BisonJibPayAPI is available
-    if (typeof BisonJibPayAPI === "undefined") {
+    const BisonJibPayAPIClass =
+      typeof BisonJibPayAPI !== "undefined"
+        ? BisonJibPayAPI
+        : typeof window !== "undefined" && window.BisonJibPayAPI;
+
+    if (!BisonJibPayAPIClass) {
       console.error(
         "WioOnboarding: BisonJibPayAPI is not available. Please ensure api.js is loaded before wio-onboarding.js"
       );
+      console.error(
+        "Available global objects:",
+        Object.keys(window).filter((k) => k.includes("Bison"))
+      );
       this.api = null;
     } else {
-      this.api = new BisonJibPayAPI(this.apiBaseURL, this.embeddableKey);
+      console.log(
+        "✅ WioOnboarding: BisonJibPayAPI found, initializing API client"
+      );
+      this.api = new BisonJibPayAPIClass(this.apiBaseURL, this.embeddableKey);
+      console.log("✅ WioOnboarding: API client initialized successfully");
     }
 
     // Initialize state (no isModalOpen needed for inline component)
     this.state = {
       currentStep: 0,
-      totalSteps: 4, // Business, Representatives, Bank, Underwriting
+      totalSteps: 5, // Personal, Business, Bank, Representatives, Business Verification
       isSubmitted: false,
       isFailed: false,
       isSubmissionFailed: false,
       formData: {
+        personalDetails: {
+          firstName: "",
+          lastName: "",
+          password: "",
+          confirmPassword: "",
+        },
         businessDetails: {
           businessName: "",
           doingBusinessAs: "",
@@ -63,13 +82,17 @@ class WioOnboarding extends HTMLElement {
           businessPhoneNumber: "",
           businessEmail: "",
           BusinessAddress1: "",
+          businessAddress2: "",
           businessCity: "",
           businessState: "",
           businessPostalCode: "",
         },
-        representatives: [],
-        underwriting: {
-          underwritingDocuments: [],
+        representativeDetails: {
+          representativeFirstName: "",
+          representativeLastName: "",
+        },
+        businessVerification: {
+          verificationDocuments: [],
         },
         bankDetails: {
           bankAccountHolderName: "",
@@ -79,10 +102,11 @@ class WioOnboarding extends HTMLElement {
         },
       },
       validationState: {
-        step0: { isValid: false, errors: {} }, // Business Details
-        step1: { isValid: true, errors: {} }, // Representatives (optional)
+        step0: { isValid: false, errors: {} }, // Personal Details
+        step1: { isValid: false, errors: {} }, // Business Details
         step2: { isValid: false, errors: {} }, // Bank Details
-        step3: { isValid: false, errors: {} }, // Underwriting (required)
+        step3: { isValid: false, errors: {} }, // Representatives
+        step4: { isValid: false, errors: {} }, // Business Verification (required)
       },
       completedSteps: new Set(),
       uiState: {
@@ -95,16 +119,16 @@ class WioOnboarding extends HTMLElement {
     // Step configuration
     this.STEPS = [
       {
+        id: "personal-details",
+        title: "Personal",
+        description: "Your personal information",
+        canSkip: false,
+      },
+      {
         id: "business-details",
         title: "Business",
         description: "Provide your business details",
         canSkip: false,
-      },
-      {
-        id: "representatives",
-        title: "Representatives",
-        description: "Add business representatives (optional)",
-        canSkip: true,
       },
       {
         id: "bank-details",
@@ -113,20 +137,71 @@ class WioOnboarding extends HTMLElement {
         canSkip: false,
       },
       {
-        id: "underwriting",
-        title: "Underwriting",
-        description: "Upload required documents",
+        id: "representative-details",
+        title: "Representative",
+        description: "Add representative information (optional)",
+        canSkip: true,
+      },
+      {
+        id: "business-verification",
+        title: "Business Verification",
+        description: "Upload required documents for verification",
         canSkip: false,
       },
     ];
 
     // US States for dropdown
     this.US_STATES = [
-      "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA",
-      "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD",
-      "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ",
-      "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC",
-      "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY",
+      "AL",
+      "AK",
+      "AZ",
+      "AR",
+      "CA",
+      "CO",
+      "CT",
+      "DE",
+      "FL",
+      "GA",
+      "HI",
+      "ID",
+      "IL",
+      "IN",
+      "IA",
+      "KS",
+      "KY",
+      "LA",
+      "ME",
+      "MD",
+      "MA",
+      "MI",
+      "MN",
+      "MS",
+      "MO",
+      "MT",
+      "NE",
+      "NV",
+      "NH",
+      "NJ",
+      "NM",
+      "NY",
+      "NC",
+      "ND",
+      "OH",
+      "OK",
+      "OR",
+      "PA",
+      "RI",
+      "SC",
+      "SD",
+      "TN",
+      "TX",
+      "UT",
+      "VT",
+      "VA",
+      "WA",
+      "WV",
+      "WI",
+      "WY",
     ];
 
     // Internal callback storage
@@ -282,7 +357,76 @@ class WioOnboarding extends HTMLElement {
         error: "Please enter a valid 5-digit ZIP code",
       };
     },
+
+    password: (value) => {
+      const checks = {
+        minLength: value.length >= 8,
+        hasUppercase: /[A-Z]/.test(value),
+        hasLowercase: /[a-z]/.test(value),
+        hasNumber: /[0-9]/.test(value),
+        hasSpecial: /[!@#$%^&*(),.?":{}|<>]/.test(value),
+      };
+
+      const allValid = Object.values(checks).every((check) => check);
+
+      return {
+        isValid: allValid,
+        error: allValid ? "" : "Password does not meet requirements",
+        checks,
+      };
+    },
   };
+
+  // Password strength calculation
+  calculatePasswordStrength(password) {
+    if (!password) {
+      return {
+        strength: 0,
+        label: "",
+        color: "",
+        checks: {
+          minLength: false,
+          hasUppercase: false,
+          hasLowercase: false,
+          hasNumber: false,
+          hasSpecial: false,
+        },
+      };
+    }
+
+    const checks = {
+      minLength: password.length >= 8,
+      hasUppercase: /[A-Z]/.test(password),
+      hasLowercase: /[a-z]/.test(password),
+      hasNumber: /[0-9]/.test(password),
+      hasSpecial: /[!@#$%^&*(),.?":{}|<>]/.test(password),
+    };
+
+    const validChecks = Object.values(checks).filter(Boolean).length;
+    const strength = (validChecks / 5) * 100;
+
+    let label = "";
+    let color = "";
+
+    if (strength === 0) {
+      label = "";
+      color = "";
+    } else if (strength <= 40) {
+      label = "Weak";
+      color = "#dc3545";
+    } else if (strength <= 60) {
+      label = "Fair";
+      color = "#ffc107";
+    } else if (strength <= 80) {
+      label = "Good";
+      color = "#17a2b8";
+    } else {
+      label = "Strong";
+      color = "#28a745";
+    }
+
+    return { strength, label, color, checks };
+  }
 
   // ==================== STATE MANAGEMENT ====================
 
@@ -327,19 +471,29 @@ class WioOnboarding extends HTMLElement {
     let isValid = true;
     const errors = {};
 
-    if (stepId === "business-details") {
-      const data = this.state.formData.businessDetails;
+    if (stepId === "personal-details") {
+      const data = this.state.formData.personalDetails;
       const fields = [
-        { name: "businessName", validators: ["required"], label: "Business Name" },
-        { name: "doingBusinessAs", validators: ["required"], label: "Doing Business As (DBA)" },
-        { name: "ein", validators: ["required", "ein"], label: "EIN" },
-        { name: "businessWebsite", validators: ["required", "url"], label: "Business Website" },
-        { name: "businessPhoneNumber", validators: ["required", "usPhone"], label: "Business Phone" },
-        { name: "businessEmail", validators: ["required", "email"], label: "Business Email" },
-        { name: "BusinessAddress1", validators: ["required"], label: "Street Address" },
-        { name: "businessCity", validators: ["required"], label: "City" },
-        { name: "businessState", validators: ["required"], label: "State" },
-        { name: "businessPostalCode", validators: ["required", "postalCode"], label: "ZIP Code" },
+        {
+          name: "firstName",
+          validators: ["required"],
+          label: "First Name",
+        },
+        {
+          name: "lastName",
+          validators: ["required"],
+          label: "Last Name",
+        },
+        {
+          name: "password",
+          validators: ["required", "password"],
+          label: "Password",
+        },
+        {
+          name: "confirmPassword",
+          validators: ["required"],
+          label: "Confirm Password",
+        },
       ];
 
       fields.forEach((field) => {
@@ -353,59 +507,102 @@ class WioOnboarding extends HTMLElement {
           isValid = false;
         }
       });
-    } else if (stepId === "representatives") {
-      this.state.formData.representatives.forEach((rep, index) => {
-        const hasAnyValue = Object.values(rep).some(
-          (v) =>
-            (typeof v === "string" && v.trim()) ||
-            (typeof v === "object" &&
-              Object.values(v).some((av) => av && av.trim()))
+
+      // Check if passwords match
+      if (
+        data.password &&
+        data.confirmPassword &&
+        data.password !== data.confirmPassword
+      ) {
+        errors.confirmPassword = "Passwords do not match";
+        isValid = false;
+      }
+    } else if (stepId === "business-details") {
+      const data = this.state.formData.businessDetails;
+      const fields = [
+        {
+          name: "businessName",
+          validators: ["required"],
+          label: "Business Name",
+        },
+        {
+          name: "doingBusinessAs",
+          validators: ["required"],
+          label: "Doing Business As (DBA)",
+        },
+        { name: "ein", validators: ["required", "ein"], label: "EIN" },
+        {
+          name: "businessWebsite",
+          validators: ["required", "url"],
+          label: "Business Website",
+        },
+        {
+          name: "businessPhoneNumber",
+          validators: ["required", "usPhone"],
+          label: "Business Phone",
+        },
+        {
+          name: "businessEmail",
+          validators: ["required", "email"],
+          label: "Business Email",
+        },
+        {
+          name: "BusinessAddress1",
+          validators: ["required"],
+          label: "Street Address",
+        },
+        { name: "businessCity", validators: ["required"], label: "City" },
+        { name: "businessState", validators: ["required"], label: "State" },
+        {
+          name: "businessPostalCode",
+          validators: ["required", "postalCode"],
+          label: "ZIP Code",
+        },
+      ];
+
+      fields.forEach((field) => {
+        const error = this.validateField(
+          data[field.name],
+          field.validators,
+          field.label
         );
-
-        if (hasAnyValue) {
-          const requiredFields = [
-            { name: "representativeFirstName", validators: ["required"], label: "First Name" },
-            { name: "representativeLastName", validators: ["required"], label: "Last Name" },
-            { name: "representativeJobTitle", validators: ["required"], label: "Job Title" },
-            { name: "representativePhone", validators: ["required", "usPhone"], label: "Phone" },
-            { name: "representativeEmail", validators: ["required", "email"], label: "Email" },
-            { name: "representativeDateOfBirth", validators: ["required"], label: "Date of Birth" },
-            { name: "representativeAddress", validators: ["required"], label: "Address" },
-            { name: "representativeCity", validators: ["required"], label: "City" },
-            { name: "representativeState", validators: ["required"], label: "State" },
-            { name: "representativeZip", validators: ["required", "postalCode"], label: "ZIP Code" },
-          ];
-
-          requiredFields.forEach((field) => {
-            const error = this.validateField(
-              rep[field.name],
-              field.validators,
-              field.label
-            );
-            if (error) {
-              if (!errors[`rep${index}`]) errors[`rep${index}`] = {};
-              errors[`rep${index}`][field.name] = error;
-              isValid = false;
-            }
-          });
+        if (error) {
+          errors[field.name] = error;
+          isValid = false;
         }
       });
-    } else if (stepId === "underwriting") {
-      const data = this.state.formData.underwriting;
+    } else if (stepId === "business-verification") {
+      const data = this.state.formData.businessVerification;
       if (
-        !data.underwritingDocuments ||
-        data.underwritingDocuments.length === 0
+        !data.verificationDocuments ||
+        data.verificationDocuments.length === 0
       ) {
-        errors.underwritingDocuments = "At least one document is required";
+        errors.verificationDocuments = "At least one document is required";
         isValid = false;
       }
     } else if (stepId === "bank-details") {
       const data = this.state.formData.bankDetails;
       const fields = [
-        { name: "bankAccountHolderName", validators: ["required"], label: "Account Holder Name" },
-        { name: "bankAccountType", validators: ["required"], label: "Account Type" },
-        { name: "bankRoutingNumber", validators: ["required", "routingNumber"], label: "Routing Number" },
-        { name: "bankAccountNumber", validators: ["required", "accountNumber"], label: "Account Number" },
+        {
+          name: "bankAccountHolderName",
+          validators: ["required"],
+          label: "Account Holder Name",
+        },
+        {
+          name: "bankAccountType",
+          validators: ["required"],
+          label: "Account Type",
+        },
+        {
+          name: "bankRoutingNumber",
+          validators: ["required", "routingNumber"],
+          label: "Routing Number",
+        },
+        {
+          name: "bankAccountNumber",
+          validators: ["required", "accountNumber"],
+          label: "Account Number",
+        },
       ];
 
       fields.forEach((field) => {
@@ -419,6 +616,23 @@ class WioOnboarding extends HTMLElement {
           isValid = false;
         }
       });
+    } else if (stepId === "representative-details") {
+      const data = this.state.formData.representativeDetails;
+      const hasFirstName = data.representativeFirstName && data.representativeFirstName.trim();
+      const hasLastName = data.representativeLastName && data.representativeLastName.trim();
+
+      // If either field has a value, both become required
+      if (hasFirstName || hasLastName) {
+        if (!hasFirstName) {
+          errors.representativeFirstName = "Representative First Name is required";
+          isValid = false;
+        }
+        if (!hasLastName) {
+          errors.representativeLastName = "Representative Last Name is required";
+          isValid = false;
+        }
+      }
+      // If both are empty, step is valid (optional step)
     }
 
     this.setState({
@@ -489,55 +703,17 @@ class WioOnboarding extends HTMLElement {
     }
   }
 
-  // ==================== REPRESENTATIVES CRUD ====================
-
-  addRepresentative() {
-    const newRep = {
-      id: crypto.randomUUID(),
-      representativeFirstName: "",
-      representativeLastName: "",
-      representativeJobTitle: "",
-      representativePhone: "",
-      representativeEmail: "",
-      representativeDateOfBirth: "",
-      representativeAddress: "",
-      representativeCity: "",
-      representativeState: "",
-      representativeZip: "",
-    };
-
-    this.setState({
-      formData: {
-        representatives: [...this.state.formData.representatives, newRep],
-      },
-    });
-  }
-
-  removeRepresentative(index) {
-    const representatives = this.state.formData.representatives.filter(
-      (_, i) => i !== index
-    );
-    this.setState({
-      formData: { representatives },
-    });
-  }
-
-  updateRepresentative(index, field, value) {
-    const representatives = [...this.state.formData.representatives];
-    representatives[index] = {
-      ...representatives[index],
-      [field]: value,
-    };
-
-    this.setState({
-      formData: { representatives },
-    });
-  }
-
   // ==================== INITIAL DATA LOADING ====================
 
   loadInitialData(data) {
     const newFormData = { ...this.state.formData };
+
+    if (data.personalDetails) {
+      newFormData.personalDetails = {
+        ...newFormData.personalDetails,
+        ...data.personalDetails,
+      };
+    }
 
     if (data.businessDetails) {
       newFormData.businessDetails = {
@@ -546,26 +722,10 @@ class WioOnboarding extends HTMLElement {
       };
     }
 
-    if (data.representatives && Array.isArray(data.representatives)) {
-      newFormData.representatives = data.representatives.map((rep) => ({
-        id: rep.id || crypto.randomUUID(),
-        representativeFirstName: rep.representativeFirstName || "",
-        representativeLastName: rep.representativeLastName || "",
-        representativeJobTitle: rep.representativeJobTitle || "",
-        representativePhone: rep.representativePhone || "",
-        representativeEmail: rep.representativeEmail || "",
-        representativeDateOfBirth: rep.representativeDateOfBirth || "",
-        representativeAddress: rep.representativeAddress || "",
-        representativeCity: rep.representativeCity || "",
-        representativeState: rep.representativeState || "",
-        representativeZip: rep.representativeZip || "",
-      }));
-    }
-
-    if (data.underwriting) {
-      newFormData.underwriting = {
-        ...newFormData.underwriting,
-        ...data.underwriting,
+    if (data.businessVerification) {
+      newFormData.businessVerification = {
+        ...newFormData.businessVerification,
+        ...data.businessVerification,
       };
     }
 
@@ -576,11 +736,22 @@ class WioOnboarding extends HTMLElement {
       };
     }
 
+    if (data.representativeDetails) {
+      newFormData.representativeDetails = {
+        ...newFormData.representativeDetails,
+        ...data.representativeDetails,
+      };
+    }
+
     const newState = {
       formData: newFormData,
     };
 
-    if (typeof data.initialStep === "number" && data.initialStep >= 0 && data.initialStep < this.state.totalSteps) {
+    if (
+      typeof data.initialStep === "number" &&
+      data.initialStep >= 0 &&
+      data.initialStep < this.state.totalSteps
+    ) {
       newState.currentStep = data.initialStep;
     }
 
@@ -589,6 +760,12 @@ class WioOnboarding extends HTMLElement {
 
   resetForm() {
     const defaultFormData = {
+      personalDetails: {
+        firstName: "",
+        lastName: "",
+        password: "",
+        confirmPassword: "",
+      },
       businessDetails: {
         businessName: "",
         doingBusinessAs: "",
@@ -597,13 +774,17 @@ class WioOnboarding extends HTMLElement {
         businessPhoneNumber: "",
         businessEmail: "",
         BusinessAddress1: "",
+        businessAddress2: "",
         businessCity: "",
         businessState: "",
         businessPostalCode: "",
       },
-      representatives: [],
-      underwriting: {
-        underwritingDocuments: [],
+      representativeDetails: {
+        representativeFirstName: "",
+        representativeLastName: "",
+      },
+      businessVerification: {
+        verificationDocuments: [],
       },
       bankDetails: {
         bankAccountHolderName: "",
@@ -615,9 +796,10 @@ class WioOnboarding extends HTMLElement {
 
     const defaultValidationState = {
       step0: { isValid: false, errors: {} },
-      step1: { isValid: true, errors: {} },
+      step1: { isValid: false, errors: {} },
       step2: { isValid: false, errors: {} },
       step3: { isValid: false, errors: {} },
+      step4: { isValid: false, errors: {} },
     };
 
     this.state = {
@@ -691,9 +873,10 @@ class WioOnboarding extends HTMLElement {
     completedSteps.add(this.state.currentStep);
 
     const formData = {
+      personalDetails: this.state.formData.personalDetails,
       businessDetails: this.state.formData.businessDetails,
-      representatives: this.state.formData.representatives,
-      underwriting: this.state.formData.underwriting,
+      representativeDetails: this.state.formData.representativeDetails,
+      businessVerification: this.state.formData.businessVerification,
       bankDetails: this.state.formData.bankDetails,
     };
 
@@ -722,51 +905,125 @@ class WioOnboarding extends HTMLElement {
       uiState: { isLoading: true },
     });
 
+    // Ensure API is available (with fallback initialization)
     if (!this.api) {
-      console.error("WioOnboarding: API not available for registration");
+      console.warn(
+        "WioOnboarding: API was null, attempting to reinitialize..."
+      );
+      const BisonJibPayAPIClass =
+        typeof BisonJibPayAPI !== "undefined"
+          ? BisonJibPayAPI
+          : typeof window !== "undefined" && window.BisonJibPayAPI;
+
+      if (BisonJibPayAPIClass) {
+        console.log("✅ Found BisonJibPayAPI, reinitializing...");
+        this.api = new BisonJibPayAPIClass(this.apiBaseURL, this.embeddableKey);
+      } else {
+        console.error("❌ WioOnboarding: BisonJibPayAPI class not found");
+        console.error(
+          "Available globals:",
+          typeof window !== "undefined"
+            ? Object.keys(window).filter((k) =>
+                k.toLowerCase().includes("bison")
+              )
+            : "N/A"
+        );
+        this.handleSubmissionFailure(processedData);
+        return;
+      }
+    }
+
+    if (!this.api) {
+      console.error("❌ WioOnboarding: API initialization failed completely");
       this.handleSubmissionFailure(processedData);
       return;
     }
 
     try {
-      const apiFormData = new FormData();
-
       const businessDetails = processedData.businessDetails;
-      apiFormData.append("businessName", businessDetails.businessName || "");
-      apiFormData.append("doingBusinessAs", businessDetails.doingBusinessAs || "");
-      apiFormData.append("ein", businessDetails.ein || "");
-      apiFormData.append("businessWebsite", businessDetails.businessWebsite || "");
-      apiFormData.append("businessPhoneNumber", businessDetails.businessPhoneNumber || "");
-      apiFormData.append("businessEmail", businessDetails.businessEmail || "");
-      apiFormData.append("businessAddress1", businessDetails.BusinessAddress1 || "");
-      apiFormData.append("businessCity", businessDetails.businessCity || "");
-      apiFormData.append("businessState", businessDetails.businessState || "");
-      apiFormData.append("businessPostalCode", businessDetails.businessPostalCode || "");
-
-      if (processedData.representatives && processedData.representatives.length > 0) {
-        apiFormData.append("representatives", JSON.stringify(processedData.representatives));
-      }
-
       const bankDetails = processedData.bankDetails;
-      apiFormData.append("bankAccountHolderName", bankDetails.bankAccountHolderName || "");
-      apiFormData.append("bankAccountType", bankDetails.bankAccountType || "checking");
-      apiFormData.append("bankRoutingNumber", bankDetails.bankRoutingNumber || "");
-      apiFormData.append("bankAccountNumber", bankDetails.bankAccountNumber || "");
+      const representativeDetails = processedData.representativeDetails;
+      const businessVerification = processedData.businessVerification;
 
-      const underwritingDocs = processedData.underwriting?.underwritingDocuments || [];
-      underwritingDocs.forEach((file) => {
+      // Debug: Log the extracted data objects
+      console.log("=== DATA EXTRACTION DEBUG ===");
+      console.log("businessDetails:", JSON.stringify(businessDetails, null, 2));
+      console.log("bankDetails:", JSON.stringify(bankDetails, null, 2));
+      console.log("representativeDetails:", JSON.stringify(representativeDetails, null, 2));
+      console.log("businessVerification files count:", businessVerification?.verificationDocuments?.length || 0);
+      console.log("=== END DATA EXTRACTION DEBUG ===");
+
+      // Build FormData for API submission
+      const payload = new FormData();
+
+      // Add business details
+      payload.append("businessName", businessDetails.businessName || "");
+      payload.append("doingBusinessAs", businessDetails.doingBusinessAs || "");
+      payload.append("ein", businessDetails.ein || "");
+      payload.append("businessWebsite", businessDetails.businessWebsite || "");
+      payload.append("businessPhoneNumber", businessDetails.businessPhoneNumber || "");
+      payload.append("businessEmail", businessDetails.businessEmail || "");
+      payload.append("businessAddress1", businessDetails.BusinessAddress1 || "");
+      payload.append("businessAddress2", businessDetails.businessAddress2 || "");
+      payload.append("businessCity", businessDetails.businessCity || "");
+      payload.append("businessState", businessDetails.businessState || "");
+      payload.append("businessPostalCode", businessDetails.businessPostalCode || "");
+
+      // Add representative details
+      payload.append("representativeFirstName", representativeDetails.representativeFirstName || "");
+      payload.append("representativeLastName", representativeDetails.representativeLastName || "");
+
+      // Add bank details
+      payload.append("bankAccountHolderName", bankDetails.bankAccountHolderName || "");
+      payload.append("bankRoutingNumber", bankDetails.bankRoutingNumber || "");
+      payload.append("bankAccountNumber", bankDetails.bankAccountNumber || "");
+      payload.append("bankAccountType", bankDetails.bankAccountType || "checking");
+
+      // Add business verification documents (files)
+      const verificationDocs = businessVerification.verificationDocuments || [];
+      verificationDocs.forEach((file) => {
         if (file instanceof File) {
-          apiFormData.append("underwritingDocuments", file);
+          payload.append("businessVerificationDocuments", file);
         }
       });
 
-      const response = await this.api.registerOperator(apiFormData);
-      console.log("WioOnboarding: registerOperator API response", response);
+      // Enhanced debugging - Log payload
+      console.log("=== WIO REGISTRATION DEBUG START ===");
+      console.log("FormData entries:");
+      for (const [key, value] of payload.entries()) {
+        console.log(`  ${key}:`, value instanceof File ? `File(${value.name})` : value);
+      }
 
-      if (shouldFail || !response.success) {
+      console.log("\nCalling API: registerWIO");
+      const response = await this.api.registerWIO(payload);
+
+      console.log("\n=== API RESPONSE DEBUG ===");
+      console.log("Full response object:", JSON.stringify(response, null, 2));
+      console.log("Response type:", typeof response);
+      console.log("Response.success:", response?.success);
+      console.log("Response.data:", response?.data);
+      console.log("Response.message:", response?.message);
+      console.log("Response.errors:", response?.errors);
+      console.log("=== WIO REGISTRATION DEBUG END ===\n");
+
+      // Check if response indicates success
+      const isSuccess =
+        response && (response.success === true || response.success === "true");
+
+      if (shouldFail || !isSuccess) {
+        console.error("❌ WioOnboarding: Submission failed");
+        console.error(
+          "Reason: shouldFail =",
+          shouldFail,
+          "| isSuccess =",
+          isSuccess
+        );
+        console.error("Full response:", response);
         this.handleSubmissionFailure(processedData);
         return;
       }
+
+      console.log("✅ WioOnboarding: Submission successful!");
 
       this.setState({
         isSubmitted: true,
@@ -785,7 +1042,7 @@ class WioOnboarding extends HTMLElement {
         this.onSuccess({ ...processedData, apiResponse: response });
       }
     } catch (error) {
-      console.error("WioOnboarding: registerOperator API error", error);
+      console.error("WioOnboarding: registerWIO API error", error);
       this.handleSubmissionFailure(processedData);
     }
   }
@@ -858,7 +1115,8 @@ class WioOnboarding extends HTMLElement {
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     ];
 
-    const currentFiles = this.state.formData.underwriting.underwritingDocuments || [];
+    const currentFiles =
+      this.state.formData.businessVerification.verificationDocuments || [];
     const validFiles = [];
     const errors = [];
 
@@ -888,8 +1146,8 @@ class WioOnboarding extends HTMLElement {
     if (validFiles.length > 0) {
       this.setState({
         formData: {
-          underwriting: {
-            underwritingDocuments: [...currentFiles, ...validFiles],
+          businessVerification: {
+            verificationDocuments: [...currentFiles, ...validFiles],
           },
         },
       });
@@ -897,13 +1155,15 @@ class WioOnboarding extends HTMLElement {
   }
 
   removeFile(index) {
-    const files = [...this.state.formData.underwriting.underwritingDocuments];
+    const files = [
+      ...this.state.formData.businessVerification.verificationDocuments,
+    ];
     files.splice(index, 1);
 
     this.setState({
       formData: {
-        underwriting: {
-          underwritingDocuments: files,
+        businessVerification: {
+          verificationDocuments: files,
         },
       },
     });
@@ -915,7 +1175,6 @@ class WioOnboarding extends HTMLElement {
     const input = e.target;
     const name = input.name;
     let value = input.value;
-    const repIndex = input.dataset.repIndex;
 
     if (input.dataset.format === "ein") {
       const cursorPosition = input.selectionStart;
@@ -933,29 +1192,179 @@ class WioOnboarding extends HTMLElement {
     if (input.dataset.format === "phone") {
       const cursorPosition = input.selectionStart;
       const oldValue = value;
+      const oldDigits = oldValue.replace(/\D/g, "");
+
       value = this.formatPhoneNumber(value);
       input.value = value;
 
-      const oldDigits = oldValue.replace(/\D/g, "").length;
-      const newDigits = value.replace(/\D/g, "").length;
+      const newDigits = value.replace(/\D/g, "");
 
-      if (newDigits > oldDigits) {
-        const adjustment = value.length - oldValue.length;
-        input.setSelectionRange(cursorPosition + adjustment, cursorPosition + adjustment);
-      } else {
-        input.setSelectionRange(cursorPosition, cursorPosition);
+      // Calculate new cursor position based on digit count before cursor
+      const digitsBeforeCursor = oldValue
+        .substring(0, cursorPosition)
+        .replace(/\D/g, "").length;
+
+      let newCursorPos = 0;
+      let digitCount = 0;
+
+      for (
+        let i = 0;
+        i < value.length && digitCount < digitsBeforeCursor;
+        i++
+      ) {
+        if (/\d/.test(value[i])) {
+          digitCount++;
+        }
+        newCursorPos = i + 1;
       }
+
+      // If we added digits, move cursor to end of new content
+      if (newDigits.length > oldDigits.length) {
+        newCursorPos = value.length;
+      }
+
+      input.setSelectionRange(newCursorPos, newCursorPos);
     }
 
     const stepId = this.STEPS[this.state.currentStep].id;
 
-    if (stepId === "business-details") {
+    if (stepId === "personal-details") {
+      this.state.formData.personalDetails[name] = input.value;
+
+      // Trigger re-render for password field to update strength indicator
+      if (name === "password") {
+        this.updatePasswordStrengthIndicator(input.value);
+      }
+    } else if (stepId === "business-details") {
       this.state.formData.businessDetails[name] = input.value;
-    } else if (stepId === "representatives" && repIndex !== undefined) {
-      const idx = parseInt(repIndex);
-      this.state.formData.representatives[idx][name] = input.value;
     } else if (stepId === "bank-details") {
       this.state.formData.bankDetails[name] = input.value;
+    } else if (stepId === "representative-details") {
+      this.state.formData.representativeDetails[name] = input.value;
+    }
+  }
+
+  updatePasswordStrengthIndicator(password) {
+    const shadow = this.shadowRoot;
+    const passwordField = shadow.querySelector("#password");
+
+    if (!passwordField) return;
+
+    // Find the password field container
+    const passwordContainer = passwordField.closest(".form-field");
+    if (!passwordContainer) return;
+
+    // Find existing strength indicator or requirements
+    const existingStrength =
+      passwordContainer.querySelector(".password-strength");
+    const existingRequirements = passwordContainer.querySelector(
+      ".password-requirements"
+    );
+    const errorMessage = passwordContainer.querySelector(".error-message");
+
+    // If password is empty, show requirements
+    if (!password) {
+      if (existingStrength) {
+        existingStrength.remove();
+      }
+      if (!existingRequirements) {
+        const requirementsHTML = `<div class="password-requirements">
+           <p style="font-size: 12px; color: var(--gray-medium); margin-top: 8px;">
+             Password must contain:
+           </p>
+           <ul style="font-size: 12px; color: var(--gray-medium); margin: 4px 0 0 20px; padding: 0;">
+             <li>At least 8 characters</li>
+             <li>One uppercase letter (A-Z)</li>
+             <li>One lowercase letter (a-z)</li>
+             <li>One number (0-9)</li>
+             <li>One special character (!@#$%^&*)</li>
+           </ul>
+         </div>`;
+
+        const tempDiv = document.createElement("div");
+        tempDiv.innerHTML = requirementsHTML;
+        const newRequirements = tempDiv.firstElementChild;
+
+        if (errorMessage) {
+          passwordContainer.insertBefore(newRequirements, errorMessage);
+        } else {
+          passwordContainer.appendChild(newRequirements);
+        }
+      }
+      return;
+    }
+
+    // Remove requirements if showing
+    if (existingRequirements) {
+      existingRequirements.remove();
+    }
+
+    // Calculate new strength values
+    const { strength, label, color, checks } =
+      this.calculatePasswordStrength(password);
+
+    // If strength indicator already exists, just update its values smoothly
+    if (existingStrength) {
+      const fillBar = existingStrength.querySelector(".password-strength-fill");
+      const strengthLabel = existingStrength.querySelector(
+        ".password-strength-label span:first-child"
+      );
+      const strengthPercentage = existingStrength.querySelector(
+        ".password-strength-label span:last-child"
+      );
+      const checkItems = existingStrength.querySelectorAll(
+        ".password-check-item"
+      );
+
+      // Update fill bar with smooth transition
+      if (fillBar) {
+        fillBar.style.width = `${strength}%`;
+        fillBar.style.backgroundColor = color;
+      }
+
+      // Update label and percentage
+      if (strengthLabel) {
+        strengthLabel.textContent = label;
+        strengthLabel.style.color = color;
+      }
+      if (strengthPercentage) {
+        strengthPercentage.textContent = `${strength.toFixed(0)}%`;
+      }
+
+      // Update check items
+      const checkKeys = [
+        "minLength",
+        "hasUppercase",
+        "hasLowercase",
+        "hasNumber",
+        "hasSpecial",
+      ];
+      checkItems.forEach((item, index) => {
+        const checkKey = checkKeys[index];
+        const isValid = checks[checkKey];
+        const icon = item.querySelector(".password-check-icon");
+
+        if (isValid) {
+          item.classList.add("valid");
+          if (icon) icon.textContent = "✓";
+        } else {
+          item.classList.remove("valid");
+          if (icon) icon.textContent = "○";
+        }
+      });
+    } else {
+      // Create new indicator HTML if it doesn't exist
+      const strengthHTML = this.renderPasswordStrength(password);
+      const tempDiv = document.createElement("div");
+      tempDiv.innerHTML = strengthHTML;
+      const newIndicator = tempDiv.firstElementChild;
+
+      // Insert before error message if it exists, otherwise append to container
+      if (errorMessage) {
+        passwordContainer.insertBefore(newIndicator, errorMessage);
+      } else {
+        passwordContainer.appendChild(newIndicator);
+      }
     }
   }
 
@@ -963,7 +1372,6 @@ class WioOnboarding extends HTMLElement {
     const input = e.target;
     const name = input.name;
     const value = input.value;
-    const repIndex = input.dataset.repIndex;
 
     if (input.dataset.format === "phone") {
       input.value = this.formatPhoneNumber(value);
@@ -982,13 +1390,14 @@ class WioOnboarding extends HTMLElement {
 
     const stepId = this.STEPS[this.state.currentStep].id;
 
-    if (stepId === "business-details") {
+    if (stepId === "personal-details") {
+      this.state.formData.personalDetails[name] = input.value;
+    } else if (stepId === "business-details") {
       this.state.formData.businessDetails[name] = input.value;
-    } else if (stepId === "representatives" && repIndex !== undefined) {
-      const idx = parseInt(repIndex);
-      this.state.formData.representatives[idx][name] = input.value;
     } else if (stepId === "bank-details") {
       this.state.formData.bankDetails[name] = input.value;
+    } else if (stepId === "representative-details") {
+      this.state.formData.representativeDetails[name] = input.value;
     }
   }
 
@@ -1088,17 +1497,128 @@ class WioOnboarding extends HTMLElement {
     const stepId = this.STEPS[this.state.currentStep].id;
 
     switch (stepId) {
+      case "personal-details":
+        return this.renderPersonalDetailsForm();
       case "business-details":
         return this.renderBusinessDetailsForm();
-      case "representatives":
-        return this.renderRepresentativesForm();
       case "bank-details":
         return this.renderBankDetailsForm();
-      case "underwriting":
-        return this.renderUnderwritingForm();
+      case "representative-details":
+        return this.renderRepresentativeDetailsForm();
+      case "business-verification":
+        return this.renderBusinessVerificationForm();
       default:
         return "";
     }
+  }
+
+  renderPasswordStrength(password) {
+    const { strength, label, color, checks } =
+      this.calculatePasswordStrength(password);
+
+    return `
+      <div class="password-strength">
+        <div class="password-strength-bar">
+          <div class="password-strength-fill" style="width: ${strength}%; background-color: ${color};"></div>
+        </div>
+        <div class="password-strength-label">
+          <span style="color: ${color};">${label}</span>
+          <span>${strength.toFixed(0)}%</span>
+        </div>
+        <div class="password-check">
+          <div class="password-check-item ${checks.minLength ? "valid" : ""}">
+            <span class="password-check-icon">${checks.minLength ? "✓" : "○"}</span>
+            <span>8+ characters</span>
+          </div>
+          <div class="password-check-item ${checks.hasUppercase ? "valid" : ""}">
+            <span class="password-check-icon">${checks.hasUppercase ? "✓" : "○"}</span>
+            <span>Uppercase (A-Z)</span>
+          </div>
+          <div class="password-check-item ${checks.hasLowercase ? "valid" : ""}">
+            <span class="password-check-icon">${checks.hasLowercase ? "✓" : "○"}</span>
+            <span>Lowercase (a-z)</span>
+          </div>
+          <div class="password-check-item ${checks.hasNumber ? "valid" : ""}">
+            <span class="password-check-icon">${checks.hasNumber ? "✓" : "○"}</span>
+            <span>Number (0-9)</span>
+          </div>
+          <div class="password-check-item ${checks.hasSpecial ? "valid" : ""}">
+            <span class="password-check-icon">${checks.hasSpecial ? "✓" : "○"}</span>
+            <span>Special (!@#$%...)</span>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  renderPersonalDetailsForm() {
+    const data = this.state.formData.personalDetails;
+
+    return `
+      <div class="form-section">
+        <h2>Personal Information</h2>
+        <p>Provide your personal details</p>
+
+        <div class="form-grid">
+          ${this.renderField({
+            name: "firstName",
+            label: "First Name *",
+            value: data.firstName,
+            error: this.getFieldError("firstName"),
+          })}
+
+          ${this.renderField({
+            name: "lastName",
+            label: "Last Name *",
+            value: data.lastName,
+            error: this.getFieldError("lastName"),
+          })}
+
+          <div class="form-field full-width ${
+            this.getFieldError("password") ? "has-error" : ""
+          }">
+            <label for="password">Password <span class="required-asterisk">*</span></label>
+            <input
+              type="password"
+              id="password"
+              name="password"
+              value="${data.password}"
+              autocomplete="new-password"
+            />
+            ${
+              data.password
+                ? this.renderPasswordStrength(data.password)
+                : `<div class="password-requirements">
+                    <p style="font-size: 12px; color: var(--gray-medium); margin-top: 8px;">
+                      Password must contain:
+                    </p>
+                    <ul style="font-size: 12px; color: var(--gray-medium); margin: 4px 0 0 20px; padding: 0;">
+                      <li>At least 8 characters</li>
+                      <li>One uppercase letter (A-Z)</li>
+                      <li>One lowercase letter (a-z)</li>
+                      <li>One number (0-9)</li>
+                      <li>One special character (!@#$%^&*)</li>
+                    </ul>
+                  </div>`
+            }
+            ${
+              this.getFieldError("password")
+                ? `<span class="error-message">${this.getFieldError("password")}</span>`
+                : ""
+            }
+          </div>
+
+          ${this.renderField({
+            name: "confirmPassword",
+            label: "Confirm Password *",
+            type: "password",
+            value: data.confirmPassword,
+            error: this.getFieldError("confirmPassword"),
+            className: "full-width",
+          })}
+        </div>
+      </div>
+    `;
   }
 
   renderField({
@@ -1211,6 +1731,14 @@ class WioOnboarding extends HTMLElement {
           })}
 
           ${this.renderField({
+            name: "businessAddress2",
+            label: "Street Address 2 (Optional)",
+            value: data.businessAddress2,
+            error: this.getFieldError("businessAddress2"),
+            className: "full-width",
+          })}
+
+          ${this.renderField({
             name: "businessCity",
             label: "City *",
             value: data.businessCity,
@@ -1248,160 +1776,6 @@ class WioOnboarding extends HTMLElement {
             placeholder: "12345",
             maxLength: 5,
           })}
-        </div>
-      </div>
-    `;
-  }
-
-  renderRepresentativesForm() {
-    const representatives = this.state.formData.representatives;
-
-    return `
-      <div class="form-section">
-        <h2>Business Representatives</h2>
-        <p>Add business representatives (optional)</p>
-
-        <div class="representatives-list">
-          ${
-            representatives.length === 0
-              ? `
-            <div class="empty-state">
-              <p>No representatives added yet. Click below to add one.</p>
-            </div>
-          `
-              : ""
-          }
-          ${representatives
-            .map((rep, index) => this.renderRepresentativeCard(rep, index))
-            .join("")}
-        </div>
-
-        <button type="button" class="add-representative-btn">
-          + Add Representative
-        </button>
-      </div>
-    `;
-  }
-
-  renderRepresentativeCard(representative, index) {
-    return `
-      <div class="representative-card" data-index="${index}">
-        <div class="card-header">
-          <h3>Representative ${index + 1}</h3>
-          <button type="button" class="remove-btn" data-index="${index}">Remove</button>
-        </div>
-        <div class="card-body">
-          <div class="form-grid">
-            ${this.renderField({
-              name: "representativeFirstName",
-              label: "First Name *",
-              value: representative.representativeFirstName,
-              error: this.getFieldError("representativeFirstName", index),
-              dataRepIndex: index,
-            })}
-
-            ${this.renderField({
-              name: "representativeLastName",
-              label: "Last Name *",
-              value: representative.representativeLastName,
-              error: this.getFieldError("representativeLastName", index),
-              dataRepIndex: index,
-            })}
-
-            ${this.renderField({
-              name: "representativeJobTitle",
-              label: "Job Title *",
-              value: representative.representativeJobTitle,
-              error: this.getFieldError("representativeJobTitle", index),
-              dataRepIndex: index,
-              className: "full-width",
-            })}
-
-            ${this.renderField({
-              name: "representativePhone",
-              label: "Phone *",
-              type: "tel",
-              value: representative.representativePhone,
-              error: this.getFieldError("representativePhone", index),
-              placeholder: "(555) 123-4567",
-              dataRepIndex: index,
-              dataFormat: "phone",
-            })}
-
-            ${this.renderField({
-              name: "representativeEmail",
-              label: "Email *",
-              type: "email",
-              value: representative.representativeEmail,
-              error: this.getFieldError("representativeEmail", index),
-              dataRepIndex: index,
-            })}
-
-            ${this.renderField({
-              name: "representativeDateOfBirth",
-              label: "Date of Birth *",
-              type: "date",
-              value: representative.representativeDateOfBirth,
-              error: this.getFieldError("representativeDateOfBirth", index),
-              dataRepIndex: index,
-              className: "full-width",
-            })}
-
-            ${this.renderField({
-              name: "representativeAddress",
-              label: "Address *",
-              value: representative.representativeAddress,
-              error: this.getFieldError("representativeAddress", index),
-              dataRepIndex: index,
-              className: "full-width",
-            })}
-
-            ${this.renderField({
-              name: "representativeCity",
-              label: "City *",
-              value: representative.representativeCity,
-              error: this.getFieldError("representativeCity", index),
-              dataRepIndex: index,
-            })}
-
-            <div class="form-field ${
-              this.getFieldError("representativeState", index)
-                ? "has-error"
-                : ""
-            }">
-              <label for="representativeState-${index}">State <span class="required-asterisk">*</span></label>
-              <select id="representativeState-${index}" name="representativeState" data-rep-index="${index}">
-                <option value="">Select State</option>
-                ${this.US_STATES.map(
-                  (state) => `
-                  <option value="${state}" ${
-                    representative.representativeState === state
-                      ? "selected"
-                      : ""
-                  }>${state}</option>
-                `
-                ).join("")}
-              </select>
-              ${
-                this.getFieldError("representativeState", index)
-                  ? `<span class="error-message">${this.getFieldError(
-                      "representativeState",
-                      index
-                    )}</span>`
-                  : ""
-              }
-            </div>
-
-            ${this.renderField({
-              name: "representativeZip",
-              label: "ZIP Code *",
-              value: representative.representativeZip,
-              error: this.getFieldError("representativeZip", index),
-              placeholder: "12345",
-              maxLength: 5,
-              dataRepIndex: index,
-            })}
-          </div>
         </div>
       </div>
     `;
@@ -1463,23 +1837,50 @@ class WioOnboarding extends HTMLElement {
     `;
   }
 
-  renderUnderwritingForm() {
-    const data = this.state.formData.underwriting;
-    const underwritingDocuments = data.underwritingDocuments || [];
-    const error = this.getFieldError("underwritingDocuments");
+  renderRepresentativeDetailsForm() {
+    const data = this.state.formData.representativeDetails;
+
+    return `
+      <div class="form-section">
+        <h2>Representative Information</h2>
+        <p>Add representative details (optional - if started, both fields become required)</p>
+
+        <div class="form-grid">
+          ${this.renderField({
+            name: "representativeFirstName",
+            label: "Representative First Name",
+            value: data.representativeFirstName,
+            error: this.getFieldError("representativeFirstName"),
+          })}
+
+          ${this.renderField({
+            name: "representativeLastName",
+            label: "Representative Last Name",
+            value: data.representativeLastName,
+            error: this.getFieldError("representativeLastName"),
+          })}
+        </div>
+      </div>
+    `;
+  }
+
+  renderBusinessVerificationForm() {
+    const data = this.state.formData.businessVerification;
+    const verificationDocuments = data.verificationDocuments || [];
+    const error = this.getFieldError("verificationDocuments");
     const showErrors = this.state.uiState.showErrors;
 
     return `
       <div class="form-section">
-        <h2>Underwriting Documents</h2>
-        <p>Upload supporting documents (required, max 10 files, 10MB each)</p>
+        <h2>Business Verification</h2>
+        <p>Upload supporting documents for verification (required, max 10 files, 10MB each)</p>
 
         <div class="form-grid">
           <div class="form-field full-width ${
             showErrors && error ? "has-error" : ""
           }">
-            <label for="underwritingDocs">
-              Upload Documents <span class="required-asterisk">*</span>
+            <label for="verificationDocs">
+              Upload Verification Documents <span class="required-asterisk">*</span>
               <span style="font-size: 12px; color: var(--gray-medium); font-weight: normal;">
                 (PDF, JPG, PNG, DOC, DOCX - Max 10MB each)
               </span>
@@ -1510,8 +1911,8 @@ class WioOnboarding extends HTMLElement {
                 ">Browse Files</button>
                 <input
                   type="file"
-                  id="underwritingDocs"
-                  name="underwritingDocs"
+                  id="verificationDocs"
+                  name="verificationDocs"
                   multiple
                   accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
                   style="display: none;"
@@ -1521,8 +1922,8 @@ class WioOnboarding extends HTMLElement {
 
             <div id="fileList" style="margin-top: var(--spacing-md);">
               ${
-                underwritingDocuments.length > 0
-                  ? this.renderFileList(underwritingDocuments)
+                verificationDocuments.length > 0
+                  ? this.renderFileList(verificationDocuments)
                   : ""
               }
             </div>
@@ -1606,8 +2007,7 @@ class WioOnboarding extends HTMLElement {
   }
 
   renderSuccessPage() {
-    const { businessDetails, representatives, bankDetails } =
-      this.state.formData;
+    const { businessDetails, bankDetails } = this.state.formData;
 
     return `
       <div class="success-container">
@@ -1635,10 +2035,6 @@ class WioOnboarding extends HTMLElement {
             <span class="detail-value">${
               businessDetails.businessPhoneNumber
             }</span>
-          </div>
-          <div class="detail-item">
-            <span class="detail-label">Representatives</span>
-            <span class="detail-value">${representatives.length} added</span>
           </div>
           <div class="detail-item">
             <span class="detail-label">Bank Account</span>
@@ -1759,25 +2155,8 @@ class WioOnboarding extends HTMLElement {
       });
     });
 
-    // Representative CRUD - use mousedown to prevent blur interference
-    const addBtn = shadow.querySelector(".add-representative-btn");
-    if (addBtn) {
-      addBtn.addEventListener("mousedown", (e) => {
-        e.preventDefault();
-        this.addRepresentative();
-      });
-    }
-
-    shadow.querySelectorAll(".remove-btn").forEach((btn) => {
-      btn.addEventListener("mousedown", (e) => {
-        e.preventDefault();
-        const index = parseInt(e.target.dataset.index);
-        this.removeRepresentative(index);
-      });
-    });
-
-    // File upload handlers for underwriting documents
-    const fileInput = shadow.querySelector("#underwritingDocs");
+    // File upload handlers for business verification documents
+    const fileInput = shadow.querySelector("#verificationDocs");
     const dragDropArea = shadow.querySelector("#dragDropArea");
     const browseBtn = shadow.querySelector(".btn-browse");
 
@@ -1958,7 +2337,7 @@ class WioOnboarding extends HTMLElement {
           content: '';
           position: absolute;
           top: 20px;
-          left: 60%;
+          left: 50%;
           width: 100%;
           height: 2px;
           background: var(--border-color);
@@ -2062,12 +2441,14 @@ class WioOnboarding extends HTMLElement {
 
         .form-field input,
         .form-field select {
-          padding: 10px 12px;
+          padding: 9px 12px;
           border: 1px solid var(--border-color);
           border-radius: var(--border-radius-sm);
           font-size: 14px;
           font-family: inherit;
           transition: border-color 0.2s ease;
+          height: 39px;
+          box-sizing: border-box;
         }
 
         .form-field input:focus,
@@ -2084,6 +2465,68 @@ class WioOnboarding extends HTMLElement {
         .error-message {
           font-size: 12px;
           color: var(--error-color);
+        }
+
+        /* Password Strength Indicator */
+        .password-strength {
+          margin-top: 8px;
+        }
+
+        .password-strength-bar {
+          height: 6px;
+          background: var(--gray-light);
+          border-radius: 3px;
+          overflow: hidden;
+          margin-bottom: 6px;
+        }
+
+        .password-strength-fill {
+          height: 100%;
+          transition: width 0.3s ease, background-color 0.3s ease;
+          border-radius: 3px;
+        }
+
+        .password-strength-label {
+          font-size: 12px;
+          font-weight: 500;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+
+        .password-requirements {
+          margin-top: 8px;
+        }
+
+        .password-requirements ul {
+          list-style: disc;
+        }
+
+        .password-requirements li {
+          line-height: 1.6;
+        }
+
+        .password-check {
+          font-size: 12px;
+          color: var(--gray-medium);
+          margin-top: 6px;
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 4px;
+        }
+
+        .password-check-item {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+
+        .password-check-item.valid {
+          color: #28a745;
+        }
+
+        .password-check-icon {
+          font-size: 14px;
         }
 
         /* Radio Group */
