@@ -63,17 +63,11 @@ class WioOnboarding extends HTMLElement {
     // Initialize state (no isModalOpen needed for inline component)
     this.state = {
       currentStep: 0,
-      totalSteps: 5, // Personal, Business, Bank, Representatives, Business Verification
+      totalSteps: 4, // Business, Bank, Representatives, Business Verification
       isSubmitted: false,
       isFailed: false,
       isSubmissionFailed: false,
       formData: {
-        personalDetails: {
-          firstName: "",
-          lastName: "",
-          password: "",
-          confirmPassword: "",
-        },
         businessDetails: {
           businessName: "",
           doingBusinessAs: "",
@@ -87,10 +81,7 @@ class WioOnboarding extends HTMLElement {
           businessState: "",
           businessPostalCode: "",
         },
-        representativeDetails: {
-          representativeFirstName: "",
-          representativeLastName: "",
-        },
+        representatives: [],
         businessVerification: {
           verificationDocuments: [],
         },
@@ -102,11 +93,10 @@ class WioOnboarding extends HTMLElement {
         },
       },
       validationState: {
-        step0: { isValid: false, errors: {} }, // Personal Details
-        step1: { isValid: false, errors: {} }, // Business Details
-        step2: { isValid: false, errors: {} }, // Bank Details
-        step3: { isValid: false, errors: {} }, // Representatives
-        step4: { isValid: false, errors: {} }, // Business Verification (required)
+        step0: { isValid: false, errors: {} }, // Business Details
+        step1: { isValid: false, errors: {} }, // Bank Details
+        step2: { isValid: false, errors: {} }, // Representatives
+        step3: { isValid: false, errors: {} }, // Business Verification (required)
       },
       completedSteps: new Set(),
       uiState: {
@@ -118,12 +108,6 @@ class WioOnboarding extends HTMLElement {
 
     // Step configuration
     this.STEPS = [
-      {
-        id: "personal-details",
-        title: "Personal",
-        description: "Your personal information",
-        canSkip: false,
-      },
       {
         id: "business-details",
         title: "Business",
@@ -357,76 +341,7 @@ class WioOnboarding extends HTMLElement {
         error: "Please enter a valid 5-digit ZIP code",
       };
     },
-
-    password: (value) => {
-      const checks = {
-        minLength: value.length >= 8,
-        hasUppercase: /[A-Z]/.test(value),
-        hasLowercase: /[a-z]/.test(value),
-        hasNumber: /[0-9]/.test(value),
-        hasSpecial: /[!@#$%^&*(),.?":{}|<>]/.test(value),
-      };
-
-      const allValid = Object.values(checks).every((check) => check);
-
-      return {
-        isValid: allValid,
-        error: allValid ? "" : "Password does not meet requirements",
-        checks,
-      };
-    },
   };
-
-  // Password strength calculation
-  calculatePasswordStrength(password) {
-    if (!password) {
-      return {
-        strength: 0,
-        label: "",
-        color: "",
-        checks: {
-          minLength: false,
-          hasUppercase: false,
-          hasLowercase: false,
-          hasNumber: false,
-          hasSpecial: false,
-        },
-      };
-    }
-
-    const checks = {
-      minLength: password.length >= 8,
-      hasUppercase: /[A-Z]/.test(password),
-      hasLowercase: /[a-z]/.test(password),
-      hasNumber: /[0-9]/.test(password),
-      hasSpecial: /[!@#$%^&*(),.?":{}|<>]/.test(password),
-    };
-
-    const validChecks = Object.values(checks).filter(Boolean).length;
-    const strength = (validChecks / 5) * 100;
-
-    let label = "";
-    let color = "";
-
-    if (strength === 0) {
-      label = "";
-      color = "";
-    } else if (strength <= 40) {
-      label = "Weak";
-      color = "#dc3545";
-    } else if (strength <= 60) {
-      label = "Fair";
-      color = "#ffc107";
-    } else if (strength <= 80) {
-      label = "Good";
-      color = "#17a2b8";
-    } else {
-      label = "Strong";
-      color = "#28a745";
-    }
-
-    return { strength, label, color, checks };
-  }
 
   // ==================== STATE MANAGEMENT ====================
 
@@ -471,53 +386,7 @@ class WioOnboarding extends HTMLElement {
     let isValid = true;
     const errors = {};
 
-    if (stepId === "personal-details") {
-      const data = this.state.formData.personalDetails;
-      const fields = [
-        {
-          name: "firstName",
-          validators: ["required"],
-          label: "First Name",
-        },
-        {
-          name: "lastName",
-          validators: ["required"],
-          label: "Last Name",
-        },
-        {
-          name: "password",
-          validators: ["required", "password"],
-          label: "Password",
-        },
-        {
-          name: "confirmPassword",
-          validators: ["required"],
-          label: "Confirm Password",
-        },
-      ];
-
-      fields.forEach((field) => {
-        const error = this.validateField(
-          data[field.name],
-          field.validators,
-          field.label
-        );
-        if (error) {
-          errors[field.name] = error;
-          isValid = false;
-        }
-      });
-
-      // Check if passwords match
-      if (
-        data.password &&
-        data.confirmPassword &&
-        data.password !== data.confirmPassword
-      ) {
-        errors.confirmPassword = "Passwords do not match";
-        isValid = false;
-      }
-    } else if (stepId === "business-details") {
+    if (stepId === "business-details") {
       const data = this.state.formData.businessDetails;
       const fields = [
         {
@@ -617,26 +486,83 @@ class WioOnboarding extends HTMLElement {
         }
       });
     } else if (stepId === "representative-details") {
-      const data = this.state.formData.representativeDetails;
-      const hasFirstName =
-        data.representativeFirstName && data.representativeFirstName.trim();
-      const hasLastName =
-        data.representativeLastName && data.representativeLastName.trim();
+      // Validate each representative if any field is filled
+      this.state.formData.representatives.forEach((rep, index) => {
+        const hasAnyValue = Object.values(rep).some(
+          (v) =>
+            (typeof v === "string" && v.trim()) ||
+            (typeof v === "object" &&
+              Object.values(v).some((av) => av && av.trim()))
+        );
 
-      // If either field has a value, both become required
-      if (hasFirstName || hasLastName) {
-        if (!hasFirstName) {
-          errors.representativeFirstName =
-            "Representative First Name is required";
-          isValid = false;
+        if (hasAnyValue) {
+          const requiredFields = [
+            {
+              name: "representativeFirstName",
+              validators: ["required"],
+              label: "First Name",
+            },
+            {
+              name: "representativeLastName",
+              validators: ["required"],
+              label: "Last Name",
+            },
+            {
+              name: "representativeJobTitle",
+              validators: ["required"],
+              label: "Job Title",
+            },
+            {
+              name: "representativePhone",
+              validators: ["required", "usPhone"],
+              label: "Phone",
+            },
+            {
+              name: "representativeEmail",
+              validators: ["required", "email"],
+              label: "Email",
+            },
+            {
+              name: "representativeDateOfBirth",
+              validators: ["required"],
+              label: "Date of Birth",
+            },
+            {
+              name: "representativeAddress",
+              validators: ["required"],
+              label: "Address",
+            },
+            {
+              name: "representativeCity",
+              validators: ["required"],
+              label: "City",
+            },
+            {
+              name: "representativeState",
+              validators: ["required"],
+              label: "State",
+            },
+            {
+              name: "representativeZip",
+              validators: ["required", "postalCode"],
+              label: "ZIP Code",
+            },
+          ];
+
+          requiredFields.forEach((field) => {
+            const error = this.validateField(
+              rep[field.name],
+              field.validators,
+              field.label
+            );
+            if (error) {
+              if (!errors[`rep${index}`]) errors[`rep${index}`] = {};
+              errors[`rep${index}`][field.name] = error;
+              isValid = false;
+            }
+          });
         }
-        if (!hasLastName) {
-          errors.representativeLastName =
-            "Representative Last Name is required";
-          isValid = false;
-        }
-      }
-      // If both are empty, step is valid (optional step)
+      });
     }
 
     this.setState({
@@ -707,17 +633,55 @@ class WioOnboarding extends HTMLElement {
     }
   }
 
+  // ==================== REPRESENTATIVES CRUD ====================
+
+  addRepresentative() {
+    const newRep = {
+      id: crypto.randomUUID(),
+      representativeFirstName: "",
+      representativeLastName: "",
+      representativeJobTitle: "",
+      representativePhone: "",
+      representativeEmail: "",
+      representativeDateOfBirth: "",
+      representativeAddress: "",
+      representativeCity: "",
+      representativeState: "",
+      representativeZip: "",
+    };
+
+    this.setState({
+      formData: {
+        representatives: [...this.state.formData.representatives, newRep],
+      },
+    });
+  }
+
+  removeRepresentative(index) {
+    const representatives = this.state.formData.representatives.filter(
+      (_, i) => i !== index
+    );
+    this.setState({
+      formData: { representatives },
+    });
+  }
+
+  updateRepresentative(index, field, value) {
+    const representatives = [...this.state.formData.representatives];
+    representatives[index] = {
+      ...representatives[index],
+      [field]: value,
+    };
+
+    this.setState({
+      formData: { representatives },
+    });
+  }
+
   // ==================== INITIAL DATA LOADING ====================
 
   loadInitialData(data) {
     const newFormData = { ...this.state.formData };
-
-    if (data.personalDetails) {
-      newFormData.personalDetails = {
-        ...newFormData.personalDetails,
-        ...data.personalDetails,
-      };
-    }
 
     if (data.businessDetails) {
       newFormData.businessDetails = {
@@ -740,11 +704,20 @@ class WioOnboarding extends HTMLElement {
       };
     }
 
-    if (data.representativeDetails) {
-      newFormData.representativeDetails = {
-        ...newFormData.representativeDetails,
-        ...data.representativeDetails,
-      };
+    if (data.representatives && Array.isArray(data.representatives)) {
+      newFormData.representatives = data.representatives.map((rep) => ({
+        id: rep.id || crypto.randomUUID(),
+        representativeFirstName: rep.representativeFirstName || "",
+        representativeLastName: rep.representativeLastName || "",
+        representativeJobTitle: rep.representativeJobTitle || "",
+        representativePhone: rep.representativePhone || "",
+        representativeEmail: rep.representativeEmail || "",
+        representativeDateOfBirth: rep.representativeDateOfBirth || "",
+        representativeAddress: rep.representativeAddress || "",
+        representativeCity: rep.representativeCity || "",
+        representativeState: rep.representativeState || "",
+        representativeZip: rep.representativeZip || "",
+      }));
     }
 
     const newState = {
@@ -764,12 +737,6 @@ class WioOnboarding extends HTMLElement {
 
   resetForm() {
     const defaultFormData = {
-      personalDetails: {
-        firstName: "",
-        lastName: "",
-        password: "",
-        confirmPassword: "",
-      },
       businessDetails: {
         businessName: "",
         doingBusinessAs: "",
@@ -783,10 +750,7 @@ class WioOnboarding extends HTMLElement {
         businessState: "",
         businessPostalCode: "",
       },
-      representativeDetails: {
-        representativeFirstName: "",
-        representativeLastName: "",
-      },
+      representatives: [],
       businessVerification: {
         verificationDocuments: [],
       },
@@ -803,7 +767,6 @@ class WioOnboarding extends HTMLElement {
       step1: { isValid: false, errors: {} },
       step2: { isValid: false, errors: {} },
       step3: { isValid: false, errors: {} },
-      step4: { isValid: false, errors: {} },
     };
 
     this.state = {
@@ -877,9 +840,8 @@ class WioOnboarding extends HTMLElement {
     completedSteps.add(this.state.currentStep);
 
     const formData = {
-      personalDetails: this.state.formData.personalDetails,
       businessDetails: this.state.formData.businessDetails,
-      representativeDetails: this.state.formData.representativeDetails,
+      representatives: this.state.formData.representatives,
       businessVerification: this.state.formData.businessVerification,
       bankDetails: this.state.formData.bankDetails,
     };
@@ -991,15 +953,16 @@ class WioOnboarding extends HTMLElement {
         businessDetails.businessPostalCode || ""
       );
 
-      // Add representative details
-      payload.append(
-        "representativeFirstName",
-        representativeDetails.representativeFirstName || ""
-      );
-      payload.append(
-        "representativeLastName",
-        representativeDetails.representativeLastName || ""
-      );
+      // Add representatives as JSON string
+      if (
+        processedData.representatives &&
+        processedData.representatives.length > 0
+      ) {
+        payload.append(
+          "representatives",
+          JSON.stringify(processedData.representatives)
+        );
+      }
 
       // Add bank details
       payload.append(
@@ -1318,19 +1281,18 @@ class WioOnboarding extends HTMLElement {
 
     const stepId = this.STEPS[this.state.currentStep].id;
 
-    if (stepId === "personal-details") {
-      this.state.formData.personalDetails[name] = input.value;
-
-      // Trigger re-render for password field to update strength indicator
-      if (name === "password") {
-        this.updatePasswordStrengthIndicator(input.value);
-      }
-    } else if (stepId === "business-details") {
+    if (stepId === "business-details") {
       this.state.formData.businessDetails[name] = input.value;
     } else if (stepId === "bank-details") {
       this.state.formData.bankDetails[name] = input.value;
     } else if (stepId === "representative-details") {
-      this.state.formData.representativeDetails[name] = input.value;
+      const repIndex = input.dataset.repIndex;
+      if (repIndex !== undefined) {
+        const idx = parseInt(repIndex);
+        if (this.state.formData.representatives[idx]) {
+          this.state.formData.representatives[idx][name] = input.value;
+        }
+      }
     }
   }
 
@@ -1480,14 +1442,18 @@ class WioOnboarding extends HTMLElement {
 
     const stepId = this.STEPS[this.state.currentStep].id;
 
-    if (stepId === "personal-details") {
-      this.state.formData.personalDetails[name] = input.value;
-    } else if (stepId === "business-details") {
+    if (stepId === "business-details") {
       this.state.formData.businessDetails[name] = input.value;
     } else if (stepId === "bank-details") {
       this.state.formData.bankDetails[name] = input.value;
     } else if (stepId === "representative-details") {
-      this.state.formData.representativeDetails[name] = input.value;
+      const repIndex = input.dataset.repIndex;
+      if (repIndex !== undefined) {
+        const idx = parseInt(repIndex);
+        if (this.state.formData.representatives[idx]) {
+          this.state.formData.representatives[idx][name] = input.value;
+        }
+      }
     }
   }
 
@@ -1587,8 +1553,6 @@ class WioOnboarding extends HTMLElement {
     const stepId = this.STEPS[this.state.currentStep].id;
 
     switch (stepId) {
-      case "personal-details":
-        return this.renderPersonalDetailsForm();
       case "business-details":
         return this.renderBusinessDetailsForm();
       case "bank-details":
@@ -1928,27 +1892,154 @@ class WioOnboarding extends HTMLElement {
   }
 
   renderRepresentativeDetailsForm() {
-    const data = this.state.formData.representativeDetails;
+    const representatives = this.state.formData.representatives;
 
     return `
       <div class="form-section">
-        <h2>Representative Information</h2>
-        <p>Add representative details (optional - if started, both fields become required)</p>
+        <h2>Business Representatives</h2>
+        <p>Add business representatives (optional)</p>
+        
+        <div class="representatives-list">
+          ${
+            representatives.length === 0
+              ? `
+            <div class="empty-state">
+              <p>No representatives added yet. Click below to add one.</p>
+            </div>
+          `
+              : ""
+          }
+          ${representatives
+            .map((rep, index) => this.renderRepresentativeCard(rep, index))
+            .join("")}
+        </div>
+        
+        <button type="button" class="add-representative-btn">
+          + Add Representative
+        </button>
+      </div>
+    `;
+  }
 
-        <div class="form-grid">
-          ${this.renderField({
-            name: "representativeFirstName",
-            label: "Representative First Name",
-            value: data.representativeFirstName,
-            error: this.getFieldError("representativeFirstName"),
-          })}
-
-          ${this.renderField({
-            name: "representativeLastName",
-            label: "Representative Last Name",
-            value: data.representativeLastName,
-            error: this.getFieldError("representativeLastName"),
-          })}
+  renderRepresentativeCard(representative, index) {
+    return `
+      <div class="representative-card" data-index="${index}">
+        <div class="card-header">
+          <h3>Representative ${index + 1}</h3>
+          <button type="button" class="remove-btn" data-index="${index}">Remove</button>
+        </div>
+        <div class="card-body">
+          <div class="form-grid">
+            ${this.renderField({
+              name: "representativeFirstName",
+              label: "First Name *",
+              value: representative.representativeFirstName,
+              error: this.getFieldError("representativeFirstName", index),
+              dataRepIndex: index,
+            })}
+            
+            ${this.renderField({
+              name: "representativeLastName",
+              label: "Last Name *",
+              value: representative.representativeLastName,
+              error: this.getFieldError("representativeLastName", index),
+              dataRepIndex: index,
+            })}
+            
+            ${this.renderField({
+              name: "representativeJobTitle",
+              label: "Job Title *",
+              value: representative.representativeJobTitle,
+              error: this.getFieldError("representativeJobTitle", index),
+              dataRepIndex: index,
+              className: "full-width",
+            })}
+            
+            ${this.renderField({
+              name: "representativePhone",
+              label: "Phone *",
+              type: "tel",
+              value: representative.representativePhone,
+              error: this.getFieldError("representativePhone", index),
+              placeholder: "(555) 123-4567",
+              dataRepIndex: index,
+              dataFormat: "phone",
+            })}
+            
+            ${this.renderField({
+              name: "representativeEmail",
+              label: "Email *",
+              type: "email",
+              value: representative.representativeEmail,
+              error: this.getFieldError("representativeEmail", index),
+              dataRepIndex: index,
+            })}
+            
+            ${this.renderField({
+              name: "representativeDateOfBirth",
+              label: "Date of Birth *",
+              type: "date",
+              value: representative.representativeDateOfBirth,
+              error: this.getFieldError("representativeDateOfBirth", index),
+              dataRepIndex: index,
+              className: "full-width",
+            })}
+            
+            ${this.renderField({
+              name: "representativeAddress",
+              label: "Address *",
+              value: representative.representativeAddress,
+              error: this.getFieldError("representativeAddress", index),
+              dataRepIndex: index,
+              className: "full-width",
+            })}
+            
+            ${this.renderField({
+              name: "representativeCity",
+              label: "City *",
+              value: representative.representativeCity,
+              error: this.getFieldError("representativeCity", index),
+              dataRepIndex: index,
+            })}
+            
+            <div class="form-field ${
+              this.getFieldError("representativeState", index)
+                ? "has-error"
+                : ""
+            }">
+              <label for="representativeState-${index}">State <span class="required-asterisk">*</span></label>
+              <select id="representativeState-${index}" name="representativeState" data-rep-index="${index}">
+                <option value="">Select State</option>
+                ${this.US_STATES.map(
+                  (state) => `
+                  <option value="${state}" ${
+                    representative.representativeState === state
+                      ? "selected"
+                      : ""
+                  }>${state}</option>
+                `
+                ).join("")}
+              </select>
+              ${
+                this.getFieldError("representativeState", index)
+                  ? `<span class="error-message">${this.getFieldError(
+                      "representativeState",
+                      index
+                    )}</span>`
+                  : ""
+              }
+            </div>
+            
+            ${this.renderField({
+              name: "representativeZip",
+              label: "ZIP Code *",
+              value: representative.representativeZip,
+              error: this.getFieldError("representativeZip", index),
+              placeholder: "12345",
+              maxLength: 5,
+              dataRepIndex: index,
+            })}
+          </div>
         </div>
       </div>
     `;
@@ -2332,6 +2423,23 @@ class WioOnboarding extends HTMLElement {
         e.stopPropagation();
         const index = parseInt(btn.dataset.index);
         this.removeFile(index);
+      });
+    });
+
+    // Representative CRUD - use mousedown to prevent blur interference
+    const addBtn = shadow.querySelector(".add-representative-btn");
+    if (addBtn) {
+      addBtn.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        this.addRepresentative();
+      });
+    }
+
+    shadow.querySelectorAll(".remove-btn").forEach((btn) => {
+      btn.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        const index = parseInt(e.target.dataset.index);
+        this.removeRepresentative(index);
       });
     });
   }
