@@ -1025,21 +1025,40 @@ class WioOnboarding extends HTMLElement {
 
       console.log("✅ WioOnboarding: Submission successful!");
 
+      // Extract email and moovAccountId from response
+      const email = processedData.businessDetails.businessEmail;
+      const moovAccountId = response?.data?.moovAccountId || null;
+
+      console.log("Extracted email:", email);
+      console.log("Extracted moovAccountId:", moovAccountId);
+
       this.setState({
         isSubmitted: true,
+        submissionEmail: email,
+        submissionMoovAccountId: moovAccountId,
         uiState: { isLoading: false },
       });
 
       this.dispatchEvent(
         new CustomEvent("formComplete", {
-          detail: { ...processedData, apiResponse: response },
+          detail: {
+            ...processedData,
+            apiResponse: response,
+            email,
+            moovAccountId
+          },
           bubbles: true,
           composed: true,
         })
       );
 
       if (this.onSuccess && typeof this.onSuccess === "function") {
-        this.onSuccess({ ...processedData, apiResponse: response });
+        this.onSuccess({
+          email,
+          moovAccountId,
+          formData: processedData,
+          apiResponse: response
+        });
       }
     } catch (error) {
       console.error("WioOnboarding: registerWIO API error", error);
@@ -1099,6 +1118,38 @@ class WioOnboarding extends HTMLElement {
 
     // Reset form after confirmation
     this.resetForm();
+  }
+
+  handleSendAgain() {
+    const email = this.state.submissionEmail || this.state.formData.businessDetails.businessEmail;
+    const moovAccountId = this.state.submissionMoovAccountId;
+
+    console.log("Send again clicked - calling onSuccess callback");
+    console.log("Email:", email);
+    console.log("MoovAccountId:", moovAccountId);
+
+    // Dispatch event for parent to handle email resend
+    this.dispatchEvent(
+      new CustomEvent("resendVerification", {
+        detail: {
+          email,
+          moovAccountId,
+          timestamp: new Date().toISOString(),
+        },
+        bubbles: true,
+        composed: true,
+      })
+    );
+
+    // Call the same onSuccess callback
+    if (this.onSuccess && typeof this.onSuccess === "function") {
+      this.onSuccess({
+        email,
+        moovAccountId,
+        formData: this.state.formData,
+        resend: true
+      });
+    }
   }
 
   // ==================== FILE HANDLING ====================
@@ -2017,11 +2068,31 @@ class WioOnboarding extends HTMLElement {
           </svg>
         </div>
 
-        <h2>Onboarding Complete! 🎉</h2>
-        <p>Your WIO application has been successfully submitted.</p>
+        <h2>Bison Account Created! 🎉</h2>
+        <p style="color: #333; font-size: 16px; margin-bottom: var(--spacing-lg);">
+          Your WIO onboarding has been successfully completed.
+        </p>
+
+        <div class="verification-notice">
+          <div class="verification-icon">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--primary-color);">
+              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+              <polyline points="22,6 12,13 2,6"></polyline>
+            </svg>
+          </div>
+          <h3 style="font-size: 18px; color: #333; margin-bottom: var(--spacing-sm);">
+            We've sent a verification link to
+          </h3>
+          <p style="font-size: 16px; font-weight: 600; color: var(--primary-color); margin-bottom: var(--spacing-sm);">
+            ${businessDetails.businessEmail}
+          </p>
+          <p style="font-size: 14px; color: var(--gray-medium); line-height: 1.6;">
+            If an account exists with this email, a magic link has been sent.
+          </p>
+        </div>
 
         <div class="success-details">
-          <h3>Submission Summary</h3>
+          <h3>Account Summary</h3>
           <div class="detail-item">
             <span class="detail-label">Business Name</span>
             <span class="detail-value">${businessDetails.businessName}</span>
@@ -2046,15 +2117,14 @@ class WioOnboarding extends HTMLElement {
           </div>
         </div>
 
-        <p style="font-size: 14px; color: var(--gray-medium); margin-top: var(--spacing-lg);">
-          A confirmation email has been sent to <strong>${
-            businessDetails.businessEmail
-          }</strong>
-        </p>
-
-        <button class="btn-confirm-success" type="button">
-          Done
-        </button>
+        <div style="display: flex; flex-direction: column; gap: var(--spacing-sm); margin-top: var(--spacing-lg);">
+          <button class="btn-send-again" type="button">
+            Send again
+          </button>
+          <button class="btn-confirm-success" type="button">
+            Done
+          </button>
+        </div>
       </div>
     `;
   }
@@ -2109,6 +2179,12 @@ class WioOnboarding extends HTMLElement {
     const confirmBtn = shadow.querySelector(".btn-confirm-success");
     if (confirmBtn) {
       confirmBtn.addEventListener("click", () => this.handleSuccessConfirm());
+    }
+
+    // Send again button
+    const sendAgainBtn = shadow.querySelector(".btn-send-again");
+    if (sendAgainBtn) {
+      sendAgainBtn.addEventListener("click", () => this.handleSendAgain());
     }
 
     // Submission failure resubmit button
@@ -2722,6 +2798,26 @@ class WioOnboarding extends HTMLElement {
           margin-bottom: var(--spacing-lg);
         }
 
+        .verification-notice {
+          background: #e8f5e9;
+          border: 1px solid #c8e6c9;
+          border-radius: var(--border-radius);
+          padding: var(--spacing-lg);
+          margin: var(--spacing-lg) 0;
+          text-align: center;
+        }
+
+        .verification-icon {
+          width: 64px;
+          height: 64px;
+          border-radius: 50%;
+          background: white;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin: 0 auto var(--spacing-md);
+        }
+
         .success-details {
           background: var(--gray-light);
           border-radius: var(--border-radius);
@@ -2756,17 +2852,37 @@ class WioOnboarding extends HTMLElement {
           color: #333;
         }
 
-        .btn-confirm-success {
+        .btn-send-again {
           padding: 12px 32px;
-          background: var(--primary-color);
-          color: white;
-          border: none;
+          background: white;
+          color: var(--primary-color);
+          border: 2px solid var(--primary-color);
           border-radius: var(--border-radius);
           cursor: pointer;
           font-size: 16px;
           font-weight: 500;
-          margin-top: var(--spacing-lg);
+          transition: all 0.2s ease;
+          box-sizing: border-box;
+          height: 48px;
+        }
+
+        .btn-send-again:hover {
+          background: var(--primary-color);
+          color: white;
+        }
+
+        .btn-confirm-success {
+          padding: 12px 32px;
+          background: var(--primary-color);
+          color: white;
+          border: 2px solid var(--primary-color);
+          border-radius: var(--border-radius);
+          cursor: pointer;
+          font-size: 16px;
+          font-weight: 500;
           transition: opacity 0.2s ease;
+          box-sizing: border-box;
+          height: 48px;
         }
 
         .btn-confirm-success:hover {
