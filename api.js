@@ -463,7 +463,10 @@ class BisonJibPayAPI {
   }
 }
 
-// Make available globally for script tag usage (primary export method)
+// Export for ES6 modules (primary export method for modern bundlers)
+export { BisonJibPayAPI };
+
+// Make available globally for script tag usage
 if (typeof window !== "undefined") {
   window.BisonJibPayAPI = BisonJibPayAPI;
 }
