@@ -520,20 +520,20 @@ class OperatorUnderwriting extends HTMLElement {
     if (this._state.isLoadingUnderwritingHistory) {
       modalBody.innerHTML = `
         <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px 24px; text-align: center;">
-          <div style="width: 48px; height: 48px; border: 4px solid #e5e7eb; border-top-color: #325240; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 16px;"></div>
-          <p style="font-size: 16px; color: #6b7280; margin: 0;">Loading underwriting history...</p>
+          <div style="width: 48px; height: 48px; border: 4px solid var(--color-border, #e8e8e8); border-top-color: var(--color-primary, #4c7b63); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 16px;"></div>
+          <p style="font-size: 16px; color: var(--color-gray-500, #6b7280); margin: 0;">Loading underwriting history...</p>
         </div>
       `;
     } else if (this._state.underwritingHistoryError) {
       modalBody.innerHTML = `
-        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px 24px; text-align: center; background: #fef2f2; border: 1px solid #fee2e2; border-radius: 12px;">
-          <svg style="width: 64px; height: 64px; color: #ef4444; margin-bottom: 16px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px 24px; text-align: center; background: var(--color-error-light, #fae5e4); border: 1px solid var(--color-error-muted, #eea9a5); border-radius: var(--radius-xl, 0.75rem);">
+          <svg style="width: 64px; height: 64px; color: var(--color-error, #dd524b); margin-bottom: 16px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <circle cx="12" cy="12" r="10"></circle>
             <line x1="12" y1="8" x2="12" y2="12"></line>
             <line x1="12" y1="16" x2="12.01" y2="16"></line>
           </svg>
-          <p style="font-size: 16px; color: #991b1b; margin: 0;">Failed to load underwriting history</p>
-          <p style="font-size: 14px; color: #dc2626; margin-top: 8px;">${this._state.underwritingHistoryError}</p>
+          <p style="font-size: 16px; color: var(--color-error-dark, #903531); margin: 0;">Failed to load underwriting history</p>
+          <p style="font-size: 14px; color: var(--color-error, #dd524b); margin-top: 8px;">${this._state.underwritingHistoryError}</p>
         </div>
       `;
     } else if (
@@ -551,12 +551,12 @@ class OperatorUnderwriting extends HTMLElement {
       );
     } else {
       modalBody.innerHTML = `
-        <div style="display: flex; margin: 24px 0; flex-direction: column; align-items: center; justify-content: center; padding: 48px 24px; text-align: center; background: #f9fafb; border: 1px dashed #d1d5db; border-radius: 12px;">
-          <svg style="width: 64px; height: 64px; color: #9ca3af; margin-bottom: 16px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <div style="display: flex; margin: 24px 0; flex-direction: column; align-items: center; justify-content: center; padding: 48px 24px; text-align: center; background: var(--color-gray-50, #f9fafb); border: 1px dashed var(--color-gray-200, #d1d5db); border-radius: var(--radius-xl, 0.75rem);">
+          <svg style="width: 64px; height: 64px; color: var(--color-gray-400, #9ca3af); margin-bottom: 16px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
           </svg>
-          <p style="font-size: 16px; color: #6b7280; margin: 0;">No underwriting history found</p>
-          <p style="font-size: 14px; color: #9ca3af; margin-top: 8px;">This operator has no underwriting records yet</p>
+          <p style="font-size: 16px; color: var(--color-gray-500, #6b7280); margin: 0;">No underwriting history found</p>
+          <p style="font-size: 14px; color: var(--color-gray-400, #9ca3af); margin-top: 8px;">This operator has no underwriting records yet</p>
         </div>
       `;
     }
@@ -597,18 +597,20 @@ class OperatorUnderwriting extends HTMLElement {
       <style>
         :host {
           display: inline-block;
+          font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
+          color: var(--color-secondary, #5f6e78);
         }
         
         .underwriting-btn {
           padding: 12px 24px;
-          background: #325240;
-          color: white;
+          background: var(--color-primary, #4c7b63);
+          color: var(--color-white, #fff);
           border: none;
-          border-radius: 12px;
-          font-size: 14px;
-          font-weight: 500;
+          border-radius: var(--radius-xl, 0.75rem);
+          font-size: var(--text-sm, 0.875rem);
+          font-weight: var(--font-weight-medium, 500);
           cursor: pointer;
-          transition: all 0.2s ease;
+          transition: all var(--duration-normal, 200ms) var(--ease-in-out, cubic-bezier(0.4, 0, 0.2, 1));
           display: inline-flex;
           align-items: center;
           gap: 8px;
@@ -617,20 +619,20 @@ class OperatorUnderwriting extends HTMLElement {
         }
         
         .underwriting-btn:hover:not(.error):not(.loading):not(:disabled) {
-          background: #2a4536;
+          background: var(--color-primary-hover, #436c57);
         }
         
         .underwriting-btn:active:not(.error):not(.loading):not(:disabled) {
-          background: #1e3328;
+          background: var(--color-primary-active, #3d624f);
         }
         
         .underwriting-btn.error {
-          background: #9ca3af;
+          background: var(--color-gray-400, #9ca3af);
           cursor: not-allowed;
         }
         
         .underwriting-btn.loading {
-          background: #6b8f7a;
+          background: var(--color-primary-soft, #678f7a);
           cursor: wait;
         }
         
@@ -647,7 +649,7 @@ class OperatorUnderwriting extends HTMLElement {
           width: 16px;
           height: 16px;
           border: 2px solid rgba(255, 255, 255, 0.3);
-          border-top-color: white;
+          border-top-color: var(--color-white, #fff);
           border-radius: 50%;
           animation: spin 0.8s linear infinite;
           box-sizing: border-box;
@@ -675,14 +677,15 @@ class OperatorUnderwriting extends HTMLElement {
           bottom: 100%;
           left: 50%;
           transform: translateX(-50%);
-          background: #374151;
-          color: white;
+          background: var(--color-gray-700, #374151);
+          color: var(--color-white, #fff);
           padding: 8px 12px;
-          border-radius: 6px;
+          border-radius: var(--radius-lg, 0.5rem);
           font-size: 13px;
           white-space: nowrap;
           margin-bottom: 8px;
-          transition: opacity 0.2s ease, visibility 0.2s ease;
+          transition: opacity var(--duration-normal, 200ms) var(--ease-in-out, cubic-bezier(0.4, 0, 0.2, 1)),
+            visibility var(--duration-normal, 200ms) var(--ease-in-out, cubic-bezier(0.4, 0, 0.2, 1));
           z-index: 10002;
         }
         
@@ -693,7 +696,7 @@ class OperatorUnderwriting extends HTMLElement {
           left: 50%;
           transform: translateX(-50%);
           border: 6px solid transparent;
-          border-top-color: #374151;
+          border-top-color: var(--color-gray-700, #374151);
         }
         
         .btn-wrapper:hover .tooltip {
@@ -788,8 +791,8 @@ class OperatorUnderwriting extends HTMLElement {
         
         .modal-content {
           position: relative;
-          background: white;
-          border-radius: 12px;
+          background: var(--color-white, #fff);
+          border-radius: var(--radius-xl, 0.75rem);
           width: 90%;
           max-width: 600px;
           height: 80vh;
@@ -809,7 +812,7 @@ class OperatorUnderwriting extends HTMLElement {
           background: transparent;
           border: none;
           font-size: 28px;
-          color: #999;
+          color: var(--color-gray-400, #9ca3af);
           cursor: pointer;
           width: 32px;
           height: 32px;
@@ -817,32 +820,32 @@ class OperatorUnderwriting extends HTMLElement {
           align-items: center;
           justify-content: center;
           border-radius: 4px;
-          transition: all 0.2s ease;
+          transition: all var(--duration-normal, 200ms) var(--ease-in-out, cubic-bezier(0.4, 0, 0.2, 1));
         }
         
         .close-btn:hover {
-          background: #f0f0f0;
-          color: #333;
+          background: var(--color-gray-100, #f3f4f6);
+          color: var(--color-headline, #0f2a39);
         }
         
         /* Modal Header - Static */
         .modal-header {
           text-align: center;
           padding-bottom: 16px;
-          border-bottom: 1px solid #e5e7eb;
+          border-bottom: 1px solid var(--color-border, #e8e8e8);
           flex-shrink: 0;
         }
         
         .modal-header h2 {
           font-size: 20px;
-          font-weight: 600;
-          color: #1f2937;
+          font-weight: var(--font-weight-semibold, 600);
+          color: var(--color-headline, #0f2a39);
           margin: 0 0 4px 0;
         }
         
         .modal-header p {
           font-size: 14px;
-          color: #6b7280;
+          color: var(--color-gray-500, #6b7280);
           margin: 0;
         }
         
@@ -862,9 +865,9 @@ class OperatorUnderwriting extends HTMLElement {
           justify-content: center;
           gap: 6px;
           padding-top: 16px;
-          border-top: 1px solid #e5e7eb;
+          border-top: 1px solid var(--color-border, #e8e8e8);
           font-size: 11px;
-          color: #9ca3af;
+          color: var(--color-gray-400, #9ca3af);
           flex-shrink: 0;
         }
         
@@ -875,7 +878,7 @@ class OperatorUnderwriting extends HTMLElement {
         
         .powered-by span {
           font-weight: 500;
-          color: #6b7280;
+          color: var(--color-gray-500, #6b7280);
         }
       </style>
       
@@ -1199,11 +1202,11 @@ class OperatorUnderwriting extends HTMLElement {
   renderUnderwritingTimeline(history) {
     if (!history || history.length === 0) {
       return `
-        <div style="display: flex; margin: 24px 0; flex-direction: column; align-items: center; justify-content: center; padding: 48px 24px; text-align: center; background: #f9fafb; border: 1px dashed #d1d5db; border-radius: 12px;">
-          <svg style="width: 64px; height: 64px; color: #9ca3af; margin-bottom: 16px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <div style="display: flex; margin: 24px 0; flex-direction: column; align-items: center; justify-content: center; padding: 48px 24px; text-align: center; background: var(--color-gray-50, #f9fafb); border: 1px dashed var(--color-gray-200, #d1d5db); border-radius: var(--radius-xl, 0.75rem);">
+          <svg style="width: 64px; height: 64px; color: var(--color-gray-400, #9ca3af); margin-bottom: 16px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
           </svg>
-          <p style="font-size: 16px; color: #6b7280; margin: 0;">No underwriting history found</p>
+          <p style="font-size: 16px; color: var(--color-gray-500, #6b7280); margin: 0;">No underwriting history found</p>
         </div>
       `;
     }
@@ -1261,18 +1264,18 @@ class OperatorUnderwriting extends HTMLElement {
           justify-content: center;
           z-index: 2;
           position: relative;
-          background: #E5E7EB;
-          color: #6B7280;
+          background: var(--color-border, #e8e8e8);
+          color: var(--color-gray-500, #6b7280);
         }
         
         .timeline-icon.approved {
-          background: #D1FAE5;
-          color: #10B981;
+          background: var(--color-success-light, #d3f3df);
+          color: var(--color-success, #22c55e);
         }
         
         .timeline-icon.pending {
-          background: #FEF3C7;
-          color: #F59E0B;
+          background: var(--color-orange-100, #fdecce);
+          color: var(--color-warning, #f59e0b);
         }
         
         .timeline-icon.latest::before {
@@ -1304,15 +1307,15 @@ class OperatorUnderwriting extends HTMLElement {
           transform: translateX(-50%);
           width: 2px;
           height: calc(100% - 0px);
-          background: #E5E7EB;
+          background: var(--color-border, #e8e8e8);
           z-index: 1;
         }
         
         .timeline-content {
           flex: 1;
-          background: white;
-          border: 1px solid #E5E7EB;
-          border-radius: 8px;
+          background: var(--color-white, #fff);
+          border: 1px solid var(--color-border, #e8e8e8);
+          border-radius: var(--radius-lg, 0.5rem);
           padding: 12px 16px;
           box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
         }
@@ -1320,13 +1323,13 @@ class OperatorUnderwriting extends HTMLElement {
         .timeline-status {
           font-size: 13px;
           font-weight: 600;
-          color: #1F2937;
+          color: var(--color-headline, #0f2a39);
           margin: 0 0 4px 0;
         }
         
         .timeline-date {
           font-size: 12px;
-          color: #9CA3AF;
+          color: var(--color-gray-400, #9ca3af);
           margin: 0;
         }
         
@@ -1340,13 +1343,13 @@ class OperatorUnderwriting extends HTMLElement {
         }
         
         .timeline-badge.newest {
-          background: #DBEAFE;
-          color: #1E40AF;
+          background: var(--color-primary-light, #e8f0eb);
+          color: var(--color-primary, #4c7b63);
         }
         
         .timeline-badge.oldest {
-          background: #F3F4F6;
-          color: #6B7280;
+          background: var(--color-gray-100, #f3f4f6);
+          color: var(--color-gray-500, #6b7280);
         }
       </style>
       

@@ -234,24 +234,24 @@ class OperatorPayment extends HTMLElement {
     styleTag.id = "moov-bison-theme";
     styleTag.textContent = `
       :root {
-        --moov-color-background: #FFFFFF;
-        --moov-color-background-secondary: #F9FAFB;
-        --moov-color-background-tertiary: #F3F4F6;
-        --moov-color-primary: #325240;
-        --moov-color-secondary: #2a4536;
-        --moov-color-tertiary: #E5E7EB;
-        --moov-color-info: #3B82F6;
-        --moov-color-warn: #F59E0B;
-        --moov-color-danger: #EF4444;
-        --moov-color-success: #10B981;
-        --moov-color-low-contrast: #9CA3AF;
-        --moov-color-medium-contrast: #4B5563;
-        --moov-color-high-contrast: #111827;
-        --moov-color-graphic-1: #325240;
-        --moov-color-graphic-2: #6B7280;
-        --moov-color-graphic-3: #3B82F6;
-        --moov-radius-small: 8px;
-        --moov-radius-large: 12px;
+        --moov-color-background: var(--color-white, #fff);
+        --moov-color-background-secondary: var(--color-sidebar, #fafafa);
+        --moov-color-background-tertiary: var(--color-gray-100, #f3f4f6);
+        --moov-color-primary: var(--color-primary, #4c7b63);
+        --moov-color-secondary: var(--color-primary-hover, #436c57);
+        --moov-color-tertiary: var(--color-border, #e8e8e8);
+        --moov-color-info: var(--color-primary, #4c7b63);
+        --moov-color-warn: var(--color-warning, #f59e0b);
+        --moov-color-danger: var(--color-error, #dd524b);
+        --moov-color-success: var(--color-success, #22c55e);
+        --moov-color-low-contrast: var(--color-gray-400, #9ca3af);
+        --moov-color-medium-contrast: var(--color-gray-600, #4b5563);
+        --moov-color-high-contrast: var(--color-headline, #0f2a39);
+        --moov-color-graphic-1: var(--color-primary, #4c7b63);
+        --moov-color-graphic-2: var(--color-gray-500, #6b7280);
+        --moov-color-graphic-3: var(--color-warning, #f59e0b);
+        --moov-radius-small: var(--radius-lg, 0.5rem);
+        --moov-radius-large: var(--radius-xl, 0.75rem);
       }
     `;
     // Append to body as sibling to moov-payment-methods
@@ -1502,7 +1502,7 @@ class OperatorPayment extends HTMLElement {
               ${
                 account.status === "verified"
                   ? `
-                <svg class="verified-icon" viewBox="0 0 24 24" fill="#10b981" stroke="none">
+                <svg class="verified-icon" viewBox="0 0 24 24" fill="currentColor" stroke="none">
                   <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
                 </svg>
               `
@@ -1542,18 +1542,20 @@ class OperatorPayment extends HTMLElement {
       <style>
         :host {
           display: inline-block;
+          font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
+          color: var(--color-secondary, #5f6e78);
         }
         
         .link-payment-btn {
           padding: 12px 24px;
-          background: #325240;
-          color: white;
+          background: var(--color-primary, #4c7b63);
+          color: var(--color-white, #fff);
           border: none;
-          border-radius: 12px;
-          font-size: 14px;
-          font-weight: 500;
+          border-radius: var(--radius-xl, 0.75rem);
+          font-size: var(--text-sm, 0.875rem);
+          font-weight: var(--font-weight-medium, 500);
           cursor: pointer;
-          transition: all 0.2s ease;
+          transition: all var(--duration-normal, 200ms) var(--ease-in-out, cubic-bezier(0.4, 0, 0.2, 1));
           display: inline-flex;
           align-items: center;
           gap: 8px;
@@ -1562,23 +1564,22 @@ class OperatorPayment extends HTMLElement {
         }
         
         .link-payment-btn:hover:not(.error):not(.loading) {
-          background: #2a4536;
+          background: var(--color-primary-hover, #436c57);
           transform: translateY(-1px);
-          box-shadow: 0 4px 12px rgba(50, 82, 64, 0.3);
         }
         
         .link-payment-btn:active:not(.error):not(.loading) {
-          background: #1e3328;
+          background: var(--color-primary-active, #3d624f);
           transform: translateY(0);
         }
         
         .link-payment-btn.error {
-          background: #9ca3af;
+          background: var(--color-gray-400, #9ca3af);
           cursor: not-allowed;
         }
         
         .link-payment-btn.loading {
-          background: #6b8f7a;
+          background: var(--color-primary-soft, #678f7a);
           cursor: wait;
         }
         
@@ -1595,7 +1596,7 @@ class OperatorPayment extends HTMLElement {
           width: 16px;
           height: 16px;
           border: 2px solid rgba(255, 255, 255, 0.3);
-          border-top-color: white;
+          border-top-color: var(--color-white, #fff);
           border-radius: 50%;
           animation: spin 0.8s linear infinite;
         }
@@ -1622,14 +1623,15 @@ class OperatorPayment extends HTMLElement {
           bottom: 100%;
           left: 50%;
           transform: translateX(-50%);
-          background: #374151;
-          color: white;
+          background: var(--color-gray-700, #374151);
+          color: var(--color-white, #fff);
           padding: 8px 12px;
-          border-radius: 6px;
+          border-radius: var(--radius-lg, 0.5rem);
           font-size: 13px;
           white-space: nowrap;
           margin-bottom: 8px;
-          transition: opacity 0.2s ease, visibility 0.2s ease;
+          transition: opacity var(--duration-normal, 200ms) var(--ease-in-out, cubic-bezier(0.4, 0, 0.2, 1)),
+            visibility var(--duration-normal, 200ms) var(--ease-in-out, cubic-bezier(0.4, 0, 0.2, 1));
           z-index: 10002;
         }
         
@@ -1640,7 +1642,7 @@ class OperatorPayment extends HTMLElement {
           left: 50%;
           transform: translateX(-50%);
           border: 6px solid transparent;
-          border-top-color: #374151;
+          border-top-color: var(--color-gray-700, #374151);
         }
         
         .btn-wrapper:hover .tooltip {
@@ -1735,8 +1737,8 @@ class OperatorPayment extends HTMLElement {
         
         .modal-content {
           position: relative;
-          background: white;
-          border-radius: 12px;
+          background: var(--color-white, #fff);
+          border-radius: var(--radius-xl, 0.75rem);
           width: 90%;
           max-width: 600px;
           min-height: 400px;
@@ -1756,7 +1758,7 @@ class OperatorPayment extends HTMLElement {
           background: transparent;
           border: none;
           font-size: 28px;
-          color: #999;
+          color: var(--color-gray-400, #9ca3af);
           cursor: pointer;
           width: 32px;
           height: 32px;
@@ -1764,35 +1766,35 @@ class OperatorPayment extends HTMLElement {
           align-items: center;
           justify-content: center;
           border-radius: 4px;
-          transition: all 0.2s ease;
+          transition: all var(--duration-normal, 200ms) var(--ease-in-out, cubic-bezier(0.4, 0, 0.2, 1));
         }
         
         .close-btn:hover {
-          background: #f0f0f0;
-          color: #333;
+          background: var(--color-gray-100, #f3f4f6);
+          color: var(--color-headline, #0f2a39);
         }
         
         .add-bank-btn {
           padding: 12px 24px;
-          background: #325240;
-          color: white;
+          background: var(--color-primary, #4c7b63);
+          color: var(--color-white, #fff);
           border: none;
-          border-radius: 12px;
-          font-size: 14px;
-          font-weight: 500;
+          border-radius: var(--radius-xl, 0.75rem);
+          font-size: var(--text-sm, 0.875rem);
+          font-weight: var(--font-weight-medium, 500);
           cursor: pointer;
-          transition: all 0.3s ease;
+          transition: all var(--duration-normal, 200ms) var(--ease-in-out, cubic-bezier(0.4, 0, 0.2, 1));
           display: inline-flex;
           align-items: center;
           gap: 10px;
         }
         
         .add-bank-btn:hover {
-          background: #2a4536;
+          background: var(--color-primary-hover, #436c57);
         }
         
         .add-bank-btn:active {
-          background: #1e3328;
+          background: var(--color-primary-active, #3d624f);
         }
         
         .add-bank-btn .bank-icon {
@@ -1805,19 +1807,19 @@ class OperatorPayment extends HTMLElement {
           text-align: center;
           margin-bottom: var(--spacing-lg, 24px);
           padding-bottom: var(--spacing-md, 16px);
-          border-bottom: 1px solid #e5e7eb;
+          border-bottom: 1px solid var(--color-border, #e8e8e8);
         }
         
         .modal-header h2 {
           font-size: 20px;
-          font-weight: 600;
-          color: #1f2937;
+          font-weight: var(--font-weight-semibold, 600);
+          color: var(--color-headline, #0f2a39);
           margin: 0;
         }
         
         .modal-header p {
           font-size: 14px;
-          color: #6b7280;
+          color: var(--color-gray-500, #6b7280);
           margin-top: 4px;
         }
         
@@ -1836,15 +1838,15 @@ class OperatorPayment extends HTMLElement {
           align-items: flex-start;
           justify-content: space-between;
           padding: 16px;
-          background: #f9fafb;
-          border: 1px solid #e5e7eb;
-          border-radius: 12px;
-          transition: all 0.2s ease;
+          background: var(--color-gray-50, #f9fafb);
+          border: 1px solid var(--color-border, #e8e8e8);
+          border-radius: var(--radius-xl, 0.75rem);
+          transition: all var(--duration-normal, 200ms) var(--ease-in-out, cubic-bezier(0.4, 0, 0.2, 1));
         }
         
         .bank-account-card:hover {
-          border-color: #325240;
-          background: #f3f4f6;
+          border-color: var(--color-primary, #4c7b63);
+          background: var(--color-gray-100, #f3f4f6);
         }
         
         .bank-account-info {
@@ -1855,8 +1857,8 @@ class OperatorPayment extends HTMLElement {
         
         .bank-icon-wrapper {
           padding: 10px;
-          background: rgba(50, 82, 64, 0.1);
-          border-radius: 10px;
+          background: var(--color-primary-light, #e8f0eb);
+          border-radius: var(--radius-lg, 0.5rem);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -1865,8 +1867,8 @@ class OperatorPayment extends HTMLElement {
         .bank-icon-wrapper svg {
           width: 20px;
           height: 20px;
-          color: #325240;
-          stroke: #325240;
+          color: var(--color-primary, #4c7b63);
+          stroke: var(--color-primary, #4c7b63);
         }
         
         .bank-account-details {
@@ -1884,24 +1886,24 @@ class OperatorPayment extends HTMLElement {
         .bank-name {
           font-weight: 500;
           font-size: 15px;
-          color: #1f2937;
+          color: var(--color-headline, #0f2a39);
         }
         
         .verified-icon {
           width: 16px;
           height: 16px;
-          color: #10b981;
+          color: var(--color-success, #22c55e);
         }
         
         .holder-name {
           font-size: 14px;
-          color: #6b7280;
+          color: var(--color-gray-500, #6b7280);
           text-align: left;
         }
         
         .account-meta {
           font-size: 12px;
-          color: #9ca3af;
+          color: var(--color-gray-400, #9ca3af);
           margin-top: 2px;
           text-align: left;
         }
@@ -1915,13 +1917,13 @@ class OperatorPayment extends HTMLElement {
         }
         
         .status-badge.verified {
-          background: #d1fae5;
-          color: #065f46;
+          background: var(--color-success-light, #d3f3df);
+          color: var(--color-success-dark, #136c34);
         }
         
         .status-badge.pending {
-          background: #fef3c7;
-          color: #92400e;
+          background: var(--color-orange-100, #fdecce);
+          color: var(--color-orange-600, #875706);
         }
         
         .card-actions {
@@ -1939,13 +1941,13 @@ class OperatorPayment extends HTMLElement {
           display: flex;
           align-items: center;
           justify-content: center;
-          transition: all 0.2s ease;
-          color: #9ca3af;
+          transition: all var(--duration-normal, 200ms) var(--ease-in-out, cubic-bezier(0.4, 0, 0.2, 1));
+          color: var(--color-gray-400, #9ca3af);
         }
         
         .delete-btn:hover {
-          background: #fef2f2;
-          color: #dc2626;
+          background: var(--color-error-light, #fae5e4);
+          color: var(--color-error, #dd524b);
         }
         
         .delete-btn svg {
@@ -1956,14 +1958,14 @@ class OperatorPayment extends HTMLElement {
         .empty-state {
           text-align: center;
           padding: 32px 16px;
-          color: #6b7280;
+          color: var(--color-gray-500, #6b7280);
         }
         
         .empty-state-icon {
           width: 48px;
           height: 48px;
           margin: 0 auto 12px;
-          color: #d1d5db;
+          color: var(--color-gray-200, #d1d5db);
         }
         
         .empty-state p {
@@ -1974,14 +1976,14 @@ class OperatorPayment extends HTMLElement {
         .loading-state {
           text-align: center;
           padding: 32px 16px;
-          color: #6b7280;
+          color: var(--color-gray-500, #6b7280);
         }
         
         .loading-spinner-large {
           width: 32px;
           height: 32px;
-          border: 3px solid #e5e7eb;
-          border-top-color: #325240;
+          border: 3px solid var(--color-border, #e8e8e8);
+          border-top-color: var(--color-primary, #4c7b63);
           border-radius: 50%;
           animation: spin 0.8s linear infinite;
           margin: 0 auto 12px;
@@ -1995,42 +1997,42 @@ class OperatorPayment extends HTMLElement {
         .error-state {
           text-align: center;
           padding: 32px 16px;
-          color: #dc2626;
+          color: var(--color-error, #dd524b);
         }
         
         .error-state-icon {
           width: 48px;
           height: 48px;
           margin: 0 auto 12px;
-          color: #dc2626;
+          color: var(--color-error, #dd524b);
         }
         
         .error-state p {
           font-size: 14px;
           margin: 0 0 16px 0;
-          color: #6b7280;
+          color: var(--color-gray-500, #6b7280);
         }
         
         .retry-btn {
           padding: 8px 16px;
-          background: #325240;
-          color: white;
+          background: var(--color-primary, #4c7b63);
+          color: var(--color-white, #fff);
           border: none;
-          border-radius: 8px;
+          border-radius: var(--radius-lg, 0.5rem);
           font-size: 13px;
-          font-weight: 500;
+          font-weight: var(--font-weight-medium, 500);
           cursor: pointer;
-          transition: all 0.2s ease;
+          transition: all var(--duration-normal, 200ms) var(--ease-in-out, cubic-bezier(0.4, 0, 0.2, 1));
         }
         
         .retry-btn:hover {
-          background: #2a4536;
+          background: var(--color-primary-hover, #436c57);
         }
         
         .divider {
           width: 100%;
           height: 1px;
-          background: #e5e7eb;
+          background: var(--color-border, #e8e8e8);
           margin: 16px 0;
         }
         
@@ -2044,7 +2046,7 @@ class OperatorPayment extends HTMLElement {
         
         .add-bank-section p {
           font-size: 13px;
-          color: #6b7280;
+          color: var(--color-gray-500, #6b7280);
           margin: 0;
         }
         
@@ -2056,7 +2058,7 @@ class OperatorPayment extends HTMLElement {
           margin-top: 24px;
           padding-top: 16px;
           font-size: 11px;
-          color: #9ca3af;
+          color: var(--color-gray-400, #9ca3af);
         }
         
         .powered-by svg {
@@ -2066,7 +2068,7 @@ class OperatorPayment extends HTMLElement {
         
         .powered-by span {
           font-weight: 500;
-          color: #6b7280;
+          color: var(--color-gray-500, #6b7280);
         }
         
         /* Delete Confirmation Modal */
@@ -2089,8 +2091,8 @@ class OperatorPayment extends HTMLElement {
           top: 50%;
           left: 50%;
           transform: translate(-50%, -50%);
-          background: white;
-          border-radius: 16px;
+          background: var(--color-white, #fff);
+          border-radius: var(--radius-2xl, 1rem);
           padding: 32px;
           width: 90%;
           max-width: 400px;
@@ -2115,7 +2117,7 @@ class OperatorPayment extends HTMLElement {
           width: 56px;
           height: 56px;
           margin: 0 auto 16px;
-          background: #fef2f2;
+          background: var(--color-error-light, #fae5e4);
           border-radius: 50%;
           display: flex;
           align-items: center;
@@ -2125,25 +2127,25 @@ class OperatorPayment extends HTMLElement {
         .delete-confirmation-icon svg {
           width: 28px;
           height: 28px;
-          color: #dc2626;
+          color: var(--color-error, #dd524b);
         }
         
         .delete-confirmation-title {
           font-size: 18px;
-          font-weight: 600;
-          color: #1f2937;
+          font-weight: var(--font-weight-semibold, 600);
+          color: var(--color-headline, #0f2a39);
           margin: 0 0 8px 0;
         }
         
         .delete-confirmation-message {
           font-size: 14px;
-          color: #6b7280;
+          color: var(--color-gray-500, #6b7280);
           margin: 0 0 24px 0;
           line-height: 1.5;
         }
         
         .delete-confirmation-message strong {
-          color: #374151;
+          color: var(--color-gray-700, #374151);
         }
         
         .delete-confirmation-actions {
@@ -2154,21 +2156,21 @@ class OperatorPayment extends HTMLElement {
         
         .delete-cancel-btn {
           padding: 10px 20px;
-          background: white;
-          color: #374151;
-          border: 1px solid #d1d5db;
-          border-radius: 8px;
-          font-size: 14px;
-          font-weight: 500;
+          background: var(--color-white, #fff);
+          color: var(--color-gray-700, #374151);
+          border: 1px solid var(--color-gray-200, #d1d5db);
+          border-radius: var(--radius-lg, 0.5rem);
+          font-size: var(--text-sm, 0.875rem);
+          font-weight: var(--font-weight-medium, 500);
           cursor: pointer;
-          transition: all 0.2s ease;
+          transition: all var(--duration-normal, 200ms) var(--ease-in-out, cubic-bezier(0.4, 0, 0.2, 1));
           height: 40px;
           box-sizing: border-box;
         }
         
         .delete-cancel-btn:hover:not(:disabled) {
-          background: #f3f4f6;
-          border-color: #9ca3af;
+          background: var(--color-gray-100, #f3f4f6);
+          border-color: var(--color-gray-400, #9ca3af);
         }
         
         .delete-cancel-btn:disabled {
@@ -2178,14 +2180,14 @@ class OperatorPayment extends HTMLElement {
         
         .delete-confirm-btn {
           padding: 10px 20px;
-          background: #dc2626;
-          color: white;
+          background: var(--color-error, #dd524b);
+          color: var(--color-white, #fff);
           border: none;
-          border-radius: 8px;
-          font-size: 14px;
-          font-weight: 500;
+          border-radius: var(--radius-lg, 0.5rem);
+          font-size: var(--text-sm, 0.875rem);
+          font-weight: var(--font-weight-medium, 500);
           cursor: pointer;
-          transition: all 0.2s ease;
+          transition: all var(--duration-normal, 200ms) var(--ease-in-out, cubic-bezier(0.4, 0, 0.2, 1));
           display: inline-flex;
           align-items: center;
           justify-content: center;
@@ -2196,11 +2198,11 @@ class OperatorPayment extends HTMLElement {
         }
         
         .delete-confirm-btn:hover:not(:disabled) {
-          background: #b91c1c;
+          background: var(--color-error-dark, #903531);
         }
         
         .delete-confirm-btn:disabled {
-          background: #f87171;
+          background: var(--color-error-muted, #eea9a5);
           cursor: not-allowed;
         }
         
@@ -2208,7 +2210,7 @@ class OperatorPayment extends HTMLElement {
           width: 14px;
           height: 14px;
           border: 2px solid rgba(255, 255, 255, 0.3);
-          border-top-color: white;
+          border-top-color: var(--color-white, #fff);
           border-radius: 50%;
           animation: spin 0.8s linear infinite;
           box-sizing: border-box;

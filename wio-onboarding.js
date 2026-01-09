@@ -402,7 +402,7 @@ class WioOnboarding extends HTMLElement {
         { name: "ein", validators: ["required", "ein"], label: "EIN" },
         {
           name: "businessWebsite",
-          validators: ["required", "url"],
+          validators: ["url"],
           label: "Business Website",
         },
         {
@@ -1749,7 +1749,7 @@ class WioOnboarding extends HTMLElement {
 
           ${this.renderField({
             name: "businessWebsite",
-            label: "Business Website *",
+            label: "Business Website",
             type: "url",
             value: data.businessWebsite,
             error: this.getFieldError("businessWebsite"),
@@ -2074,7 +2074,7 @@ class WioOnboarding extends HTMLElement {
                   <polyline points="17 8 12 3 7 8"></polyline>
                   <line x1="12" y1="3" x2="12" y2="15"></line>
                 </svg>
-                <p style="margin-bottom: var(--spacing-sm); color: #333; font-weight: 500;">
+                <p style="margin-bottom: var(--spacing-sm); color: var(--color-headline, #0f2a39); font-weight: 500;">
                   Drag and drop files here
                 </p>
                 <p style="font-size: 14px; color: var(--gray-medium); margin-bottom: var(--spacing-md);">
@@ -2083,7 +2083,7 @@ class WioOnboarding extends HTMLElement {
                 <button type="button" class="btn-browse" style="
                   padding: 10px 20px;
                   background: var(--primary-color);
-                  color: white;
+                  color: var(--color-white, #fff);
                   border: none;
                   border-radius: var(--border-radius-sm);
                   cursor: pointer;
@@ -2123,7 +2123,7 @@ class WioOnboarding extends HTMLElement {
   renderFileList(files) {
     return `
       <div class="uploaded-files">
-        <p style="font-size: 14px; font-weight: 500; margin-bottom: var(--spacing-sm); color: #333;">
+        <p style="font-size: 14px; font-weight: 500; margin-bottom: var(--spacing-sm); color: var(--color-headline, #0f2a39);">
           ${files.length} file(s) uploaded:
         </p>
         ${files
@@ -2143,7 +2143,7 @@ class WioOnboarding extends HTMLElement {
                 <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
                 <polyline points="13 2 13 9 20 9"></polyline>
               </svg>
-              <span style="font-size: 14px; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+              <span style="font-size: 14px; color: var(--color-headline, #0f2a39); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
                 ${file.name}
               </span>
               <span style="font-size: 12px; color: var(--gray-medium); white-space: nowrap;">
@@ -2199,7 +2199,7 @@ class WioOnboarding extends HTMLElement {
         </div>
 
         <h2>Bison Account Created! 🎉</h2>
-        <p style="color: #333; font-size: 16px; margin-bottom: var(--spacing-lg);">
+        <p style="color: var(--color-headline, #0f2a39); font-size: 16px; margin-bottom: var(--spacing-lg);">
           Your WIO onboarding has been successfully completed.
         </p>
 
@@ -2210,7 +2210,7 @@ class WioOnboarding extends HTMLElement {
               <polyline points="22,6 12,13 2,6"></polyline>
             </svg>
           </div>
-          <h3 style="font-size: 18px; color: #333; margin-bottom: var(--spacing-sm);">
+          <h3 style="font-size: 18px; color: var(--color-headline, #0f2a39); margin-bottom: var(--spacing-sm);">
             We've sent a verification link to
           </h3>
           <p style="font-size: 16px; font-weight: 600; color: var(--primary-color); margin-bottom: var(--spacing-sm);">
@@ -2288,7 +2288,7 @@ class WioOnboarding extends HTMLElement {
           <button type="button" class="btn-resubmit" style="
             padding: 12px 24px;
             background: var(--primary-color);
-            color: white;
+            color: var(--color-white, #fff);
             border: none;
             border-radius: var(--border-radius);
             font-size: 14px;
@@ -2454,25 +2454,26 @@ class WioOnboarding extends HTMLElement {
         }
 
         :host {
-          --primary-color: #325240;
-          --success-color: #325240;
-          --error-color: #dc3545;
-          --border-color: #ddd;
-          --gray-light: #f8f9fa;
-          --gray-medium: #6c757d;
-          --border-radius: 12px;
-          --border-radius-sm: 8px;
-          --border-radius-lg: 16px;
-          --spacing-sm: 8px;
-          --spacing-md: 16px;
-          --spacing-lg: 24px;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+          --primary-color: var(--color-primary, #4c7b63);
+          --success-color: var(--color-success, #22c55e);
+          --error-color: var(--color-error, #dd524b);
+          --border-color: var(--color-border, #e8e8e8);
+          --gray-light: var(--color-gray-50, #f9fafb);
+          --gray-medium: var(--color-gray-500, #6b7280);
+          --border-radius: var(--radius-xl, 0.75rem);
+          --border-radius-sm: var(--radius-lg, 0.5rem);
+          --border-radius-lg: var(--radius-2xl, 1rem);
+          --spacing-sm: var(--spacing-sm, 0.5rem);
+          --spacing-md: var(--spacing-md, 1rem);
+          --spacing-lg: var(--spacing-lg, 1.5rem);
+          font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
+          color: var(--color-secondary, #5f6e78);
           display: block;
         }
 
         /* Form Container (Inline Display) */
         .form-container {
-          background: white;
+          background: var(--color-white, #fff);
           border-radius: var(--border-radius-lg);
           max-width: 900px;
           margin: 0 auto;
@@ -2483,7 +2484,7 @@ class WioOnboarding extends HTMLElement {
         .form-header {
           padding: var(--spacing-lg);
           border-bottom: 1px solid var(--border-color);
-          background: white;
+          background: var(--color-white, #fff);
         }
 
         .form-body {
@@ -2495,14 +2496,14 @@ class WioOnboarding extends HTMLElement {
         .form-footer {
           padding: var(--spacing-lg);
           border-top: 1px solid var(--border-color);
-          background: white;
+          background: var(--color-white, #fff);
         }
 
         /* Loading State */
         .loading-content {
           text-align: center;
           padding: calc(var(--spacing-lg) * 3);
-          background: white;
+          background: var(--color-white, #fff);
           border-radius: var(--border-radius-lg);
           max-width: 500px;
           margin: 0 auto;
@@ -2510,7 +2511,7 @@ class WioOnboarding extends HTMLElement {
 
         .loading-content h2 {
           margin-bottom: var(--spacing-md);
-          color: #333;
+          color: var(--color-headline, #0f2a39);
         }
 
         .loading-spinner {
@@ -2590,13 +2591,13 @@ class WioOnboarding extends HTMLElement {
 
         .step-indicator.active .step-circle {
           background: var(--primary-color);
-          color: white;
+          color: var(--color-white, #fff);
           border-color: var(--primary-color);
         }
 
         .step-indicator.complete .step-circle {
           background: var(--success-color);
-          color: white;
+          color: var(--color-white, #fff);
           border-color: var(--success-color);
         }
 
@@ -2627,7 +2628,7 @@ class WioOnboarding extends HTMLElement {
 
         .form-section h2 {
           font-size: 24px;
-          color: #333;
+          color: var(--color-headline, #0f2a39);
           margin-bottom: var(--spacing-sm);
         }
 
@@ -2655,7 +2656,7 @@ class WioOnboarding extends HTMLElement {
         .form-field label {
           font-size: 14px;
           font-weight: 500;
-          color: #333;
+          color: var(--color-headline, #0f2a39);
         }
 
         .required-asterisk {
@@ -2745,7 +2746,7 @@ class WioOnboarding extends HTMLElement {
         }
 
         .password-check-item.valid {
-          color: #28a745;
+          color: var(--color-success, #22c55e);
         }
 
         .password-check-icon {
@@ -2804,12 +2805,12 @@ class WioOnboarding extends HTMLElement {
 
         .card-header h3 {
           font-size: 16px;
-          color: #333;
+          color: var(--color-headline, #0f2a39);
         }
 
         .remove-btn {
           background: var(--error-color);
-          color: white;
+          color: var(--color-white, #fff);
           border: none;
           padding: 6px 12px;
           border-radius: var(--border-radius-sm);
@@ -2825,7 +2826,7 @@ class WioOnboarding extends HTMLElement {
 
         .add-representative-btn {
           background: var(--primary-color);
-          color: white;
+          color: var(--color-white, #fff);
           border: none;
           padding: 10px 20px;
           border-radius: var(--border-radius);
@@ -2853,7 +2854,7 @@ class WioOnboarding extends HTMLElement {
         .drag-drop-area:hover,
         .drag-drop-area.drag-over {
           border-color: var(--primary-color);
-          background: rgba(50, 82, 64, 0.05);
+          background: var(--color-primary-light, #e8f0eb);
         }
 
         .drag-drop-content {
@@ -2874,7 +2875,7 @@ class WioOnboarding extends HTMLElement {
         .btn-back,
         .btn-skip {
           padding: 12px 24px;
-          background: white;
+          background: var(--color-white, #fff);
           color: var(--gray-medium);
           border: 1px solid var(--border-color);
           border-radius: var(--border-radius);
@@ -2892,7 +2893,7 @@ class WioOnboarding extends HTMLElement {
         .btn-next {
           padding: 12px 24px;
           background: var(--primary-color);
-          color: white;
+          color: var(--color-white, #fff);
           border: none;
           border-radius: var(--border-radius);
           cursor: pointer;
@@ -2909,7 +2910,7 @@ class WioOnboarding extends HTMLElement {
         .success-container {
           text-align: center;
           padding: calc(var(--spacing-lg) * 2);
-          background: white;
+          background: var(--color-white, #fff);
           border-radius: var(--border-radius-lg);
           max-width: 600px;
           margin: 0 auto;
@@ -2919,7 +2920,7 @@ class WioOnboarding extends HTMLElement {
           width: 80px;
           height: 80px;
           border-radius: 50%;
-          background: #d4edda;
+          background: var(--color-success-light, #d3f3df);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -2936,7 +2937,7 @@ class WioOnboarding extends HTMLElement {
 
         .success-container h2 {
           font-size: 28px;
-          color: #333;
+          color: var(--color-headline, #0f2a39);
           margin-bottom: var(--spacing-sm);
         }
 
@@ -2946,8 +2947,8 @@ class WioOnboarding extends HTMLElement {
         }
 
         .verification-notice {
-          background: #e8f5e9;
-          border: 1px solid #c8e6c9;
+          background: var(--color-success-light, #d3f3df);
+          border: 1px solid var(--color-success-light, #d3f3df);
           border-radius: var(--border-radius);
           padding: var(--spacing-lg);
           margin: var(--spacing-lg) 0;
@@ -2958,7 +2959,7 @@ class WioOnboarding extends HTMLElement {
           width: 64px;
           height: 64px;
           border-radius: 50%;
-          background: white;
+          background: var(--color-white, #fff);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -2975,7 +2976,7 @@ class WioOnboarding extends HTMLElement {
 
         .success-details h3 {
           font-size: 16px;
-          color: #333;
+          color: var(--color-headline, #0f2a39);
           margin-bottom: var(--spacing-md);
         }
 
@@ -2996,12 +2997,12 @@ class WioOnboarding extends HTMLElement {
         }
 
         .detail-value {
-          color: #333;
+          color: var(--color-headline, #0f2a39);
         }
 
         .btn-send-again {
           padding: 12px 32px;
-          background: white;
+          background: var(--color-white, #fff);
           color: var(--primary-color);
           border: 2px solid var(--primary-color);
           border-radius: var(--border-radius);
@@ -3015,13 +3016,13 @@ class WioOnboarding extends HTMLElement {
 
         .btn-send-again:hover {
           background: var(--primary-color);
-          color: white;
+          color: var(--color-white, #fff);
         }
 
         .btn-confirm-success {
           padding: 12px 32px;
           background: var(--primary-color);
-          color: white;
+          color: var(--color-white, #fff);
           border: 2px solid var(--primary-color);
           border-radius: var(--border-radius);
           cursor: pointer;
@@ -3040,7 +3041,7 @@ class WioOnboarding extends HTMLElement {
         .error-container {
           text-align: center;
           padding: calc(var(--spacing-lg) * 2);
-          background: white;
+          background: var(--color-white, #fff);
           border-radius: var(--border-radius-lg);
           max-width: 600px;
           margin: 0 auto;
@@ -3050,7 +3051,7 @@ class WioOnboarding extends HTMLElement {
           width: 80px;
           height: 80px;
           border-radius: 50%;
-          background: #f8d7da;
+          background: var(--color-error-light, #fae5e4);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -3067,7 +3068,7 @@ class WioOnboarding extends HTMLElement {
 
         .error-container h2 {
           font-size: 28px;
-          color: #333;
+          color: var(--color-headline, #0f2a39);
           margin-bottom: var(--spacing-sm);
         }
 
@@ -3077,7 +3078,7 @@ class WioOnboarding extends HTMLElement {
         }
 
         .error-details {
-          background: #f8d7da;
+          background: var(--color-error-light, #fae5e4);
           border-radius: var(--border-radius);
           padding: var(--spacing-lg);
           margin: var(--spacing-lg) 0;
@@ -3086,12 +3087,12 @@ class WioOnboarding extends HTMLElement {
 
         .error-details h3 {
           font-size: 16px;
-          color: #333;
+          color: var(--color-headline, #0f2a39);
           margin-bottom: var(--spacing-md);
         }
 
         .error-details p {
-          color: #721c24;
+          color: var(--color-error-dark, #903531);
           line-height: 1.5;
         }
 

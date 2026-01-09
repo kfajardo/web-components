@@ -257,24 +257,24 @@ class OperatorBankAccount extends HTMLElement {
     styleTag.id = "moov-bison-theme";
     styleTag.textContent = `
       :root {
-        --moov-color-background: #FFFFFF;
-        --moov-color-background-secondary: #F9FAFB;
-        --moov-color-background-tertiary: #F3F4F6;
-        --moov-color-primary: #325240;
-        --moov-color-secondary: #2a4536;
-        --moov-color-tertiary: #E5E7EB;
-        --moov-color-info: #3B82F6;
-        --moov-color-warn: #F59E0B;
-        --moov-color-danger: #EF4444;
-        --moov-color-success: #10B981;
-        --moov-color-low-contrast: #9CA3AF;
-        --moov-color-medium-contrast: #4B5563;
-        --moov-color-high-contrast: #111827;
-        --moov-color-graphic-1: #325240;
-        --moov-color-graphic-2: #6B7280;
-        --moov-color-graphic-3: #3B82F6;
-        --moov-radius-small: 8px;
-        --moov-radius-large: 12px;
+        --moov-color-background: var(--color-white, #fff);
+        --moov-color-background-secondary: var(--color-sidebar, #fafafa);
+        --moov-color-background-tertiary: var(--color-gray-100, #f3f4f6);
+        --moov-color-primary: var(--color-primary, #4c7b63);
+        --moov-color-secondary: var(--color-primary-hover, #436c57);
+        --moov-color-tertiary: var(--color-border, #e8e8e8);
+        --moov-color-info: var(--color-primary, #4c7b63);
+        --moov-color-warn: var(--color-warning, #f59e0b);
+        --moov-color-danger: var(--color-error, #dd524b);
+        --moov-color-success: var(--color-success, #22c55e);
+        --moov-color-low-contrast: var(--color-gray-400, #9ca3af);
+        --moov-color-medium-contrast: var(--color-gray-600, #4b5563);
+        --moov-color-high-contrast: var(--color-headline, #0f2a39);
+        --moov-color-graphic-1: var(--color-primary, #4c7b63);
+        --moov-color-graphic-2: var(--color-gray-500, #6b7280);
+        --moov-color-graphic-3: var(--color-warning, #f59e0b);
+        --moov-radius-small: var(--radius-lg, 0.5rem);
+        --moov-radius-large: var(--radius-xl, 0.75rem);
       }
     `;
     document.body.appendChild(styleTag);
@@ -824,6 +824,8 @@ class OperatorBankAccount extends HTMLElement {
       <style>
         :host {
           display: inline-block;
+          font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
+          color: var(--color-secondary, #5f6e78);
         }
 
         .btn-wrapper {
@@ -833,14 +835,14 @@ class OperatorBankAccount extends HTMLElement {
 
         .add-bank-btn {
           padding: 12px 24px;
-          background: #325240;
-          color: white;
+          background: var(--color-primary, #4c7b63);
+          color: var(--color-white, #fff);
           border: none;
-          border-radius: 12px;
-          font-size: 14px;
-          font-weight: 500;
+          border-radius: var(--radius-xl, 0.75rem);
+          font-size: var(--text-sm, 0.875rem);
+          font-weight: var(--font-weight-medium, 500);
           cursor: pointer;
-          transition: all 0.2s ease;
+          transition: all var(--duration-normal, 200ms) var(--ease-in-out, cubic-bezier(0.4, 0, 0.2, 1));
           display: inline-flex;
           align-items: center;
           gap: 8px;
@@ -849,23 +851,22 @@ class OperatorBankAccount extends HTMLElement {
         }
 
         .add-bank-btn:hover:not(.error):not(.loading) {
-          background: #2a4536;
+          background: var(--color-primary-hover, #436c57);
           transform: translateY(-1px);
-          box-shadow: 0 4px 12px rgba(50, 82, 64, 0.3);
         }
 
         .add-bank-btn:active:not(.error):not(.loading) {
-          background: #1e3328;
+          background: var(--color-primary-active, #3d624f);
           transform: translateY(0);
         }
 
         .add-bank-btn.error {
-          background: #9ca3af;
+          background: var(--color-gray-400, #9ca3af);
           cursor: not-allowed;
         }
 
         .add-bank-btn.loading {
-          background: #6b8f7a;
+          background: var(--color-primary-soft, #678f7a);
           cursor: wait;
         }
 
@@ -879,7 +880,7 @@ class OperatorBankAccount extends HTMLElement {
           width: 16px;
           height: 16px;
           border: 2px solid rgba(255, 255, 255, 0.3);
-          border-top-color: white;
+          border-top-color: var(--color-white, #fff);
           border-radius: 50%;
           animation: spin 0.8s linear infinite;
         }
@@ -919,14 +920,15 @@ class OperatorBankAccount extends HTMLElement {
           bottom: 100%;
           left: 50%;
           transform: translateX(-50%);
-          background: #374151;
-          color: white;
+          background: var(--color-gray-700, #374151);
+          color: var(--color-white, #fff);
           padding: 8px 12px;
-          border-radius: 6px;
+          border-radius: var(--radius-lg, 0.5rem);
           font-size: 13px;
           white-space: nowrap;
           margin-bottom: 8px;
-          transition: opacity 0.2s ease, visibility 0.2s ease;
+          transition: opacity var(--duration-normal, 200ms) var(--ease-in-out, cubic-bezier(0.4, 0, 0.2, 1)),
+            visibility var(--duration-normal, 200ms) var(--ease-in-out, cubic-bezier(0.4, 0, 0.2, 1));
           z-index: 10002;
         }
 
@@ -937,7 +939,7 @@ class OperatorBankAccount extends HTMLElement {
           left: 50%;
           transform: translateX(-50%);
           border: 6px solid transparent;
-          border-top-color: #374151;
+          border-top-color: var(--color-gray-700, #374151);
         }
 
         .btn-wrapper:hover .tooltip {

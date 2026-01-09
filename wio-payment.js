@@ -546,6 +546,8 @@ class WioPayment extends HTMLElement {
       <style>
         :host {
           display: block;
+          font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
+          color: var(--color-secondary, #5f6e78);
         }
         
         /* Ensure moov-payment-methods is properly contained */

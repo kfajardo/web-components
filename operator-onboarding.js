@@ -1304,19 +1304,20 @@ class OperatorOnboarding extends HTMLElement {
         }
         
         :host {
-          --primary-color: #325240;
-          --success-color: #325240;
-          --error-color: #dc3545;
-          --border-color: #ddd;
-          --gray-light: #f8f9fa;
-          --gray-medium: #6c757d;
-          --border-radius: 12px;
-          --border-radius-sm: 8px;
-          --border-radius-lg: 16px;
-          --spacing-sm: 8px;
-          --spacing-md: 16px;
-          --spacing-lg: 24px;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+          --primary-color: var(--color-primary, #4c7b63);
+          --success-color: var(--color-success, #22c55e);
+          --error-color: var(--color-error, #dd524b);
+          --border-color: var(--color-border, #e8e8e8);
+          --gray-light: var(--color-gray-50, #f9fafb);
+          --gray-medium: var(--color-gray-500, #6b7280);
+          --border-radius: var(--radius-xl, 0.75rem);
+          --border-radius-sm: var(--radius-lg, 0.5rem);
+          --border-radius-lg: var(--radius-2xl, 1rem);
+          --spacing-sm: var(--spacing-sm, 0.5rem);
+          --spacing-md: var(--spacing-md, 1rem);
+          --spacing-lg: var(--spacing-lg, 1.5rem);
+          font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
+          color: var(--color-secondary, #5f6e78);
           display: inline-block;
         }
 
@@ -1327,21 +1328,20 @@ class OperatorOnboarding extends HTMLElement {
           gap: 8px;
           padding: 12px 24px;
           background: var(--primary-color);
-          color: white;
+          color: var(--color-white, #fff);
           border: none;
           border-radius: var(--border-radius);
-          font-size: 14px;
-          font-weight: 500;
+          font-size: var(--text-sm, 0.875rem);
+          font-weight: var(--font-weight-medium, 500);
           cursor: pointer;
-          transition: all 0.2s ease;
+          transition: all var(--duration-normal, 200ms) var(--ease-in-out, cubic-bezier(0.4, 0, 0.2, 1));
           height: 40px;
           box-sizing: border-box;
         }
 
         .onboarding-trigger-btn:hover {
-          background: #2a4536;
+          background: var(--color-primary-hover, #436c57);
           transform: translateY(-1px);
-          box-shadow: 0 4px 12px rgba(50, 82, 64, 0.3);
         }
 
         .onboarding-trigger-btn:active {
@@ -1392,7 +1392,7 @@ class OperatorOnboarding extends HTMLElement {
 
         /* Modal Container */
         .modal-container {
-          background: white;
+          background: var(--color-white, #fff);
           border-radius: var(--border-radius-lg);
           max-width: 900px;
           width: 100%;
@@ -1454,7 +1454,7 @@ class OperatorOnboarding extends HTMLElement {
           flex-shrink: 0;
           padding: var(--spacing-lg);
           border-bottom: 1px solid var(--border-color);
-          background: white;
+          background: var(--color-white, #fff);
         }
 
         .modal-body {
@@ -1468,7 +1468,7 @@ class OperatorOnboarding extends HTMLElement {
           flex-shrink: 0;
           padding: var(--spacing-lg);
           border-top: 1px solid var(--border-color);
-          background: white;
+          background: var(--color-white, #fff);
         }
 
         .modal-body-full {
@@ -1500,7 +1500,7 @@ class OperatorOnboarding extends HTMLElement {
 
         .modal-close-btn:hover {
           background: var(--gray-light);
-          color: #333;
+          color: var(--color-headline, #0f2a39);
         }
         
         .onboarding-container {
@@ -1553,7 +1553,7 @@ class OperatorOnboarding extends HTMLElement {
           width: 40px;
           height: 40px;
           border-radius: 50%;
-          background: white;
+          background: var(--color-white, #fff);
           border: 2px solid var(--border-color);
           display: flex;
           align-items: center;
@@ -1567,13 +1567,13 @@ class OperatorOnboarding extends HTMLElement {
           border-color: var(--primary-color);
           color: var(--primary-color);
           background: var(--primary-color);
-          color: white;
+          color: var(--color-white, #fff);
         }
         
         .step-indicator.complete .step-circle {
           border-color: var(--success-color);
           background: var(--success-color);
-          color: white;
+          color: var(--color-white, #fff);
         }
         
         .step-label {
@@ -1588,7 +1588,7 @@ class OperatorOnboarding extends HTMLElement {
         
         /* Step Content */
         .step-content {
-          background: white;
+          background: var(--color-white, #fff);
           padding: calc(var(--spacing-lg) * 1.5);
           border: 1px solid var(--border-color);
           border-radius: var(--border-radius-lg);
@@ -1598,7 +1598,7 @@ class OperatorOnboarding extends HTMLElement {
         
         .step-content h2 {
           margin-bottom: var(--spacing-sm);
-          color: #333;
+          color: var(--color-headline, #0f2a39);
         }
         
         .step-content > p {
@@ -1608,12 +1608,12 @@ class OperatorOnboarding extends HTMLElement {
 
         /* Form Section - for scrollable content in modal */
         .form-section {
-          background: white;
+          background: var(--color-white, #fff);
         }
 
         .form-section h2 {
           margin-bottom: var(--spacing-sm);
-          color: #333;
+          color: var(--color-headline, #0f2a39);
         }
 
         .form-section > p {
@@ -1630,7 +1630,7 @@ class OperatorOnboarding extends HTMLElement {
           display: block;
           margin-bottom: var(--spacing-sm);
           font-weight: 500;
-          color: #333;
+          color: var(--color-headline, #0f2a39);
         }
         
         /* Red asterisk for required fields */
@@ -1716,7 +1716,7 @@ class OperatorOnboarding extends HTMLElement {
         
         .card-header h3 {
           font-size: 16px;
-          color: #333;
+          color: var(--color-headline, #0f2a39);
         }
         
         .remove-btn {
@@ -1735,7 +1735,7 @@ class OperatorOnboarding extends HTMLElement {
         .add-representative-btn {
           width: 100%;
           padding: 12px;
-          background: white;
+          background: var(--color-white, #fff);
           border: 2px dashed var(--border-color);
           border-radius: var(--border-radius);
           color: var(--primary-color);
@@ -1769,9 +1769,9 @@ class OperatorOnboarding extends HTMLElement {
         }
         
         .btn-back {
-          background: white;
+          background: var(--color-white, #fff);
           border: 1px solid var(--border-color);
-          color: #333;
+          color: var(--color-headline, #0f2a39);
         }
         
         .btn-back:hover {
@@ -1779,7 +1779,7 @@ class OperatorOnboarding extends HTMLElement {
         }
         
         .btn-skip {
-          background: white;
+          background: var(--color-white, #fff);
           border: 1px solid var(--border-color);
           color: var(--gray-medium);
           margin-left: auto;
@@ -1791,11 +1791,11 @@ class OperatorOnboarding extends HTMLElement {
         
         .btn-next {
           background: var(--primary-color);
-          color: white;
+          color: var(--color-white, #fff);
         }
         
         .btn-next:hover {
-          background: #0056b3;
+          background: var(--color-primary-hover, #436c57);
         }
 
         /* Success Confirmation Button */
@@ -1803,19 +1803,18 @@ class OperatorOnboarding extends HTMLElement {
           margin-top: var(--spacing-lg);
           padding: 14px 32px;
           background: var(--primary-color);
-          color: white;
+          color: var(--color-white, #fff);
           border: none;
           border-radius: var(--border-radius);
           font-size: 16px;
-          font-weight: 500;
+          font-weight: var(--font-weight-medium, 500);
           cursor: pointer;
-          transition: all 0.2s ease;
+          transition: all var(--duration-normal, 200ms) var(--ease-in-out, cubic-bezier(0.4, 0, 0.2, 1));
         }
 
         .btn-confirm-success:hover {
-          background: #2a4536;
+          background: var(--color-primary-hover, #436c57);
           transform: translateY(-1px);
-          box-shadow: 0 4px 12px rgba(50, 82, 64, 0.3);
         }
 
         .btn-confirm-success:active {
@@ -1839,12 +1838,12 @@ class OperatorOnboarding extends HTMLElement {
         }
         
         .success-message {
-          background: #d4edda;
-          color: #155724;
+          background: var(--color-success-light, #d3f3df);
+          color: var(--color-success-dark, #136c34);
           padding: var(--spacing-md);
           border-radius: var(--border-radius);
           margin-top: var(--spacing-md);
-          border: 1px solid #c3e6cb;
+          border: 1px solid var(--color-success-light, #d3f3df);
         }
         
         .empty-state {
@@ -1866,12 +1865,12 @@ class OperatorOnboarding extends HTMLElement {
         
         .drag-drop-area:hover {
           border-color: var(--primary-color);
-          background: #f0f7f4;
+          background: var(--color-primary-light, #e8f0eb);
         }
         
         .drag-drop-area.drag-over {
           border-color: var(--primary-color);
-          background: #e6f2ed;
+          background: var(--color-primary-light, #e8f0eb);
           border-style: solid;
         }
         
@@ -1880,7 +1879,7 @@ class OperatorOnboarding extends HTMLElement {
         }
         
         .btn-browse:hover {
-          background: #2a4536;
+          background: var(--color-primary-hover, #436c57);
         }
         
         .uploaded-files {
@@ -1888,7 +1887,7 @@ class OperatorOnboarding extends HTMLElement {
         }
         
         .file-item:hover {
-          background: #e9ecef;
+          background: var(--color-gray-100, #f3f4f6);
         }
         
         .btn-remove-file:hover {
@@ -1905,7 +1904,7 @@ class OperatorOnboarding extends HTMLElement {
           width: 120px;
           height: 120px;
           margin: 0 auto var(--spacing-lg);
-          background: linear-gradient(135deg, var(--error-color) 0%, #c82333 100%);
+          background: linear-gradient(135deg, var(--error-color) 0%, var(--color-error-dark, #903531) 100%);
           border-radius: 50%;
           display: flex;
           align-items: center;
@@ -1930,7 +1929,7 @@ class OperatorOnboarding extends HTMLElement {
         .error-icon svg {
           width: 70px;
           height: 70px;
-          stroke: white;
+          stroke: var(--color-white, #fff);
           stroke-width: 3;
           stroke-linecap: round;
           stroke-linejoin: round;
@@ -1951,8 +1950,8 @@ class OperatorOnboarding extends HTMLElement {
         }
         
         .error-details {
-          background: #f8d7da;
-          border: 1px solid #f5c6cb;
+          background: var(--color-error-light, #fae5e4);
+          border: 1px solid var(--color-error-muted, #eea9a5);
           border-radius: var(--border-radius-lg);
           padding: var(--spacing-lg);
           margin: var(--spacing-lg) 0;
@@ -1966,13 +1965,13 @@ class OperatorOnboarding extends HTMLElement {
         }
         
         .error-details p {
-          color: #721c24;
+          color: var(--color-error-dark, #903531);
           margin-bottom: var(--spacing-sm);
         }
         
         .btn-fail {
           background: var(--error-color);
-          color: white;
+          color: var(--color-white, #fff);
           padding: 12px 24px;
           border: none;
           border-radius: var(--border-radius);
@@ -1984,7 +1983,7 @@ class OperatorOnboarding extends HTMLElement {
         }
         
         .btn-fail:hover {
-          background: #c82333;
+          background: var(--color-error-dark, #903531);
         }
         
         /* Success Page */
@@ -1997,7 +1996,7 @@ class OperatorOnboarding extends HTMLElement {
           width: 120px;
           height: 120px;
           margin: 0 auto var(--spacing-lg);
-          background: linear-gradient(135deg, var(--success-color) 0%, #20c997 100%);
+          background: linear-gradient(135deg, var(--success-color) 0%, var(--color-success-dark, #136c34) 100%);
           border-radius: 50%;
           display: flex;
           align-items: center;
@@ -2022,7 +2021,7 @@ class OperatorOnboarding extends HTMLElement {
         .success-icon svg {
           width: 70px;
           height: 70px;
-          stroke: white;
+          stroke: var(--color-white, #fff);
           stroke-width: 3;
           stroke-linecap: round;
           stroke-linejoin: round;
@@ -2060,7 +2059,7 @@ class OperatorOnboarding extends HTMLElement {
         }
         
         .success-details h3 {
-          color: #333;
+          color: var(--color-headline, #0f2a39);
           margin-bottom: var(--spacing-md);
           font-size: 18px;
         }
@@ -2082,7 +2081,7 @@ class OperatorOnboarding extends HTMLElement {
         }
         
         .detail-value {
-          color: #333;
+          color: var(--color-headline, #0f2a39);
           font-weight: 500;
           font-size: 14px;
         }
@@ -2509,7 +2508,7 @@ class OperatorOnboarding extends HTMLElement {
                   <polyline points="17 8 12 3 7 8"></polyline>
                   <line x1="12" y1="3" x2="12" y2="15"></line>
                 </svg>
-                <p style="margin-bottom: var(--spacing-sm); color: #333; font-weight: 500;">
+                <p style="margin-bottom: var(--spacing-sm); color: var(--color-headline, #0f2a39); font-weight: 500;">
                   Drag and drop files here
                 </p>
                 <p style="font-size: 14px; color: var(--gray-medium); margin-bottom: var(--spacing-md);">
@@ -2518,7 +2517,7 @@ class OperatorOnboarding extends HTMLElement {
                 <button type="button" class="btn-browse" style="
                   padding: 10px 20px;
                   background: var(--primary-color);
-                  color: white;
+                  color: var(--color-white, #fff);
                   border: none;
                   border-radius: var(--border-radius-sm);
                   cursor: pointer;
@@ -2562,7 +2561,7 @@ class OperatorOnboarding extends HTMLElement {
   renderFileList(files) {
     return `
       <div class="uploaded-files">
-        <p style="font-size: 14px; font-weight: 500; margin-bottom: var(--spacing-sm); color: #333;">
+        <p style="font-size: 14px; font-weight: 500; margin-bottom: var(--spacing-sm); color: var(--color-headline, #0f2a39);">
           ${files.length} file(s) uploaded:
         </p>
         ${files
@@ -2582,7 +2581,7 @@ class OperatorOnboarding extends HTMLElement {
                 <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
                 <polyline points="13 2 13 9 20 9"></polyline>
               </svg>
-              <span style="font-size: 14px; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+              <span style="font-size: 14px; color: var(--color-headline, #0f2a39); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
                 ${file.name}
               </span>
               <span style="font-size: 12px; color: var(--gray-medium); white-space: nowrap;">
@@ -3012,7 +3011,7 @@ class OperatorOnboarding extends HTMLElement {
         
         <h2>Onboarding Complete! 🎉</h2>
         <p>Your operator application has been successfully submitted.</p>
-        <p style="margin-top: var(--spacing-lg); color: #333;">
+        <p style="margin-top: var(--spacing-lg); color: var(--color-headline, #0f2a39);">
           <strong>You can now close this dialog.</strong>
         </p>
         
@@ -3088,7 +3087,7 @@ class OperatorOnboarding extends HTMLElement {
           <button type="button" class="btn-resubmit" style="
             padding: 12px 24px;
             background: var(--primary-color);
-            color: white;
+            color: var(--color-white, #fff);
             border: none;
             border-radius: var(--border-radius);
             font-size: 14px;

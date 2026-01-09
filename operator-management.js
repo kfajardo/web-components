@@ -433,6 +433,8 @@ class OperatorManagement extends HTMLElement {
       <style>
         :host {
           display: block;
+          font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
+          color: var(--color-secondary, #5f6e78);
         }
         
         .management-container {
@@ -445,14 +447,14 @@ class OperatorManagement extends HTMLElement {
         
         .unified-loading-button {
           padding: 12px 24px;
-          background: #6b8f7a;
-          color: white;
+          background: var(--color-primary-soft, #678f7a);
+          color: var(--color-white, #fff);
           border: none;
-          border-radius: 12px;
-          font-size: 14px;
-          font-weight: 500;
+          border-radius: var(--radius-xl, 0.75rem);
+          font-size: var(--text-sm, 0.875rem);
+          font-weight: var(--font-weight-medium, 500);
           cursor: wait;
-          transition: all 0.2s ease;
+          transition: all var(--duration-normal, 200ms) var(--ease-in-out, cubic-bezier(0.4, 0, 0.2, 1));
           display: inline-flex;
           align-items: center;
           gap: 8px;
@@ -468,7 +470,7 @@ class OperatorManagement extends HTMLElement {
           width: 16px;
           height: 16px;
           border: 2px solid rgba(255, 255, 255, 0.3);
-          border-top-color: white;
+          border-top-color: var(--color-white, #fff);
           border-radius: 50%;
           animation: spin 0.8s linear infinite;
           box-sizing: border-box;
@@ -487,27 +489,27 @@ class OperatorManagement extends HTMLElement {
           justify-content: center;
           padding: 48px 24px;
           text-align: center;
-          background: #f9fafb;
-          border: 1px dashed #d1d5db;
-          border-radius: 12px;
+          background: var(--color-gray-50, #f9fafb);
+          border: 1px dashed var(--color-gray-200, #d1d5db);
+          border-radius: var(--radius-xl, 0.75rem);
         }
         
         .empty-icon {
           width: 64px;
           height: 64px;
-          color: #9ca3af;
+          color: var(--color-gray-400, #9ca3af);
           margin-bottom: 16px;
         }
         
         .empty-text {
           font-size: 16px;
-          color: #6b7280;
+          color: var(--color-gray-500, #6b7280);
           margin: 0;
         }
         
         .empty-subtext {
           font-size: 14px;
-          color: #9ca3af;
+          color: var(--color-gray-400, #9ca3af);
           margin-top: 8px;
         }
         
@@ -518,27 +520,27 @@ class OperatorManagement extends HTMLElement {
           justify-content: center;
           padding: 48px 24px;
           text-align: center;
-          background: #fef2f2;
-          border: 1px solid #fee2e2;
-          border-radius: 12px;
+          background: var(--color-error-light, #fae5e4);
+          border: 1px solid var(--color-error-muted, #eea9a5);
+          border-radius: var(--radius-xl, 0.75rem);
         }
         
         .error-icon {
           width: 64px;
           height: 64px;
-          color: #ef4444;
+          color: var(--color-error, #dd524b);
           margin-bottom: 16px;
         }
         
         .error-text {
           font-size: 16px;
-          color: #991b1b;
+          color: var(--color-error-dark, #903531);
           margin: 0;
         }
         
         .error-subtext {
           font-size: 14px;
-          color: #dc2626;
+          color: var(--color-error, #dd524b);
           margin-top: 8px;
         }
       </style>
