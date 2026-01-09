@@ -14,7 +14,7 @@
  * <script src="component.js"></script>
  * <script src="wio-payment-linking.js"></script>
  *
- * <wio-payment-linking id="linking" email="user@example.com"></wio-payment-linking>
+ * <wio-payment-linking id="linking" email="user@example.com" button-text="Link Bank Account"></wio-payment-linking>
  * <script>
  *   const linking = document.getElementById('linking');
  *   linking.addEventListener('payment-linking-success', (e) => {
@@ -53,6 +53,7 @@ class WioPaymentLinking extends HTMLElement {
     // Internal state
     this._state = {
       email: null,
+      buttonText: this.getAttribute("button-text") || "Link Payment",
       isOpen: false,
       isLoading: false,
       accountData: null,
@@ -82,7 +83,7 @@ class WioPaymentLinking extends HTMLElement {
   // ==================== STATIC PROPERTIES ====================
 
   static get observedAttributes() {
-    return ["email", "api-base-url", "embeddable-key"];
+    return ["email", "api-base-url", "embeddable-key", "button-text"];
   }
 
   // ==================== PROPERTY GETTERS/SETTERS ====================
@@ -101,6 +102,14 @@ class WioPaymentLinking extends HTMLElement {
    */
   get moovAccountId() {
     return this._state.moovAccountId;
+  }
+
+  /**
+   * Get the button text
+   * @returns {string}
+   */
+  get buttonText() {
+    return this._state.buttonText;
   }
 
   /**
@@ -130,6 +139,30 @@ class WioPaymentLinking extends HTMLElement {
     // Trigger initialization if email changed and component is connected
     if (value && value !== oldEmail && this.isConnected) {
       this.initializeAccount();
+    }
+  }
+
+  /**
+   * Set the button text
+   * @param {string} value - Button text
+   */
+  set buttonText(value) {
+    const nextValue = value == null ? "" : String(value);
+    const oldValue = this._state.buttonText;
+
+    this._state.buttonText = nextValue || "Link Payment";
+
+    const currentAttr = this.getAttribute("button-text");
+    if (currentAttr !== nextValue) {
+      if (nextValue) {
+        this.setAttribute("button-text", nextValue);
+      } else {
+        this.removeAttribute("button-text");
+      }
+    }
+
+    if (oldValue !== this._state.buttonText) {
+      this.updateButtonLabel();
     }
   }
 
@@ -193,6 +226,11 @@ class WioPaymentLinking extends HTMLElement {
         if (this.api) {
           this.api = new BisonJibPayAPI(this.apiBaseURL, this.embeddableKey);
         }
+        break;
+
+      case "button-text":
+        this._state.buttonText = newValue || "Link Payment";
+        this.updateButtonLabel();
         break;
     }
   }
@@ -1071,6 +1109,16 @@ class WioPaymentLinking extends HTMLElement {
     }
   }
 
+  /**
+   * Update main button label text
+   */
+  updateButtonLabel() {
+    const label = this.shadowRoot.querySelector(".link-payment-label");
+    if (label) {
+      label.textContent = this._state.buttonText || "Link Payment";
+    }
+  }
+
   // ==================== RENDERING ====================
 
   /**
@@ -1942,7 +1990,7 @@ class WioPaymentLinking extends HTMLElement {
             <path d="M15 7h3a5 5 0 0 1 5 5 5 5 0 0 1-5 5h-3m-6 0H6a5 5 0 0 1-5-5 5 5 0 0 1 5-5h3"></path>
             <line x1="1" y1="1" x2="23" y2="23"></line>
           </svg>
-          Link Payment
+          <span class="link-payment-label">${this._state.buttonText}</span>
         </button>
       </div>
       
