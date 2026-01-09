@@ -1565,7 +1565,6 @@ class OperatorPayment extends HTMLElement {
         
         .link-payment-btn:hover:not(.error):not(.loading) {
           background: var(--color-primary-hover, #436c57);
-          transform: translateY(-1px);
         }
         
         .link-payment-btn:active:not(.error):not(.loading) {

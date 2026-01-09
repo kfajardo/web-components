@@ -1341,7 +1341,6 @@ class OperatorOnboarding extends HTMLElement {
 
         .onboarding-trigger-btn:hover {
           background: var(--color-primary-hover, #436c57);
-          transform: translateY(-1px);
         }
 
         .onboarding-trigger-btn:active {
@@ -1814,7 +1813,6 @@ class OperatorOnboarding extends HTMLElement {
 
         .btn-confirm-success:hover {
           background: var(--color-primary-hover, #436c57);
-          transform: translateY(-1px);
         }
 
         .btn-confirm-success:active {

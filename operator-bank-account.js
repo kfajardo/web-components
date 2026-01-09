@@ -852,7 +852,6 @@ class OperatorBankAccount extends HTMLElement {
 
         .add-bank-btn:hover:not(.error):not(.loading) {
           background: var(--color-primary-hover, #436c57);
-          transform: translateY(-1px);
         }
 
         .add-bank-btn:active:not(.error):not(.loading) {
