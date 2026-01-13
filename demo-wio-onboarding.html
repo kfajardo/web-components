@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WIO Onboarding Demo</title>
+    <style>
+        :root {
+            --primary-color: #0070ba;
+            --background-color: #f5f7fa;
+            --text-color: #333;
+            --border-radius: 8px;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: var(--background-color);
+            color: var(--text-color);
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        header {
+            margin-bottom: 40px;
+            text-align: center;
+        }
+
+        h1 {
+            color: var(--primary-color);
+            margin-bottom: 10px;
+        }
+
+        p.subtitle {
+            color: #666;
+            font-size: 1.1rem;
+        }
+
+        .demo-wrapper {
+            background: white;
+            border-radius: var(--border-radius);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            padding: 40px;
+            margin-bottom: 30px;
+        }
+
+        .controls {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #fff;
+            border-radius: var(--border-radius);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: opacity 0.2s;
+            background-color: #e0e0e0;
+            color: #333;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        button.primary {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .console-log {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            border-radius: var(--border-radius);
+            font-family: "Menlo", "Monaco", "Courier New", monospace;
+            font-size: 13px;
+            height: 300px;
+            overflow-y: auto;
+            border: 1px solid #333;
+        }
+
+        .log-entry {
+            margin-bottom: 8px;
+            border-bottom: 1px solid #333;
+            padding-bottom: 8px;
+        }
+
+        .log-time {
+            color: #569cd6;
+            margin-right: 10px;
+        }
+
+        .log-label {
+            color: #c586c0;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+
+        .success { color: #4ec9b0; }
+        .error { color: #f44747; }
+        .info { color: #9cdcfe; }
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>WIO Onboarding Component</h1>
+            <p class="subtitle">Complete business onboarding flow with inline stepper</p>
+        </header>
+
+        <div class="controls">
+            <button class="primary" onclick="resetForm()">Reset Form</button>
+            <button onclick="prefillData()">Prefill Demo Data</button>
+            <button onclick="clearLogs()">Clear Logs</button>
+        </div>
+
+        <div class="demo-wrapper">
+            <!-- WIO Onboarding Component -->
+            <wio-onboarding 
+                id="wioOnboarding"
+                api-base-url="https://bison-jib-development.azurewebsites.net"
+                embeddable-key="R80WMkbNN8457RofiMYx03DL65P06IaVT30Q2emYJUBQwYCzRC"
+            ></wio-onboarding>
+        </div>
+
+        <div class="console-log" id="consoleLog">
+            <div class="log-entry info">
+                <span class="log-time">System</span>
+                <span class="log-label">Ready</span>
+                Waitng for interactions...
+            </div>
+        </div>
+    </div>
+
+    <!-- Dependencies -->
+    <script src="api.js"></script>
+    <script src="wio-onboarding.js"></script>
+
+    <script>
+        const onboardingComponent = document.getElementById('wioOnboarding');
+        const consoleLog = document.getElementById('consoleLog');
+
+        function log(label, message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            const time = new Date().toLocaleTimeString();
+            
+            // Format object if necessary
+            let displayMessage = message;
+            if (typeof message === 'object') {
+                displayMessage = JSON.stringify(message, null, 2);
+            }
+
+            entry.innerHTML = `
+                <span class="log-time">[${time}]</span>
+                <span class="log-label">${label}</span>
+                <pre style="margin: 5px 0 0 0; white-space: pre-wrap;">${displayMessage}</pre>
+            `;
+            
+            consoleLog.insertBefore(entry, consoleLog.firstChild);
+        }
+
+        function clearLogs() {
+            consoleLog.innerHTML = '';
+        }
+
+        function resetForm() {
+            // Re-render essentially or call internal reset if exposed
+            // Since resetForm() is a method on the class instance, we can call it if available
+            if (onboardingComponent.resetForm) {
+                onboardingComponent.resetForm();
+                log('Action', 'Form reset triggered', 'info');
+            } else {
+                // Fallback: reload page or re-insert component
+                log('Action', 'resetForm method not found on component', 'error');
+            }
+        }
+
+        function prefillData() {
+            const demoData = {
+                businessDetails: {
+                    businessName: "Acme Corp Demo",
+                    doingBusinessAs: "Acme",
+                    ein: "123456789",
+                    businessWebsite: "https://example.com",
+                    businessPhoneNumber: "5551234567",
+                    businessEmail: "admin@acmecorp.com",
+                    BusinessAddress1: "123 Demo St",
+                    businessCity: "New York",
+                    businessState: "NY",
+                    businessPostalCode: "10001"
+                },
+                bankDetails: {
+                    bankAccountHolderName: "Acme Corp",
+                    bankAccountType: "checking",
+                    bankRoutingNumber: "123456789",
+                    bankAccountNumber: "000123456789"
+                }
+            };
+
+            if (onboardingComponent.onLoad !== undefined) {
+                onboardingComponent.onLoad = demoData;
+                log('Action', 'Demo data loaded via .onLoad', 'success');
+            } else {
+                 // Try calling loadInitialData directly if onLoad setter isn't working as expected or for transparency
+                if (onboardingComponent.loadInitialData) {
+                    onboardingComponent.loadInitialData(demoData);
+                    log('Action', 'Demo data loaded via .loadInitialData()', 'success');
+                }
+            }
+        }
+
+        // Attach Event Listeners
+        
+        onboardingComponent.onSuccess = (data) => {
+            log('Event: onSuccess', data, 'success');
+            alert('Onboarding Success! Check logs for details.');
+        };
+
+        onboardingComponent.onError = (error) => {
+            log('Event: onError', error, 'error');
+        };
+
+        onboardingComponent.onSubmit = (data) => {
+            log('Event: onSubmit', 'Submitting form data...', 'info');
+        };
+
+        // Standard DOM event listeners if dispatched
+        onboardingComponent.addEventListener('success', (e) => {
+            log('DOM Event: success', e.detail, 'success');
+        });
+
+        onboardingComponent.addEventListener('error', (e) => {
+            log('DOM Event: error', e.detail, 'error');
+        });
+
+        log('System', 'Component initialized. API Key and Base URL configured.', 'info');
+
+    </script>
+</body>
+</html>

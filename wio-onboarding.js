@@ -890,8 +890,8 @@ class WioOnboarding extends HTMLElement {
           "Available globals:",
           typeof window !== "undefined"
             ? Object.keys(window).filter((k) =>
-                k.toLowerCase().includes("bison")
-              )
+              k.toLowerCase().includes("bison")
+            )
             : "N/A"
         );
         this.handleSubmissionFailure(processedData);
@@ -1525,8 +1525,8 @@ class WioOnboarding extends HTMLElement {
     return `
       <div class="stepper-header">
         ${this.STEPS.map((step, index) =>
-          this.renderStepIndicator(step, index)
-        ).join("")}
+      this.renderStepIndicator(step, index)
+    ).join("")}
       </div>
     `;
   }
@@ -1537,8 +1537,7 @@ class WioOnboarding extends HTMLElement {
     const isClickable = isComplete || index < this.state.currentStep;
 
     return `
-      <div class="step-indicator ${isCurrent ? "active" : ""} ${
-        isComplete ? "complete" : ""
+      <div class="step-indicator ${isCurrent ? "active" : ""} ${isComplete ? "complete" : ""
       } ${isClickable ? "clickable" : ""}"
            ${isClickable ? `data-step="${index}"` : ""}>
         <div class="step-circle">
@@ -1615,22 +1614,21 @@ class WioOnboarding extends HTMLElement {
 
         <div class="form-grid">
           ${this.renderField({
-            name: "firstName",
-            label: "First Name *",
-            value: data.firstName,
-            error: this.getFieldError("firstName"),
-          })}
+      name: "firstName",
+      label: "First Name *",
+      value: data.firstName,
+      error: this.getFieldError("firstName"),
+    })}
 
           ${this.renderField({
-            name: "lastName",
-            label: "Last Name *",
-            value: data.lastName,
-            error: this.getFieldError("lastName"),
-          })}
+      name: "lastName",
+      label: "Last Name *",
+      value: data.lastName,
+      error: this.getFieldError("lastName"),
+    })}
 
-          <div class="form-field full-width ${
-            this.getFieldError("password") ? "has-error" : ""
-          }">
+          <div class="form-field full-width ${this.getFieldError("password") ? "has-error" : ""
+      }">
             <label for="password">Password <span class="required-asterisk">*</span></label>
             <input
               type="password"
@@ -1639,10 +1637,9 @@ class WioOnboarding extends HTMLElement {
               value="${data.password}"
               autocomplete="new-password"
             />
-            ${
-              data.password
-                ? this.renderPasswordStrength(data.password)
-                : `<div class="password-requirements">
+            ${data.password
+        ? this.renderPasswordStrength(data.password)
+        : `<div class="password-requirements">
                     <p style="font-size: 12px; color: var(--gray-medium); margin-top: 8px;">
                       Password must contain:
                     </p>
@@ -1654,22 +1651,21 @@ class WioOnboarding extends HTMLElement {
                       <li>One special character (!@#$%^&*)</li>
                     </ul>
                   </div>`
-            }
-            ${
-              this.getFieldError("password")
-                ? `<span class="error-message">${this.getFieldError("password")}</span>`
-                : ""
-            }
+      }
+            ${this.getFieldError("password")
+        ? `<span class="error-message">${this.getFieldError("password")}</span>`
+        : ""
+      }
           </div>
 
           ${this.renderField({
-            name: "confirmPassword",
-            label: "Confirm Password *",
-            type: "password",
-            value: data.confirmPassword,
-            error: this.getFieldError("confirmPassword"),
-            className: "full-width",
-          })}
+        name: "confirmPassword",
+        label: "Confirm Password *",
+        type: "password",
+        value: data.confirmPassword,
+        error: this.getFieldError("confirmPassword"),
+        className: "full-width",
+      })}
         </div>
       </div>
     `;
@@ -1694,9 +1690,9 @@ class WioOnboarding extends HTMLElement {
     return `
       <div class="${fieldClass}">
         <label for="${fieldId}">${label.replace(
-          " *",
-          ' <span class="required-asterisk">*</span>'
-        )}</label>
+      " *",
+      ' <span class="required-asterisk">*</span>'
+    )}</label>
         <input
           type="${type}"
           id="${fieldId}"
@@ -1723,113 +1719,110 @@ class WioOnboarding extends HTMLElement {
 
         <div class="form-grid">
           ${this.renderField({
-            name: "businessName",
-            label: "Business Name *",
-            value: data.businessName,
-            error: this.getFieldError("businessName"),
-          })}
+      name: "businessName",
+      label: "Business Name *",
+      value: data.businessName,
+      error: this.getFieldError("businessName"),
+    })}
 
           ${this.renderField({
-            name: "doingBusinessAs",
-            label: "Doing Business As (DBA) *",
-            value: data.doingBusinessAs,
-            error: this.getFieldError("doingBusinessAs"),
-          })}
+      name: "doingBusinessAs",
+      label: "Doing Business As (DBA) *",
+      value: data.doingBusinessAs,
+      error: this.getFieldError("doingBusinessAs"),
+    })}
 
           ${this.renderField({
-            name: "ein",
-            label: "EIN *",
-            value: data.ein,
-            error: this.getFieldError("ein"),
-            placeholder: "12-3456789",
-            maxLength: 10,
-            dataFormat: "ein",
-            className: "full-width",
-          })}
+      name: "ein",
+      label: "EIN *",
+      value: data.ein,
+      error: this.getFieldError("ein"),
+      placeholder: "12-3456789",
+      maxLength: 10,
+      dataFormat: "ein",
+      className: "full-width",
+    })}
 
           ${this.renderField({
-            name: "businessWebsite",
-            label: "Business Website",
-            type: "url",
-            value: data.businessWebsite,
-            error: this.getFieldError("businessWebsite"),
-            placeholder: "https://example.com",
-            className: "full-width",
-          })}
+      name: "businessWebsite",
+      label: "Business Website",
+      type: "url",
+      value: data.businessWebsite,
+      error: this.getFieldError("businessWebsite"),
+      placeholder: "https://example.com",
+      className: "full-width",
+    })}
 
           ${this.renderField({
-            name: "businessPhoneNumber",
-            label: "Business Phone *",
-            type: "tel",
-            value: data.businessPhoneNumber,
-            error: this.getFieldError("businessPhoneNumber"),
-            placeholder: "(555) 123-4567",
-            dataFormat: "phone",
-          })}
+      name: "businessPhoneNumber",
+      label: "Business Phone *",
+      type: "tel",
+      value: data.businessPhoneNumber,
+      error: this.getFieldError("businessPhoneNumber"),
+      placeholder: "(555) 123-4567",
+      dataFormat: "phone",
+    })}
 
           ${this.renderField({
-            name: "businessEmail",
-            label: "Business Email *",
-            type: "email",
-            value: data.businessEmail,
-            error: this.getFieldError("businessEmail"),
-            readOnly: false,
-          })}
+      name: "businessEmail",
+      label: "Business Email *",
+      type: "email",
+      value: data.businessEmail,
+      error: this.getFieldError("businessEmail"),
+      readOnly: false,
+    })}
 
           ${this.renderField({
-            name: "BusinessAddress1",
-            label: "Street Address *",
-            value: data.BusinessAddress1,
-            error: this.getFieldError("BusinessAddress1"),
-            className: "full-width",
-          })}
+      name: "BusinessAddress1",
+      label: "Street Address *",
+      value: data.BusinessAddress1,
+      error: this.getFieldError("BusinessAddress1"),
+      className: "full-width",
+    })}
 
           ${this.renderField({
-            name: "businessAddress2",
-            label: "Street Address 2 (Optional)",
-            value: data.businessAddress2,
-            error: this.getFieldError("businessAddress2"),
-            className: "full-width",
-          })}
+      name: "businessAddress2",
+      label: "Street Address 2 (Optional)",
+      value: data.businessAddress2,
+      error: this.getFieldError("businessAddress2"),
+      className: "full-width",
+    })}
 
           ${this.renderField({
-            name: "businessCity",
-            label: "City *",
-            value: data.businessCity,
-            error: this.getFieldError("businessCity"),
-          })}
+      name: "businessCity",
+      label: "City *",
+      value: data.businessCity,
+      error: this.getFieldError("businessCity"),
+    })}
 
-          <div class="form-field ${
-            this.getFieldError("businessState") ? "has-error" : ""
-          }">
+          <div class="form-field ${this.getFieldError("businessState") ? "has-error" : ""
+      }">
             <label for="businessState">State <span class="required-asterisk">*</span></label>
             <select id="businessState" name="businessState">
               <option value="">Select State</option>
               ${this.US_STATES.map(
-                (state) => `
-                <option value="${state}" ${
-                  data.businessState === state ? "selected" : ""
-                }>${state}</option>
+        (state) => `
+                <option value="${state}" ${data.businessState === state ? "selected" : ""
+          }>${state}</option>
               `
-              ).join("")}
+      ).join("")}
             </select>
-            ${
-              this.getFieldError("businessState")
-                ? `<span class="error-message">${this.getFieldError(
-                    "businessState"
-                  )}</span>`
-                : ""
-            }
+            ${this.getFieldError("businessState")
+        ? `<span class="error-message">${this.getFieldError(
+          "businessState"
+        )}</span>`
+        : ""
+      }
           </div>
 
           ${this.renderField({
-            name: "businessPostalCode",
-            label: "ZIP Code *",
-            value: data.businessPostalCode,
-            error: this.getFieldError("businessPostalCode"),
-            placeholder: "12345",
-            maxLength: 5,
-          })}
+        name: "businessPostalCode",
+        label: "ZIP Code *",
+        value: data.businessPostalCode,
+        error: this.getFieldError("businessPostalCode"),
+        placeholder: "12345",
+        maxLength: 5,
+      })}
         </div>
       </div>
     `;
@@ -1845,47 +1838,45 @@ class WioOnboarding extends HTMLElement {
 
         <div class="form-grid">
           ${this.renderField({
-            name: "bankAccountHolderName",
-            label: "Account Holder Name *",
-            value: data.bankAccountHolderName,
-            error: this.getFieldError("bankAccountHolderName"),
-            className: "full-width",
-          })}
+      name: "bankAccountHolderName",
+      label: "Account Holder Name *",
+      value: data.bankAccountHolderName,
+      error: this.getFieldError("bankAccountHolderName"),
+      className: "full-width",
+    })}
 
           <div class="form-field full-width">
             <label>Account Type <span class="required-asterisk">*</span></label>
             <div class="radio-group">
               <div class="radio-option">
-                <input type="radio" id="checking" name="bankAccountType" value="checking" ${
-                  data.bankAccountType === "checking" ? "checked" : ""
-                }>
+                <input type="radio" id="checking" name="bankAccountType" value="checking" ${data.bankAccountType === "checking" ? "checked" : ""
+      }>
                 <label for="checking">Checking</label>
               </div>
               <div class="radio-option">
-                <input type="radio" id="savings" name="bankAccountType" value="savings" ${
-                  data.bankAccountType === "savings" ? "checked" : ""
-                }>
+                <input type="radio" id="savings" name="bankAccountType" value="savings" ${data.bankAccountType === "savings" ? "checked" : ""
+      }>
                 <label for="savings">Savings</label>
               </div>
             </div>
           </div>
 
           ${this.renderField({
-            name: "bankRoutingNumber",
-            label: "Routing Number *",
-            value: data.bankRoutingNumber,
-            error: this.getFieldError("bankRoutingNumber"),
-            placeholder: "123456789",
-            maxLength: 9,
-          })}
+        name: "bankRoutingNumber",
+        label: "Routing Number *",
+        value: data.bankRoutingNumber,
+        error: this.getFieldError("bankRoutingNumber"),
+        placeholder: "123456789",
+        maxLength: 9,
+      })}
 
           ${this.renderField({
-            name: "bankAccountNumber",
-            label: "Account Number *",
-            value: data.bankAccountNumber,
-            error: this.getFieldError("bankAccountNumber"),
-            placeholder: "1234567890",
-          })}
+        name: "bankAccountNumber",
+        label: "Account Number *",
+        value: data.bankAccountNumber,
+        error: this.getFieldError("bankAccountNumber"),
+        placeholder: "1234567890",
+      })}
         </div>
       </div>
     `;
@@ -1900,18 +1891,17 @@ class WioOnboarding extends HTMLElement {
         <p>Add business representatives (optional)</p>
         
         <div class="representatives-list">
-          ${
-            representatives.length === 0
-              ? `
+          ${representatives.length === 0
+        ? `
             <div class="empty-state">
               <p>No representatives added yet. Click below to add one.</p>
             </div>
           `
-              : ""
-          }
+        : ""
+      }
           ${representatives
-            .map((rep, index) => this.renderRepresentativeCard(rep, index))
-            .join("")}
+        .map((rep, index) => this.renderRepresentativeCard(rep, index))
+        .join("")}
         </div>
         
         <button type="button" class="add-representative-btn">
@@ -1931,114 +1921,111 @@ class WioOnboarding extends HTMLElement {
         <div class="card-body">
           <div class="form-grid">
             ${this.renderField({
-              name: "representativeFirstName",
-              label: "First Name *",
-              value: representative.representativeFirstName,
-              error: this.getFieldError("representativeFirstName", index),
-              dataRepIndex: index,
-            })}
+      name: "representativeFirstName",
+      label: "First Name *",
+      value: representative.representativeFirstName,
+      error: this.getFieldError("representativeFirstName", index),
+      dataRepIndex: index,
+    })}
             
             ${this.renderField({
-              name: "representativeLastName",
-              label: "Last Name *",
-              value: representative.representativeLastName,
-              error: this.getFieldError("representativeLastName", index),
-              dataRepIndex: index,
-            })}
+      name: "representativeLastName",
+      label: "Last Name *",
+      value: representative.representativeLastName,
+      error: this.getFieldError("representativeLastName", index),
+      dataRepIndex: index,
+    })}
             
             ${this.renderField({
-              name: "representativeJobTitle",
-              label: "Job Title *",
-              value: representative.representativeJobTitle,
-              error: this.getFieldError("representativeJobTitle", index),
-              dataRepIndex: index,
-              className: "full-width",
-            })}
+      name: "representativeJobTitle",
+      label: "Job Title *",
+      value: representative.representativeJobTitle,
+      error: this.getFieldError("representativeJobTitle", index),
+      dataRepIndex: index,
+      className: "full-width",
+    })}
             
             ${this.renderField({
-              name: "representativePhone",
-              label: "Phone *",
-              type: "tel",
-              value: representative.representativePhone,
-              error: this.getFieldError("representativePhone", index),
-              placeholder: "(555) 123-4567",
-              dataRepIndex: index,
-              dataFormat: "phone",
-            })}
+      name: "representativePhone",
+      label: "Phone *",
+      type: "tel",
+      value: representative.representativePhone,
+      error: this.getFieldError("representativePhone", index),
+      placeholder: "(555) 123-4567",
+      dataRepIndex: index,
+      dataFormat: "phone",
+    })}
             
             ${this.renderField({
-              name: "representativeEmail",
-              label: "Email *",
-              type: "email",
-              value: representative.representativeEmail,
-              error: this.getFieldError("representativeEmail", index),
-              dataRepIndex: index,
-            })}
+      name: "representativeEmail",
+      label: "Email *",
+      type: "email",
+      value: representative.representativeEmail,
+      error: this.getFieldError("representativeEmail", index),
+      dataRepIndex: index,
+    })}
             
             ${this.renderField({
-              name: "representativeDateOfBirth",
-              label: "Date of Birth *",
-              type: "date",
-              value: representative.representativeDateOfBirth,
-              error: this.getFieldError("representativeDateOfBirth", index),
-              dataRepIndex: index,
-              className: "full-width",
-            })}
+      name: "representativeDateOfBirth",
+      label: "Date of Birth *",
+      type: "date",
+      value: representative.representativeDateOfBirth,
+      error: this.getFieldError("representativeDateOfBirth", index),
+      dataRepIndex: index,
+      className: "full-width",
+    })}
             
             ${this.renderField({
-              name: "representativeAddress",
-              label: "Address *",
-              value: representative.representativeAddress,
-              error: this.getFieldError("representativeAddress", index),
-              dataRepIndex: index,
-              className: "full-width",
-            })}
+      name: "representativeAddress",
+      label: "Address *",
+      value: representative.representativeAddress,
+      error: this.getFieldError("representativeAddress", index),
+      dataRepIndex: index,
+      className: "full-width",
+    })}
             
             ${this.renderField({
-              name: "representativeCity",
-              label: "City *",
-              value: representative.representativeCity,
-              error: this.getFieldError("representativeCity", index),
-              dataRepIndex: index,
-            })}
+      name: "representativeCity",
+      label: "City *",
+      value: representative.representativeCity,
+      error: this.getFieldError("representativeCity", index),
+      dataRepIndex: index,
+    })}
             
-            <div class="form-field ${
-              this.getFieldError("representativeState", index)
-                ? "has-error"
-                : ""
-            }">
+            <div class="form-field ${this.getFieldError("representativeState", index)
+        ? "has-error"
+        : ""
+      }">
               <label for="representativeState-${index}">State <span class="required-asterisk">*</span></label>
               <select id="representativeState-${index}" name="representativeState" data-rep-index="${index}">
                 <option value="">Select State</option>
                 ${this.US_STATES.map(
-                  (state) => `
-                  <option value="${state}" ${
-                    representative.representativeState === state
-                      ? "selected"
-                      : ""
-                  }>${state}</option>
+        (state) => `
+                  <option value="${state}" ${representative.representativeState === state
+            ? "selected"
+            : ""
+          }>${state}</option>
                 `
-                ).join("")}
+      ).join("")}
               </select>
-              ${
-                this.getFieldError("representativeState", index)
-                  ? `<span class="error-message">${this.getFieldError(
-                      "representativeState",
-                      index
-                    )}</span>`
-                  : ""
-              }
+              ${this.getFieldError("representativeState", index)
+        ? `<span class="error-message">${this.getFieldError(
+          "representativeState",
+          index
+        )}</span>`
+        : ""
+      }
             </div>
             
             ${this.renderField({
-              name: "representativeZip",
-              label: "ZIP Code *",
-              value: representative.representativeZip,
-              error: this.getFieldError("representativeZip", index),
-              placeholder: "12345",
-              maxLength: 5,
-              dataRepIndex: index,
-            })}
+        name: "representativeZip",
+        label: "ZIP Code *",
+        value: representative.representativeZip,
+        error: this.getFieldError("representativeZip", index),
+        placeholder: "12345",
+        maxLength: 5,
+        dataRepIndex: index,
+      })}
           </div>
         </div>
       </div>
@@ -2057,9 +2044,8 @@ class WioOnboarding extends HTMLElement {
         <p>Upload supporting documents for verification (required, max 10 files, 10MB each)</p>
 
         <div class="form-grid">
-          <div class="form-field full-width ${
-            showErrors && error ? "has-error" : ""
-          }">
+          <div class="form-field full-width ${showErrors && error ? "has-error" : ""
+      }">
             <label for="verificationDocs">
               Upload Verification Documents <span class="required-asterisk">*</span>
               <span style="font-size: 12px; color: var(--gray-medium); font-weight: normal;">
@@ -2069,15 +2055,15 @@ class WioOnboarding extends HTMLElement {
 
             <div class="drag-drop-area" id="dragDropArea">
               <div class="drag-drop-content">
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin: 0 auto var(--spacing-sm); display: block; color: var(--gray-medium);">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                   <polyline points="17 8 12 3 7 8"></polyline>
                   <line x1="12" y1="3" x2="12" y2="15"></line>
                 </svg>
-                <p style="margin-bottom: var(--spacing-sm); color: var(--color-headline, #0f2a39); font-weight: 500;">
+                <p style="margin-bottom: var(--spacing-sm, 0.5rem); color: var(--color-headline, #0f2a39); font-weight: 500; font-size: 16px;">
                   Drag and drop files here
                 </p>
-                <p style="font-size: 14px; color: var(--gray-medium); margin-bottom: var(--spacing-md);">
+                <p style="font-size: 14px; color: var(--gray-medium); margin-bottom: var(--spacing-md, 1rem);">
                   or
                 </p>
                 <button type="button" class="btn-browse" style="
@@ -2085,7 +2071,7 @@ class WioOnboarding extends HTMLElement {
                   background: var(--primary-color);
                   color: var(--color-white, #fff);
                   border: none;
-                  border-radius: var(--border-radius-sm);
+                  border-radius: var(--border-radius-sm, 0.5rem);
                   cursor: pointer;
                   font-size: 14px;
                   font-weight: 500;
@@ -2102,18 +2088,16 @@ class WioOnboarding extends HTMLElement {
             </div>
 
             <div id="fileList" style="margin-top: var(--spacing-md);">
-              ${
-                verificationDocuments.length > 0
-                  ? this.renderFileList(verificationDocuments)
-                  : ""
-              }
+              ${verificationDocuments.length > 0
+        ? this.renderFileList(verificationDocuments)
+        : ""
+      }
             </div>
 
-            ${
-              showErrors && error
-                ? `<span class="error-message">${error}</span>`
-                : ""
-            }
+            ${showErrors && error
+        ? `<span class="error-message">${error}</span>`
+        : ""
+      }
           </div>
         </div>
       </div>
@@ -2127,8 +2111,8 @@ class WioOnboarding extends HTMLElement {
           ${files.length} file(s) uploaded:
         </p>
         ${files
-          .map(
-            (file, index) => `
+        .map(
+          (file, index) => `
           <div class="file-item" data-index="${index}" style="
             display: flex;
             align-items: center;
@@ -2161,8 +2145,8 @@ class WioOnboarding extends HTMLElement {
             ">✕</button>
           </div>
         `
-          )
-          .join("")}
+        )
+        .join("")}
       </div>
     `;
   }
@@ -2176,9 +2160,8 @@ class WioOnboarding extends HTMLElement {
 
     return `
       <div class="navigation-footer">
-        ${
-          showBack ? '<button type="button" class="btn-back">Back</button>' : ""
-        }
+        ${showBack ? '<button type="button" class="btn-back">Back</button>' : ""
+      }
         ${canSkip ? '<button type="button" class="btn-skip">Skip</button>' : ""}
         <button type="button" class="btn-next">
           ${isLastStep ? "Submit" : "Next"}
@@ -2233,17 +2216,15 @@ class WioOnboarding extends HTMLElement {
           </div>
           <div class="detail-item">
             <span class="detail-label">Phone Number</span>
-            <span class="detail-value">${
-              businessDetails.businessPhoneNumber
-            }</span>
+            <span class="detail-value">${businessDetails.businessPhoneNumber
+      }</span>
           </div>
           <div class="detail-item">
             <span class="detail-label">Bank Account</span>
-            <span class="detail-value">${
-              bankDetails.bankAccountType === "checking"
-                ? "Checking"
-                : "Savings"
-            } (****${bankDetails.bankAccountNumber.slice(-4)})</span>
+            <span class="detail-value">${bankDetails.bankAccountType === "checking"
+        ? "Checking"
+        : "Savings"
+      } (****${bankDetails.bankAccountNumber.slice(-4)})</span>
           </div>
         </div>
 
@@ -2276,9 +2257,8 @@ class WioOnboarding extends HTMLElement {
 
         <div class="error-details">
           <h3>Error Details</h3>
-          <p><strong>Issue:</strong> ${
-            errorMessage || "The submission failed due to a server error."
-          }</p>
+          <p><strong>Issue:</strong> ${errorMessage || "The submission failed due to a server error."
+      }</p>
           <p style="margin-top: var(--spacing-md);">
             Please try submitting again. If the problem persists, contact support.
           </p>
@@ -2482,19 +2462,19 @@ class WioOnboarding extends HTMLElement {
         }
 
         .form-header {
-          padding: var(--spacing-lg);
+          padding: var(--spacing-lg, 1.5rem);
           border-bottom: 1px solid var(--border-color);
           background: var(--color-white, #fff);
         }
 
         .form-body {
-          padding: var(--spacing-lg);
+          padding: var(--spacing-lg, 1.5rem);
           max-height: 600px;
           overflow-y: auto;
         }
 
         .form-footer {
-          padding: var(--spacing-lg);
+          padding: var(--spacing-lg, 1.5rem);
           border-top: 1px solid var(--border-color);
           background: var(--color-white, #fff);
         }
@@ -2623,30 +2603,32 @@ class WioOnboarding extends HTMLElement {
 
         /* Form Sections */
         .form-section {
-          margin-bottom: var(--spacing-lg);
+          margin-bottom: var(--spacing-lg, 1.5rem);
         }
 
         .form-section h2 {
           font-size: 24px;
           color: var(--color-headline, #0f2a39);
-          margin-bottom: var(--spacing-sm);
+          margin-bottom: var(--spacing-sm, 0.5rem);
         }
 
         .form-section > p {
           color: var(--gray-medium);
-          margin-bottom: var(--spacing-lg);
+          font-size: 14px;
+          line-height: 1.5;
+          margin-bottom: var(--spacing-lg, 1.5rem);
         }
 
         .form-grid {
           display: grid;
           grid-template-columns: repeat(2, 1fr);
-          gap: var(--spacing-md);
+          gap: var(--spacing-md, 1rem);
         }
 
         .form-field {
           display: flex;
           flex-direction: column;
-          gap: var(--spacing-sm);
+          gap: var(--spacing-sm, 0.5rem);
         }
 
         .form-field.full-width {
@@ -2656,7 +2638,9 @@ class WioOnboarding extends HTMLElement {
         .form-field label {
           font-size: 14px;
           font-weight: 500;
+          line-height: 1.4;
           color: var(--color-headline, #0f2a39);
+          margin-bottom: 0;
         }
 
         .required-asterisk {
@@ -2665,13 +2649,14 @@ class WioOnboarding extends HTMLElement {
 
         .form-field input,
         .form-field select {
-          padding: 9px 12px;
+          padding: 10px 12px;
           border: 1px solid var(--border-color);
-          border-radius: var(--border-radius-sm);
+          border-radius: var(--border-radius-sm, 0.5rem);
           font-size: 14px;
           font-family: inherit;
+          line-height: 1.5;
           transition: border-color 0.2s ease;
-          height: 39px;
+          height: 40px;
           box-sizing: border-box;
         }
 
@@ -2688,7 +2673,9 @@ class WioOnboarding extends HTMLElement {
 
         .error-message {
           font-size: 12px;
+          line-height: 1.4;
           color: var(--error-color);
+          margin-top: calc(var(--spacing-sm, 0.5rem) * -0.5);
         }
 
         /* Password Strength Indicator */
@@ -2756,13 +2743,14 @@ class WioOnboarding extends HTMLElement {
         /* Radio Group */
         .radio-group {
           display: flex;
-          gap: var(--spacing-lg);
+          gap: var(--spacing-lg, 1.5rem);
+          flex-wrap: wrap;
         }
 
         .radio-option {
           display: flex;
           align-items: center;
-          gap: var(--spacing-sm);
+          gap: var(--spacing-sm, 0.5rem);
         }
 
         .radio-option input[type="radio"] {
@@ -2782,25 +2770,27 @@ class WioOnboarding extends HTMLElement {
         }
 
         .empty-state {
-          padding: var(--spacing-lg);
+          padding: var(--spacing-lg, 1.5rem);
           text-align: center;
           background: var(--gray-light);
-          border-radius: var(--border-radius);
+          border-radius: var(--border-radius, 0.75rem);
           color: var(--gray-medium);
+          font-size: 14px;
+          line-height: 1.5;
         }
 
         .representative-card {
           background: var(--gray-light);
-          border-radius: var(--border-radius);
-          padding: var(--spacing-md);
-          margin-bottom: var(--spacing-md);
+          border-radius: var(--border-radius, 0.75rem);
+          padding: var(--spacing-md, 1rem);
+          margin-bottom: var(--spacing-md, 1rem);
         }
 
         .card-header {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          margin-bottom: var(--spacing-md);
+          margin-bottom: var(--spacing-md, 1rem);
         }
 
         .card-header h3 {
@@ -2844,11 +2834,16 @@ class WioOnboarding extends HTMLElement {
         /* File Upload */
         .drag-drop-area {
           border: 2px dashed var(--border-color);
-          border-radius: var(--border-radius);
-          padding: var(--spacing-lg);
+          border-radius: var(--border-radius, 0.75rem);
+          padding: 2rem;
           text-align: center;
           cursor: pointer;
-          transition: border-color 0.2s ease;
+          transition: all 0.2s ease;
+          min-height: 200px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: var(--gray-light, #f9fafb);
         }
 
         .drag-drop-area:hover,
@@ -2859,10 +2854,21 @@ class WioOnboarding extends HTMLElement {
 
         .drag-drop-content {
           pointer-events: none;
+          width: 100%;
+        }
+
+        .drag-drop-content svg {
+          margin: 0 auto var(--spacing-sm, 0.5rem);
+          display: block;
+          color: var(--gray-medium);
+        }
+
+        .drag-drop-content p {
+          margin: 0;
         }
 
         .uploaded-files {
-          margin-top: var(--spacing-md);
+          margin-top: var(--spacing-md, 1rem);
         }
 
         /* Navigation Footer */
