@@ -648,15 +648,13 @@ class OperatorPayment extends HTMLElement {
           Are you sure you want to delete <strong>${bankName}</strong> ending in <strong>••••${lastFour}</strong>? This action cannot be undone.
         </p>
         <div class="delete-confirmation-actions">
-          <button class="delete-cancel-btn" ${
-            isDeleting ? "disabled" : ""
-          }>Cancel</button>
+          <button class="delete-cancel-btn" ${isDeleting ? "disabled" : ""
+      }>Cancel</button>
           <button class="delete-confirm-btn" ${isDeleting ? "disabled" : ""}>
-            ${
-              isDeleting
-                ? '<span class="delete-spinner"></span> Deleting...'
-                : "Delete"
-            }
+            ${isDeleting
+        ? '<span class="delete-spinner"></span> Deleting...'
+        : "Delete"
+      }
           </button>
         </div>
       </div>
@@ -1499,26 +1497,24 @@ class OperatorPayment extends HTMLElement {
           <div class="bank-account-details">
             <div class="bank-name-row">
               <span class="bank-name">${account.bankName}</span>
-              ${
-                account.status === "verified"
-                  ? `
+              ${account.status === "verified"
+            ? `
                 <svg class="verified-icon" viewBox="0 0 24 24" fill="currentColor" stroke="none">
                   <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
                 </svg>
               `
-                  : ""
-              }
+            : ""
+          }
             </div>
             <span class="holder-name">${account.holderName}</span>
             <span class="account-meta">${this.getAccountTypeLabel(
-              account.bankAccountType
-            )} • ${this.maskAccountNumber(account.lastFourAccountNumber)}</span>
+            account.bankAccountType
+          )} • ${this.maskAccountNumber(account.lastFourAccountNumber)}</span>
           </div>
         </div>
         <div class="card-actions">
           <span class="status-badge ${account.status}">${account.status}</span>
-          <button class="delete-btn" data-account-id="${
-            account.id
+          <button class="delete-btn" data-account-id="${account.id
           }" aria-label="Delete payment method">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="3 6 5 6 21 6"></polyline>
@@ -2277,8 +2273,10 @@ class OperatorPayment extends HTMLElement {
   }
 }
 
-// Register the custom element
-customElements.define("operator-payment", OperatorPayment);
+// Register the custom element only if it hasn't been registered yet
+if (!customElements.get("operator-payment")) {
+  customElements.define("operator-payment", OperatorPayment);
+}
 
 // Export for module usage
 if (typeof module !== "undefined" && module.exports) {

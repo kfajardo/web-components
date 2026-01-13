@@ -563,8 +563,10 @@ class WioPayment extends HTMLElement {
   }
 }
 
-// Register the custom element
-customElements.define("wio-payment", WioPayment);
+// Register the custom element only if it hasn't been registered yet
+if (!customElements.get("wio-payment")) {
+  customElements.define("wio-payment", WioPayment);
+}
 
 // Export for module usage
 if (typeof module !== "undefined" && module.exports) {

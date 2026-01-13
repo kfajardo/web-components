@@ -3131,8 +3131,10 @@ class WioOnboarding extends HTMLElement {
   }
 }
 
-// Register the custom element
-customElements.define("wio-onboarding", WioOnboarding);
+// Register the custom element only if it hasn't been registered yet
+if (!customElements.get("wio-onboarding")) {
+  customElements.define("wio-onboarding", WioOnboarding);
+}
 
 // Export for module usage
 if (typeof module !== "undefined" && module.exports) {

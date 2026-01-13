@@ -971,8 +971,10 @@ class OperatorBankAccount extends HTMLElement {
   }
 }
 
-// Register the custom element
-customElements.define("operator-bank-account", OperatorBankAccount);
+// Register the custom element only if it hasn't been registered yet
+if (!customElements.get("operator-bank-account")) {
+  customElements.define("operator-bank-account", OperatorBankAccount);
+}
 
 // Export for module usage
 if (typeof module !== "undefined" && module.exports) {

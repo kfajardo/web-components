@@ -587,9 +587,8 @@ class OperatorManagement extends HTMLElement {
             <line x1="12" y1="16" x2="12.01" y2="16"></line>
           </svg>
           <p class="error-text">Unable to check operator status</p>
-          <p class="error-subtext">${
-            this._state.error || "Please try again later"
-          }</p>
+          <p class="error-subtext">${this._state.error || "Please try again later"
+        }</p>
         </div>
       `;
     }
@@ -623,11 +622,10 @@ class OperatorManagement extends HTMLElement {
           operator-email="${this._state.operatorEmail}"
           api-base-url="${this.apiBaseURL}"
           embeddable-key="${this.embeddableKey}"
-          style="${
-            this._state.isLoading
-              ? "visibility: hidden; position: absolute;"
-              : ""
-          }">
+          style="${this._state.isLoading
+          ? "visibility: hidden; position: absolute;"
+          : ""
+        }">
         </operator-underwriting>
       `;
     }
@@ -806,8 +804,10 @@ class OperatorManagement extends HTMLElement {
   }
 }
 
-// Register the custom element
-customElements.define("operator-management", OperatorManagement);
+// Register the custom element only if it hasn't been registered yet
+if (!customElements.get("operator-management")) {
+  customElements.define("operator-management", OperatorManagement);
+}
 
 // Export for module usage
 if (typeof module !== "undefined" && module.exports) {

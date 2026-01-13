@@ -1110,9 +1110,8 @@ class OperatorUnderwriting extends HTMLElement {
       case "wallet":
       case "moovWallet":
         if (method.wallet) {
-          return `Available balance: $${
-            (method.wallet.availableBalance?.value || 0) / 100
-          }`;
+          return `Available balance: $${(method.wallet.availableBalance?.value || 0) / 100
+            }`;
         }
         return "Digital wallet for payments";
       case "applePay":
@@ -1384,9 +1383,8 @@ class OperatorUnderwriting extends HTMLElement {
           <h4 class="timeline-status">${statusDisplay}</h4>
           <p class="timeline-date">${formattedDate}</p>
           ${isNewest ? '<span class="timeline-badge newest">Latest</span>' : ""}
-          ${
-            isOldest ? '<span class="timeline-badge oldest">Initial</span>' : ""
-          }
+          ${isOldest ? '<span class="timeline-badge oldest">Initial</span>' : ""
+      }
         </div>
       </div>
     `;
@@ -1456,8 +1454,10 @@ class OperatorUnderwriting extends HTMLElement {
   }
 }
 
-// Register the custom element
-customElements.define("operator-underwriting", OperatorUnderwriting);
+// Register the custom element only if it hasn't been registered yet
+if (!customElements.get("operator-underwriting")) {
+  customElements.define("operator-underwriting", OperatorUnderwriting);
+}
 
 // Export for module usage
 if (typeof module !== "undefined" && module.exports) {

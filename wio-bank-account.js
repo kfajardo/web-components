@@ -494,4 +494,17 @@ class WioBankAccount extends HTMLElement {
   }
 }
 
-customElements.define("wio-bank-account", WioBankAccount);
+// Register the custom element only if it hasn't been registered yet
+if (!customElements.get("wio-bank-account")) {
+  customElements.define("wio-bank-account", WioBankAccount);
+}
+
+// Export for module usage
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = { WioBankAccount };
+}
+
+// Make available globally for script tag usage
+if (typeof window !== "undefined") {
+  window.WioBankAccount = WioBankAccount;
+}

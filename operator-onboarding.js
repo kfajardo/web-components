@@ -2443,8 +2443,8 @@ class OperatorOnboarding extends HTMLElement {
     return `
       <div class="stepper-header">
         ${this.STEPS.map((step, index) =>
-          this.renderStepIndicator(step, index)
-        ).join("")}
+      this.renderStepIndicator(step, index)
+    ).join("")}
       </div>
     `;
   }
@@ -2455,9 +2455,8 @@ class OperatorOnboarding extends HTMLElement {
     const isClickable = isComplete || index < this.state.currentStep;
 
     return `
-      <div class="step-indicator ${isCurrent ? "active" : ""} ${
-      isComplete ? "complete" : ""
-    } ${isClickable ? "clickable" : ""}"
+      <div class="step-indicator ${isCurrent ? "active" : ""} ${isComplete ? "complete" : ""
+      } ${isClickable ? "clickable" : ""}"
            ${isClickable ? `data-step="${index}"` : ""}>
         <div class="step-circle">
           ${isComplete ? "✓" : index + 1}
@@ -2489,9 +2488,8 @@ class OperatorOnboarding extends HTMLElement {
         <p>Upload supporting documents (required, max 10 files, 10MB each)</p>
         
         <div class="form-grid">
-          <div class="form-field full-width ${
-            showErrors && error ? "has-error" : ""
-          }">
+          <div class="form-field full-width ${showErrors && error ? "has-error" : ""
+      }">
             <label for="underwritingDocs">
               Upload Documents <span class="required-asterisk">*</span>
               <span style="font-size: 12px; color: var(--gray-medium); font-weight: normal;">
@@ -2534,18 +2532,16 @@ class OperatorOnboarding extends HTMLElement {
             </div>
             
             <div id="fileList" style="margin-top: var(--spacing-md);">
-              ${
-                underwritingDocuments.length > 0
-                  ? this.renderFileList(underwritingDocuments)
-                  : ""
-              }
+              ${underwritingDocuments.length > 0
+        ? this.renderFileList(underwritingDocuments)
+        : ""
+      }
             </div>
             
-            ${
-              showErrors && error
-                ? `<span class="error-message">${error}</span>`
-                : ""
-            }
+            ${showErrors && error
+        ? `<span class="error-message">${error}</span>`
+        : ""
+      }
           </div>
         </div>
       </div>
@@ -2563,8 +2559,8 @@ class OperatorOnboarding extends HTMLElement {
           ${files.length} file(s) uploaded:
         </p>
         ${files
-          .map(
-            (file, index) => `
+        .map(
+          (file, index) => `
           <div class="file-item" data-index="${index}" style="
             display: flex;
             align-items: center;
@@ -2597,8 +2593,8 @@ class OperatorOnboarding extends HTMLElement {
             ">✕</button>
           </div>
         `
-          )
-          .join("")}
+        )
+        .join("")}
       </div>
     `;
   }
@@ -2613,105 +2609,102 @@ class OperatorOnboarding extends HTMLElement {
         
         <div class="form-grid">
           ${this.renderField({
-            name: "businessName",
-            label: "Business Name *",
-            value: data.businessName,
-            error: this.getFieldError("businessName"),
-          })}
+      name: "businessName",
+      label: "Business Name *",
+      value: data.businessName,
+      error: this.getFieldError("businessName"),
+    })}
           
           ${this.renderField({
-            name: "doingBusinessAs",
-            label: "Doing Business As (DBA) *",
-            value: data.doingBusinessAs,
-            error: this.getFieldError("doingBusinessAs"),
-          })}
+      name: "doingBusinessAs",
+      label: "Doing Business As (DBA) *",
+      value: data.doingBusinessAs,
+      error: this.getFieldError("doingBusinessAs"),
+    })}
           
           ${this.renderField({
-            name: "ein",
-            label: "EIN *",
-            value: data.ein,
-            error: this.getFieldError("ein"),
-            placeholder: "12-3456789",
-            maxLength: 10,
-            dataFormat: "ein",
-            className: "full-width",
-          })}
+      name: "ein",
+      label: "EIN *",
+      value: data.ein,
+      error: this.getFieldError("ein"),
+      placeholder: "12-3456789",
+      maxLength: 10,
+      dataFormat: "ein",
+      className: "full-width",
+    })}
           
           ${this.renderField({
-            name: "businessWebsite",
-            label: "Business Website *",
-            type: "url",
-            value: data.businessWebsite,
-            error: this.getFieldError("businessWebsite"),
-            placeholder: "https://example.com",
-            className: "full-width",
-          })}
+      name: "businessWebsite",
+      label: "Business Website *",
+      type: "url",
+      value: data.businessWebsite,
+      error: this.getFieldError("businessWebsite"),
+      placeholder: "https://example.com",
+      className: "full-width",
+    })}
           
           ${this.renderField({
-            name: "businessPhoneNumber",
-            label: "Business Phone *",
-            type: "tel",
-            value: data.businessPhoneNumber,
-            error: this.getFieldError("businessPhoneNumber"),
-            placeholder: "(555) 123-4567",
-            dataFormat: "phone",
-          })}
+      name: "businessPhoneNumber",
+      label: "Business Phone *",
+      type: "tel",
+      value: data.businessPhoneNumber,
+      error: this.getFieldError("businessPhoneNumber"),
+      placeholder: "(555) 123-4567",
+      dataFormat: "phone",
+    })}
           
           ${this.renderField({
-            name: "businessEmail",
-            label: "Business Email *",
-            type: "email",
-            value: data.businessEmail,
-            error: this.getFieldError("businessEmail"),
-            readOnly: false,
-          })}
+      name: "businessEmail",
+      label: "Business Email *",
+      type: "email",
+      value: data.businessEmail,
+      error: this.getFieldError("businessEmail"),
+      readOnly: false,
+    })}
           
           ${this.renderField({
-            name: "BusinessAddress1",
-            label: "Street Address *",
-            value: data.BusinessAddress1,
-            error: this.getFieldError("BusinessAddress1"),
-            className: "full-width",
-          })}
+      name: "BusinessAddress1",
+      label: "Street Address *",
+      value: data.BusinessAddress1,
+      error: this.getFieldError("BusinessAddress1"),
+      className: "full-width",
+    })}
           
           ${this.renderField({
-            name: "businessCity",
-            label: "City *",
-            value: data.businessCity,
-            error: this.getFieldError("businessCity"),
-          })}
+      name: "businessCity",
+      label: "City *",
+      value: data.businessCity,
+      error: this.getFieldError("businessCity"),
+    })}
           
-          <div class="form-field ${
-            this.getFieldError("businessState") ? "has-error" : ""
-          }">
+          <div class="form-field ${this.getFieldError("businessState") ? "has-error" : ""
+      }">
             <label for="businessState">State <span class="required-asterisk">*</span></label>
             <select id="businessState" name="businessState">
               <option value="">Select State</option>
               ${this.US_STATES.map(
-                (state) => `
-                <option value="${state}" ${
-                  data.businessState === state ? "selected" : ""
-                }>${state}</option>
+        (state) => `
+                <option value="${state}" ${data.businessState === state ? "selected" : ""
+          }>${state}</option>
               `
-              ).join("")}
+      ).join("")}
             </select>
-            ${
-              this.getFieldError("businessState")
-                ? `<span class="error-message">${this.getFieldError(
-                    "businessState"
-                  )}</span>`
-                : ""
-            }
+            ${this.getFieldError("businessState")
+        ? `<span class="error-message">${this.getFieldError(
+          "businessState"
+        )}</span>`
+        : ""
+      }
           </div>
           
           ${this.renderField({
-            name: "businessPostalCode",
-            label: "ZIP Code *",
-            value: data.businessPostalCode,
-            error: this.getFieldError("businessPostalCode"),
-            placeholder: "12345",
-            maxLength: 5,
-          })}
+        name: "businessPostalCode",
+        label: "ZIP Code *",
+        value: data.businessPostalCode,
+        error: this.getFieldError("businessPostalCode"),
+        placeholder: "12345",
+        maxLength: 5,
+      })}
         </div>
       </div>
     `;
@@ -2730,18 +2723,17 @@ class OperatorOnboarding extends HTMLElement {
         <p>Add business representatives (optional)</p>
         
         <div class="representatives-list">
-          ${
-            representatives.length === 0
-              ? `
+          ${representatives.length === 0
+        ? `
             <div class="empty-state">
               <p>No representatives added yet. Click below to add one.</p>
             </div>
           `
-              : ""
-          }
+        : ""
+      }
           ${representatives
-            .map((rep, index) => this.renderRepresentativeCard(rep, index))
-            .join("")}
+        .map((rep, index) => this.renderRepresentativeCard(rep, index))
+        .join("")}
         </div>
         
         <button type="button" class="add-representative-btn">
@@ -2761,114 +2753,111 @@ class OperatorOnboarding extends HTMLElement {
         <div class="card-body">
           <div class="form-grid">
             ${this.renderField({
-              name: "representativeFirstName",
-              label: "First Name *",
-              value: representative.representativeFirstName,
-              error: this.getFieldError("representativeFirstName", index),
-              dataRepIndex: index,
-            })}
+      name: "representativeFirstName",
+      label: "First Name *",
+      value: representative.representativeFirstName,
+      error: this.getFieldError("representativeFirstName", index),
+      dataRepIndex: index,
+    })}
             
             ${this.renderField({
-              name: "representativeLastName",
-              label: "Last Name *",
-              value: representative.representativeLastName,
-              error: this.getFieldError("representativeLastName", index),
-              dataRepIndex: index,
-            })}
+      name: "representativeLastName",
+      label: "Last Name *",
+      value: representative.representativeLastName,
+      error: this.getFieldError("representativeLastName", index),
+      dataRepIndex: index,
+    })}
             
             ${this.renderField({
-              name: "representativeJobTitle",
-              label: "Job Title *",
-              value: representative.representativeJobTitle,
-              error: this.getFieldError("representativeJobTitle", index),
-              dataRepIndex: index,
-              className: "full-width",
-            })}
+      name: "representativeJobTitle",
+      label: "Job Title *",
+      value: representative.representativeJobTitle,
+      error: this.getFieldError("representativeJobTitle", index),
+      dataRepIndex: index,
+      className: "full-width",
+    })}
             
             ${this.renderField({
-              name: "representativePhone",
-              label: "Phone *",
-              type: "tel",
-              value: representative.representativePhone,
-              error: this.getFieldError("representativePhone", index),
-              placeholder: "(555) 123-4567",
-              dataRepIndex: index,
-              dataFormat: "phone",
-            })}
+      name: "representativePhone",
+      label: "Phone *",
+      type: "tel",
+      value: representative.representativePhone,
+      error: this.getFieldError("representativePhone", index),
+      placeholder: "(555) 123-4567",
+      dataRepIndex: index,
+      dataFormat: "phone",
+    })}
             
             ${this.renderField({
-              name: "representativeEmail",
-              label: "Email *",
-              type: "email",
-              value: representative.representativeEmail,
-              error: this.getFieldError("representativeEmail", index),
-              dataRepIndex: index,
-            })}
+      name: "representativeEmail",
+      label: "Email *",
+      type: "email",
+      value: representative.representativeEmail,
+      error: this.getFieldError("representativeEmail", index),
+      dataRepIndex: index,
+    })}
             
             ${this.renderField({
-              name: "representativeDateOfBirth",
-              label: "Date of Birth *",
-              type: "date",
-              value: representative.representativeDateOfBirth,
-              error: this.getFieldError("representativeDateOfBirth", index),
-              dataRepIndex: index,
-              className: "full-width",
-            })}
+      name: "representativeDateOfBirth",
+      label: "Date of Birth *",
+      type: "date",
+      value: representative.representativeDateOfBirth,
+      error: this.getFieldError("representativeDateOfBirth", index),
+      dataRepIndex: index,
+      className: "full-width",
+    })}
             
             ${this.renderField({
-              name: "representativeAddress",
-              label: "Address *",
-              value: representative.representativeAddress,
-              error: this.getFieldError("representativeAddress", index),
-              dataRepIndex: index,
-              className: "full-width",
-            })}
+      name: "representativeAddress",
+      label: "Address *",
+      value: representative.representativeAddress,
+      error: this.getFieldError("representativeAddress", index),
+      dataRepIndex: index,
+      className: "full-width",
+    })}
             
             ${this.renderField({
-              name: "representativeCity",
-              label: "City *",
-              value: representative.representativeCity,
-              error: this.getFieldError("representativeCity", index),
-              dataRepIndex: index,
-            })}
+      name: "representativeCity",
+      label: "City *",
+      value: representative.representativeCity,
+      error: this.getFieldError("representativeCity", index),
+      dataRepIndex: index,
+    })}
             
-            <div class="form-field ${
-              this.getFieldError("representativeState", index)
-                ? "has-error"
-                : ""
-            }">
+            <div class="form-field ${this.getFieldError("representativeState", index)
+        ? "has-error"
+        : ""
+      }">
               <label for="representativeState-${index}">State <span class="required-asterisk">*</span></label>
               <select id="representativeState-${index}" name="representativeState" data-rep-index="${index}">
                 <option value="">Select State</option>
                 ${this.US_STATES.map(
-                  (state) => `
-                  <option value="${state}" ${
-                    representative.representativeState === state
-                      ? "selected"
-                      : ""
-                  }>${state}</option>
+        (state) => `
+                  <option value="${state}" ${representative.representativeState === state
+            ? "selected"
+            : ""
+          }>${state}</option>
                 `
-                ).join("")}
+      ).join("")}
               </select>
-              ${
-                this.getFieldError("representativeState", index)
-                  ? `<span class="error-message">${this.getFieldError(
-                      "representativeState",
-                      index
-                    )}</span>`
-                  : ""
-              }
+              ${this.getFieldError("representativeState", index)
+        ? `<span class="error-message">${this.getFieldError(
+          "representativeState",
+          index
+        )}</span>`
+        : ""
+      }
             </div>
             
             ${this.renderField({
-              name: "representativeZip",
-              label: "ZIP Code *",
-              value: representative.representativeZip,
-              error: this.getFieldError("representativeZip", index),
-              placeholder: "12345",
-              maxLength: 5,
-              dataRepIndex: index,
-            })}
+        name: "representativeZip",
+        label: "ZIP Code *",
+        value: representative.representativeZip,
+        error: this.getFieldError("representativeZip", index),
+        placeholder: "12345",
+        maxLength: 5,
+        dataRepIndex: index,
+      })}
           </div>
         </div>
       </div>
@@ -2889,47 +2878,45 @@ class OperatorOnboarding extends HTMLElement {
         
         <div class="form-grid">
           ${this.renderField({
-            name: "bankAccountHolderName",
-            label: "Account Holder Name *",
-            value: data.bankAccountHolderName,
-            error: this.getFieldError("bankAccountHolderName"),
-            className: "full-width",
-          })}
+      name: "bankAccountHolderName",
+      label: "Account Holder Name *",
+      value: data.bankAccountHolderName,
+      error: this.getFieldError("bankAccountHolderName"),
+      className: "full-width",
+    })}
           
           <div class="form-field full-width">
             <label>Account Type <span class="required-asterisk">*</span></label>
             <div class="radio-group">
               <div class="radio-option">
-                <input type="radio" id="checking" name="bankAccountType" value="checking" ${
-                  data.bankAccountType === "checking" ? "checked" : ""
-                }>
+                <input type="radio" id="checking" name="bankAccountType" value="checking" ${data.bankAccountType === "checking" ? "checked" : ""
+      }>
                 <label for="checking">Checking</label>
               </div>
               <div class="radio-option">
-                <input type="radio" id="savings" name="bankAccountType" value="savings" ${
-                  data.bankAccountType === "savings" ? "checked" : ""
-                }>
+                <input type="radio" id="savings" name="bankAccountType" value="savings" ${data.bankAccountType === "savings" ? "checked" : ""
+      }>
                 <label for="savings">Savings</label>
               </div>
             </div>
           </div>
           
           ${this.renderField({
-            name: "bankRoutingNumber",
-            label: "Routing Number *",
-            value: data.bankRoutingNumber,
-            error: this.getFieldError("bankRoutingNumber"),
-            placeholder: "123456789",
-            maxLength: 9,
-          })}
+        name: "bankRoutingNumber",
+        label: "Routing Number *",
+        value: data.bankRoutingNumber,
+        error: this.getFieldError("bankRoutingNumber"),
+        placeholder: "123456789",
+        maxLength: 9,
+      })}
           
           ${this.renderField({
-            name: "bankAccountNumber",
-            label: "Account Number *",
-            value: data.bankAccountNumber,
-            error: this.getFieldError("bankAccountNumber"),
-            placeholder: "1234567890",
-          })}
+        name: "bankAccountNumber",
+        label: "Account Number *",
+        value: data.bankAccountNumber,
+        error: this.getFieldError("bankAccountNumber"),
+        placeholder: "1234567890",
+      })}
         </div>
       </div>
     `;
@@ -2984,9 +2971,8 @@ class OperatorOnboarding extends HTMLElement {
 
     return `
       <div class="navigation-footer">
-        ${
-          showBack ? '<button type="button" class="btn-back">Back</button>' : ""
-        }
+        ${showBack ? '<button type="button" class="btn-back">Back</button>' : ""
+      }
         ${canSkip ? '<button type="button" class="btn-skip">Skip</button>' : ""}
         <button type="button" class="btn-next">
           ${isLastStep ? "Submit" : "Next"}
@@ -3025,9 +3011,8 @@ class OperatorOnboarding extends HTMLElement {
           </div>
           <div class="detail-item">
             <span class="detail-label">Phone Number</span>
-            <span class="detail-value">${
-              businessDetails.businessPhoneNumber
-            }</span>
+            <span class="detail-value">${businessDetails.businessPhoneNumber
+      }</span>
           </div>
           <div class="detail-item">
             <span class="detail-label">Representatives</span>
@@ -3035,18 +3020,16 @@ class OperatorOnboarding extends HTMLElement {
           </div>
           <div class="detail-item">
             <span class="detail-label">Bank Account</span>
-            <span class="detail-value">${
-              bankDetails.bankAccountType === "checking"
-                ? "Checking"
-                : "Savings"
-            } (****${bankDetails.bankAccountNumber.slice(-4)})</span>
+            <span class="detail-value">${bankDetails.bankAccountType === "checking"
+        ? "Checking"
+        : "Savings"
+      } (****${bankDetails.bankAccountNumber.slice(-4)})</span>
           </div>
         </div>
         
         <p style="font-size: 14px; color: var(--gray-medium); margin-top: var(--spacing-lg);">
-          A confirmation email has been sent to <strong>${
-            businessDetails.businessEmail
-          }</strong>
+          A confirmation email has been sent to <strong>${businessDetails.businessEmail
+      }</strong>
         </p>
 
         <button class="btn-confirm-success" type="button">
@@ -3073,9 +3056,8 @@ class OperatorOnboarding extends HTMLElement {
         
         <div class="error-details">
           <h3>Error Details</h3>
-          <p><strong>Issue:</strong> ${
-            errorMessage || "The submission failed due to a server error."
-          }</p>
+          <p><strong>Issue:</strong> ${errorMessage || "The submission failed due to a server error."
+      }</p>
           <p style="margin-top: var(--spacing-md);">
             Please try submitting again. If the problem persists, contact support.
           </p>
@@ -3749,7 +3731,10 @@ class OperatorOnboarding extends HTMLElement {
   }
 }
 
-customElements.define("operator-onboarding", OperatorOnboarding);
+// Register the custom element only if it hasn't been registered yet
+if (!customElements.get("operator-onboarding")) {
+  customElements.define("operator-onboarding", OperatorOnboarding);
+}
 
 // Export for module usage (ES6)
 export { OperatorOnboarding };
