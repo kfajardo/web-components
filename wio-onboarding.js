@@ -2228,7 +2228,7 @@ class WioOnboarding extends HTMLElement {
           </div>
         </div>
 
-        <div style="display: flex; flex-direction: column; gap: var(--spacing-sm); margin-top: var(--spacing-lg);">
+        <div class="success-actions">
           <button class="btn-send-again" type="button">
             Send again
           </button>
@@ -2426,7 +2426,6 @@ class WioOnboarding extends HTMLElement {
 
   renderStyles() {
     return `
-      <style>
         * {
           box-sizing: border-box;
           margin: 0;
@@ -2435,19 +2434,24 @@ class WioOnboarding extends HTMLElement {
 
         :host {
           --primary-color: var(--color-primary, #4c7b63);
+          --primary-hover: var(--color-primary-dark, #3a614e);
           --success-color: var(--color-success, #22c55e);
           --error-color: var(--color-error, #dd524b);
-          --border-color: var(--color-border, #e8e8e8);
+          --border-color: var(--color-border, #e5e7eb);
           --gray-light: var(--color-gray-50, #f9fafb);
           --gray-medium: var(--color-gray-500, #6b7280);
           --border-radius: var(--radius-xl, 0.75rem);
           --border-radius-sm: var(--radius-lg, 0.5rem);
           --border-radius-lg: var(--radius-2xl, 1rem);
-          --spacing-sm: var(--spacing-sm, 0.5rem);
-          --spacing-md: var(--spacing-md, 1rem);
-          --spacing-lg: var(--spacing-lg, 1.5rem);
-          font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
-          color: var(--color-secondary, #5f6e78);
+          --spacing-sm: 0.75rem;
+          --spacing-md: 1.25rem;
+          --spacing-lg: 2rem;
+          --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+          --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+          --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+          --focus-ring: 0 0 0 4px rgba(76, 123, 99, 0.2);
+          font-family: var(--font-sans, 'Inter', system-ui, -apple-system, sans-serif);
+          color: var(--color-secondary, #374151);
           display: block;
         }
 
@@ -2457,41 +2461,50 @@ class WioOnboarding extends HTMLElement {
           border-radius: var(--border-radius-lg);
           max-width: 900px;
           margin: 0 auto;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+          box-shadow: var(--shadow-lg);
           overflow: hidden;
+          display: flex;
+          flex-direction: column;
+          min-height: 600px;
         }
 
         .form-header {
-          padding: var(--spacing-lg, 1.5rem);
+          padding: var(--spacing-lg);
           border-bottom: 1px solid var(--border-color);
           background: var(--color-white, #fff);
         }
 
         .form-body {
-          padding: var(--spacing-lg, 1.5rem);
-          max-height: 600px;
+          padding: var(--spacing-lg);
+          flex: 1; /* Allow body to take available space */
           overflow-y: auto;
         }
 
         .form-footer {
-          padding: var(--spacing-lg, 1.5rem);
+          padding: var(--spacing-lg);
           border-top: 1px solid var(--border-color);
-          background: var(--color-white, #fff);
+          background: var(--gray-light); /* Slight contrast for footer */
         }
 
-        /* Loading State */
+        /* Loading State - Centered */
         .loading-content {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          min-height: 400px;
           text-align: center;
-          padding: calc(var(--spacing-lg) * 3);
+          padding: var(--spacing-lg);
           background: var(--color-white, #fff);
           border-radius: var(--border-radius-lg);
-          max-width: 500px;
-          margin: 0 auto;
+          max-width: 600px;
+          margin: 40px auto;
         }
 
         .loading-content h2 {
           margin-bottom: var(--spacing-md);
-          color: var(--color-headline, #0f2a39);
+          color: var(--color-headline, #111827);
+          font-size: 24px;
         }
 
         .loading-spinner {
@@ -2515,7 +2528,7 @@ class WioOnboarding extends HTMLElement {
         }
 
         .form-logo img {
-          height: 40px;
+          height: 48px; /* Slightly larger */
           width: auto;
         }
 
@@ -2523,9 +2536,9 @@ class WioOnboarding extends HTMLElement {
         .stepper-header {
           display: flex;
           justify-content: space-between;
-          align-items: center;
-          gap: var(--spacing-sm);
+          align-items: flex-start; /* Align to top */
           margin-bottom: var(--spacing-md);
+          position: relative; /* For line positioning context if needed */
         }
 
         .step-indicator {
@@ -2535,6 +2548,7 @@ class WioOnboarding extends HTMLElement {
           align-items: center;
           gap: var(--spacing-sm);
           position: relative;
+          z-index: 1;
         }
 
         .step-indicator::after {
@@ -2545,7 +2559,7 @@ class WioOnboarding extends HTMLElement {
           width: 100%;
           height: 2px;
           background: var(--border-color);
-          z-index: 0;
+          z-index: -1;
         }
 
         .step-indicator:last-child::after {
@@ -2556,23 +2570,23 @@ class WioOnboarding extends HTMLElement {
           width: 40px;
           height: 40px;
           border-radius: 50%;
-          background: var(--gray-light);
+          background: var(--color-white, #fff); /* White background for clean look */
           color: var(--gray-medium);
           display: flex;
           align-items: center;
           justify-content: center;
           font-weight: 600;
-          font-size: 16px;
+          font-size: 14px;
           border: 2px solid var(--border-color);
-          z-index: 1;
-          position: relative;
-          transition: all 0.2s ease;
+          transition: all 0.3s ease;
+          box-shadow: var(--shadow-sm);
         }
 
         .step-indicator.active .step-circle {
           background: var(--primary-color);
           color: var(--color-white, #fff);
           border-color: var(--primary-color);
+          box-shadow: 0 0 0 4px rgba(76, 123, 99, 0.2); /* Focus ring effect */
         }
 
         .step-indicator.complete .step-circle {
@@ -2586,49 +2600,54 @@ class WioOnboarding extends HTMLElement {
         }
 
         .step-indicator.clickable:hover .step-circle {
-          transform: scale(1.1);
+          transform: translateY(-2px);
+          border-color: var(--primary-color);
         }
 
         .step-label {
-          font-size: 12px;
+          font-size: 13px;
           color: var(--gray-medium);
           text-align: center;
           font-weight: 500;
+          transition: color 0.3s ease;
         }
 
         .step-indicator.active .step-label {
           color: var(--primary-color);
-          font-weight: 600;
+          font-weight: 700;
         }
 
         /* Form Sections */
         .form-section {
-          margin-bottom: var(--spacing-lg, 1.5rem);
+          margin-bottom: var(--spacing-lg);
+          padding-bottom: var(--spacing-md);
         }
 
         .form-section h2 {
           font-size: 24px;
-          color: var(--color-headline, #0f2a39);
-          margin-bottom: var(--spacing-sm, 0.5rem);
+          font-weight: 700;
+          color: var(--color-headline, #111827);
+          margin-bottom: 0.5rem;
+          letter-spacing: -0.025em;
         }
 
         .form-section > p {
           color: var(--gray-medium);
-          font-size: 14px;
-          line-height: 1.5;
-          margin-bottom: var(--spacing-lg, 1.5rem);
+          font-size: 15px;
+          line-height: 1.6;
+          margin-bottom: var(--spacing-lg);
         }
 
         .form-grid {
           display: grid;
           grid-template-columns: repeat(2, 1fr);
-          gap: var(--spacing-md, 1rem);
+          gap: var(--spacing-lg); /* Increased gap */
         }
 
         .form-field {
           display: flex;
           flex-direction: column;
-          gap: var(--spacing-sm, 0.5rem);
+          gap: 0.5rem;
         }
 
         .form-field.full-width {
@@ -2637,33 +2656,35 @@ class WioOnboarding extends HTMLElement {
 
         .form-field label {
           font-size: 14px;
-          font-weight: 500;
-          line-height: 1.4;
-          color: var(--color-headline, #0f2a39);
-          margin-bottom: 0;
+          font-weight: 600;
+          color: var(--color-headline, #374151);
         }
 
         .required-asterisk {
           color: var(--error-color);
+          margin-left: 2px;
         }
 
         .form-field input,
         .form-field select {
-          padding: 10px 12px;
+          padding: 12px 16px;
           border: 1px solid var(--border-color);
-          border-radius: var(--border-radius-sm, 0.5rem);
-          font-size: 14px;
+          border-radius: var(--border-radius-sm);
+          font-size: 15px;
           font-family: inherit;
           line-height: 1.5;
-          transition: border-color 0.2s ease;
-          height: 40px;
-          box-sizing: border-box;
+          transition: all 0.2s ease;
+          height: 48px; /* Taller inputs */
+          box-shadow: var(--shadow-sm);
+          width: 100%;
+          background-color: var(--color-white, #fff);
         }
 
         .form-field input:focus,
         .form-field select:focus {
           outline: none;
           border-color: var(--primary-color);
+          box-shadow: var(--focus-ring);
         }
 
         .form-field.has-error input,
@@ -2671,211 +2692,212 @@ class WioOnboarding extends HTMLElement {
           border-color: var(--error-color);
         }
 
+        .form-field input:disabled,
+        .form-field input[readonly] {
+          background-color: var(--gray-light);
+          color: var(--gray-medium);
+          cursor: not-allowed;
+        }
+
         .error-message {
-          font-size: 12px;
+          font-size: 13px;
           line-height: 1.4;
           color: var(--error-color);
-          margin-top: calc(var(--spacing-sm, 0.5rem) * -0.5);
+          margin-top: 4px;
         }
 
         /* Password Strength Indicator */
         .password-strength {
-          margin-top: 8px;
+          margin-top: 12px;
+          background: var(--gray-light);
+          padding: 12px;
+          border-radius: var(--border-radius-sm);
         }
-
+        
+        /* ... (Password strength styles mostly same, just slight spacing tweaks if needed) ... */
         .password-strength-bar {
           height: 6px;
-          background: var(--gray-light);
+          background: #e5e7eb;
           border-radius: 3px;
           overflow: hidden;
-          margin-bottom: 6px;
+          margin-bottom: 8px;
         }
-
+        
         .password-strength-fill {
           height: 100%;
           transition: width 0.3s ease, background-color 0.3s ease;
           border-radius: 3px;
         }
-
-        .password-strength-label {
-          font-size: 12px;
-          font-weight: 500;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        }
-
-        .password-requirements {
-          margin-top: 8px;
-        }
-
-        .password-requirements ul {
-          list-style: disc;
-        }
-
-        .password-requirements li {
-          line-height: 1.6;
-        }
-
+        
+        .password-strength-label a { /* Target text directly if needed or keep structure */ } 
+        
         .password-check {
-          font-size: 12px;
-          color: var(--gray-medium);
-          margin-top: 6px;
-          display: grid;
-          grid-template-columns: repeat(2, 1fr);
-          gap: 4px;
+            margin-top: 8px;
+            gap: 8px;
         }
 
-        .password-check-item {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-        }
-
-        .password-check-item.valid {
-          color: var(--color-success, #22c55e);
-        }
-
-        .password-check-icon {
-          font-size: 14px;
-        }
 
         /* Radio Group */
         .radio-group {
           display: flex;
-          gap: var(--spacing-lg, 1.5rem);
-          flex-wrap: wrap;
+          gap: var(--spacing-lg);
+          padding: 8px 0;
         }
 
         .radio-option {
           display: flex;
           align-items: center;
-          gap: var(--spacing-sm, 0.5rem);
+          gap: 0.75rem;
+          cursor: pointer;
         }
 
         .radio-option input[type="radio"] {
-          width: 18px;
-          height: 18px;
+          width: 20px;
+          height: 20px;
           cursor: pointer;
+          accent-color: var(--primary-color);
+          margin: 0;
+          box-shadow: none; /* Reset specialized input shadow */
         }
 
         .radio-option label {
           cursor: pointer;
-          margin: 0;
+          font-weight: 500;
         }
 
         /* Representatives */
         .representatives-list {
-          margin-bottom: var(--spacing-md);
+          display: flex;
+          flex-direction: column;
+          gap: var(--spacing-md);
+          margin-bottom: var(--spacing-lg);
         }
 
         .empty-state {
-          padding: var(--spacing-lg, 1.5rem);
+          padding: 3rem;
           text-align: center;
           background: var(--gray-light);
-          border-radius: var(--border-radius, 0.75rem);
+          border: 2px dashed var(--border-color);
+          border-radius: var(--border-radius);
           color: var(--gray-medium);
-          font-size: 14px;
-          line-height: 1.5;
         }
 
         .representative-card {
-          background: var(--gray-light);
-          border-radius: var(--border-radius, 0.75rem);
-          padding: var(--spacing-md, 1rem);
-          margin-bottom: var(--spacing-md, 1rem);
+          background: var(--color-white, #fff);
+          border: 1px solid var(--border-color);
+          border-radius: var(--border-radius);
+          padding: var(--spacing-lg);
+          box-shadow: var(--shadow-sm);
+          transition: box-shadow 0.2s ease;
+        }
+        
+        .representative-card:hover {
+            box-shadow: var(--shadow-md);
         }
 
         .card-header {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          margin-bottom: var(--spacing-md, 1rem);
+          margin-bottom: var(--spacing-lg);
+          padding-bottom: var(--spacing-sm);
+          border-bottom: 1px solid var(--border-color);
         }
 
         .card-header h3 {
-          font-size: 16px;
+          font-size: 18px;
+          font-weight: 600;
           color: var(--color-headline, #0f2a39);
         }
 
         .remove-btn {
-          background: var(--error-color);
-          color: var(--color-white, #fff);
-          border: none;
-          padding: 6px 12px;
+          background: transparent;
+          color: var(--error-color);
+          border: 1px solid var(--error-color);
+          padding: 6px 16px;
           border-radius: var(--border-radius-sm);
           cursor: pointer;
-          font-size: 12px;
-          font-weight: 500;
-          transition: opacity 0.2s ease;
+          font-size: 13px;
+          font-weight: 600;
+          transition: all 0.2s ease;
         }
 
         .remove-btn:hover {
-          opacity: 0.9;
+          background: var(--error-color);
+          color: white;
         }
 
         .add-representative-btn {
-          background: var(--primary-color);
-          color: var(--color-white, #fff);
-          border: none;
-          padding: 10px 20px;
+          background: transparent;
+          color: var(--primary-color);
+          border: 2px dashed var(--primary-color);
+          padding: 16px;
           border-radius: var(--border-radius);
           cursor: pointer;
-          font-size: 14px;
-          font-weight: 500;
+          font-size: 15px;
+          font-weight: 600;
           width: 100%;
-          transition: opacity 0.2s ease;
+          transition: all 0.2s ease;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.5rem;
         }
 
         .add-representative-btn:hover {
-          opacity: 0.9;
+          background: var(--color-primary-light, #f0fdf4);
+          border-style: solid;
         }
 
         /* File Upload */
         .drag-drop-area {
           border: 2px dashed var(--border-color);
-          border-radius: var(--border-radius, 0.75rem);
-          padding: 2rem;
+          border-radius: var(--border-radius);
+          padding: 3rem 2rem;
           text-align: center;
           cursor: pointer;
           transition: all 0.2s ease;
-          min-height: 200px;
+          min-height: 240px;
           display: flex;
           align-items: center;
           justify-content: center;
-          background: var(--gray-light, #f9fafb);
+          background: var(--gray-light);
         }
 
         .drag-drop-area:hover,
         .drag-drop-area.drag-over {
           border-color: var(--primary-color);
-          background: var(--color-primary-light, #e8f0eb);
+          background: #f0fdf4; /* Light green tint */
         }
 
-        .drag-drop-content {
-          pointer-events: none;
-          width: 100%;
+        .btn-browse {
+            margin-top: 1rem;
+            padding: 10px 24px !important;
+            background: var(--color-white, #fff) !important;
+            color: var(--primary-color) !important;
+            border: 1px solid var(--border-color) !important;
+            box-shadow: var(--shadow-sm);
+            transition: all 0.2s ease;
         }
-
-        .drag-drop-content svg {
-          margin: 0 auto var(--spacing-sm, 0.5rem);
-          display: block;
-          color: var(--gray-medium);
-        }
-
-        .drag-drop-content p {
-          margin: 0;
+        
+        .btn-browse:hover {
+            border-color: var(--primary-color) !important;
+            box-shadow: var(--shadow-md);
         }
 
         .uploaded-files {
-          margin-top: var(--spacing-md, 1rem);
+          margin-top: var(--spacing-md);
+          display: flex;
+          flex-direction: column;
+          gap: 0.5rem;
         }
 
         /* Navigation Footer */
         .navigation-footer {
           display: flex;
           justify-content: flex-end;
-          gap: var(--spacing-md);
+          gap: 1.5rem; /* Explicit larger gap */
+          align-items: center;
         }
 
         .btn-back,
@@ -2884,246 +2906,180 @@ class WioOnboarding extends HTMLElement {
           background: var(--color-white, #fff);
           color: var(--gray-medium);
           border: 1px solid var(--border-color);
-          border-radius: var(--border-radius);
+          border-radius: var(--border-radius-sm);
           cursor: pointer;
-          font-size: 14px;
+          font-size: 15px;
           font-weight: 500;
           transition: all 0.2s ease;
+          min-width: 100px;
         }
 
         .btn-back:hover,
         .btn-skip:hover {
           background: var(--gray-light);
+          border-color: var(--gray-medium);
+          color: var(--color-headline, #111827);
         }
 
         .btn-next {
+          padding: 12px 32px;
+          background: var(--primary-color);
+          color: var(--color-white, #fff);
+          border: none;
+          border-radius: var(--border-radius-sm);
+          cursor: pointer;
+          font-size: 15px;
+          font-weight: 600;
+          transition: all 0.2s ease;
+          min-width: 120px;
+          box-shadow: var(--shadow-sm);
+        }
+
+        .btn-next:hover {
+          background-color: var(--primary-hover);
+          transform: translateY(-1px);
+          box-shadow: var(--shadow-md);
+        }
+
+        /* Success Page - Centered & Polished */
+        .success-container {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          text-align: center;
+          padding: var(--spacing-lg);
+          max-width: 600px;
+          margin: 0 auto;
+          min-height: 500px;
+        }
+
+        .success-icon {
+          width: 96px;
+          height: 96px;
+          border-radius: 50%;
+          background: #dcfce7; /* Green 100 */
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin-bottom: var(--spacing-lg);
+        }
+
+        .success-icon svg {
+          width: 48px;
+          height: 48px;
+          stroke: var(--success-color);
+          stroke-width: 2.5;
+        }
+
+        .success-container h2 {
+          font-size: 32px;
+          margin-bottom: 0.75rem;
+        }
+        
+        .verification-notice {
+            background: #ecfdf5; /* Green 50 */
+            border: 1px solid #d1fae5;
+            padding: var(--spacing-lg);
+            width: 100%;
+            border-radius: var(--border-radius);
+            margin: var(--spacing-lg) 0;
+        }
+
+        .success-details {
+          width: 100%;
+          background: var(--gray-light);
+          border-radius: var(--border-radius);
+          padding: var(--spacing-lg);
+          border: 1px solid var(--border-color);
+        }
+
+        .success-actions {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+            width: 100%;
+            justify-content: center;
+        }
+
+        .btn-send-again {
+          padding: 12px 24px;
+          background: var(--color-white, #fff);
+          color: var(--primary-color);
+          border: 1px solid var(--border-color);
+          border-radius: var(--border-radius-sm);
+          cursor: pointer;
+          font-size: 15px;
+          font-weight: 600;
+          flex: 1;
+          max-width: 200px;
+        }
+
+        .btn-confirm-success {
           padding: 12px 24px;
           background: var(--primary-color);
           color: var(--color-white, #fff);
           border: none;
-          border-radius: var(--border-radius);
+          border-radius: var(--border-radius-sm);
           cursor: pointer;
-          font-size: 14px;
-          font-weight: 500;
-          transition: opacity 0.2s ease;
+          font-size: 15px;
+          font-weight: 600;
+          flex: 1;
+          max-width: 200px;
         }
-
-        .btn-next:hover {
-          opacity: 0.9;
-        }
-
-        /* Success Page */
-        .success-container {
-          text-align: center;
-          padding: calc(var(--spacing-lg) * 2);
-          background: var(--color-white, #fff);
-          border-radius: var(--border-radius-lg);
-          max-width: 600px;
-          margin: 0 auto;
-        }
-
-        .success-icon {
-          width: 80px;
-          height: 80px;
-          border-radius: 50%;
-          background: var(--color-success-light, #d3f3df);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          margin: 0 auto var(--spacing-lg);
-        }
-
-        .success-icon svg {
-          width: 40px;
-          height: 40px;
-          stroke: var(--success-color);
-          stroke-width: 3;
-          fill: none;
-        }
-
-        .success-container h2 {
-          font-size: 28px;
-          color: var(--color-headline, #0f2a39);
-          margin-bottom: var(--spacing-sm);
-        }
-
-        .success-container > p {
-          color: var(--gray-medium);
-          margin-bottom: var(--spacing-lg);
-        }
-
-        .verification-notice {
-          background: var(--color-success-light, #d3f3df);
-          border: 1px solid var(--color-success-light, #d3f3df);
-          border-radius: var(--border-radius);
-          padding: var(--spacing-lg);
-          margin: var(--spacing-lg) 0;
-          text-align: center;
-        }
-
-        .verification-icon {
-          width: 64px;
-          height: 64px;
-          border-radius: 50%;
-          background: var(--color-white, #fff);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          margin: 0 auto var(--spacing-md);
-        }
-
-        .success-details {
-          background: var(--gray-light);
-          border-radius: var(--border-radius);
-          padding: var(--spacing-lg);
-          margin: var(--spacing-lg) 0;
-          text-align: left;
-        }
-
-        .success-details h3 {
-          font-size: 16px;
-          color: var(--color-headline, #0f2a39);
-          margin-bottom: var(--spacing-md);
-        }
-
-        .detail-item {
-          display: flex;
-          justify-content: space-between;
-          padding: var(--spacing-sm) 0;
-          border-bottom: 1px solid var(--border-color);
-        }
-
-        .detail-item:last-child {
-          border-bottom: none;
-        }
-
-        .detail-label {
-          font-weight: 500;
-          color: var(--gray-medium);
-        }
-
-        .detail-value {
-          color: var(--color-headline, #0f2a39);
-        }
-
-        .btn-send-again {
-          padding: 12px 32px;
-          background: var(--color-white, #fff);
-          color: var(--primary-color);
-          border: 2px solid var(--primary-color);
-          border-radius: var(--border-radius);
-          cursor: pointer;
-          font-size: 16px;
-          font-weight: 500;
-          transition: all 0.2s ease;
-          box-sizing: border-box;
-          height: 48px;
-        }
-
+        
         .btn-send-again:hover {
-          background: var(--primary-color);
-          color: var(--color-white, #fff);
+            border-color: var(--primary-color);
+            background: #f0fdf4;
         }
-
-        .btn-confirm-success {
-          padding: 12px 32px;
-          background: var(--primary-color);
-          color: var(--color-white, #fff);
-          border: 2px solid var(--primary-color);
-          border-radius: var(--border-radius);
-          cursor: pointer;
-          font-size: 16px;
-          font-weight: 500;
-          transition: opacity 0.2s ease;
-          box-sizing: border-box;
-          height: 48px;
-        }
-
+        
         .btn-confirm-success:hover {
-          opacity: 0.9;
+            background-color: var(--primary-hover);
         }
 
         /* Error Page */
         .error-container {
-          text-align: center;
-          padding: calc(var(--spacing-lg) * 2);
-          background: var(--color-white, #fff);
-          border-radius: var(--border-radius-lg);
-          max-width: 600px;
-          margin: 0 auto;
-        }
-
-        .error-icon {
-          width: 80px;
-          height: 80px;
-          border-radius: 50%;
-          background: var(--color-error-light, #fae5e4);
           display: flex;
+          flex-direction: column;
           align-items: center;
           justify-content: center;
-          margin: 0 auto var(--spacing-lg);
-        }
-
-        .error-icon svg {
-          width: 40px;
-          height: 40px;
-          stroke: var(--error-color);
-          stroke-width: 3;
-          fill: none;
-        }
-
-        .error-container h2 {
-          font-size: 28px;
-          color: var(--color-headline, #0f2a39);
-          margin-bottom: var(--spacing-sm);
-        }
-
-        .error-container > p {
-          color: var(--gray-medium);
-          margin-bottom: var(--spacing-lg);
-        }
-
-        .error-details {
-          background: var(--color-error-light, #fae5e4);
-          border-radius: var(--border-radius);
           padding: var(--spacing-lg);
-          margin: var(--spacing-lg) 0;
-          text-align: left;
+          max-width: 600px;
+          margin: 0 auto;
+          min-height: 500px;
+          text-align: center;
         }
-
-        .error-details h3 {
-          font-size: 16px;
-          color: var(--color-headline, #0f2a39);
-          margin-bottom: var(--spacing-md);
-        }
-
-        .error-details p {
-          color: var(--color-error-dark, #903531);
-          line-height: 1.5;
+        
+        .error-details {
+            width: 100%;
+            text-align: left;
         }
 
         /* Responsive Design */
         @media (max-width: 768px) {
           .form-grid {
             grid-template-columns: 1fr;
-          }
-
-          .stepper-header {
-            gap: var(--spacing-sm);
+            gap: var(--spacing-md);
           }
 
           .step-label {
-            font-size: 10px;
+            display: none; /* Hide labels on mobile for cleaner look */
           }
-
-          .step-circle {
-            width: 32px;
-            height: 32px;
-            font-size: 14px;
+          
+          .navigation-footer {
+              justify-content: space-between;
           }
-
-          .form-body {
-            max-height: 500px;
+          
+          .btn-back, .btn-next {
+              flex: 1;
+          }
+          
+          .success-actions {
+              flex-direction: column;
+          }
+          
+          .btn-send-again, .btn-confirm-success {
+              max-width: 100%;
           }
         }
       </style>
