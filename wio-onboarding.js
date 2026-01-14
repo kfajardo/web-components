@@ -193,7 +193,9 @@ class WioOnboarding extends HTMLElement {
     this._onErrorCallback = null;
     this._onSubmitCallback = null;
     this._onConfirmCallback = null;
+    this._onDoneCallback = null;
     this._initialData = null;
+    this._doneButtonText = "Done";
 
     this.render();
   }
@@ -251,8 +253,35 @@ class WioOnboarding extends HTMLElement {
     }
   }
 
+  get onDone() {
+    return this._onDoneCallback;
+  }
+
+  set onDone(callback) {
+    if (typeof callback === "function" || callback === null) {
+      this._onDoneCallback = callback;
+    }
+  }
+
+  get doneButtonText() {
+    return this._doneButtonText;
+  }
+
+  set doneButtonText(value) {
+    this._doneButtonText = value;
+    this.render();
+  }
+
   static get observedAttributes() {
-    return ["on-success", "on-error", "on-submit", "on-load"];
+    return ["on-success", "on-error", "on-submit", "on-load", "on-done", "done-button-text"];
+  }
+
+  attributeChangedCallback(name, oldValue, newValue) {
+    if (oldValue === newValue) return;
+
+    if (name === "done-button-text") {
+      this.doneButtonText = newValue;
+    }
   }
 
   // ==================== VALIDATORS ====================
@@ -1117,41 +1146,10 @@ class WioOnboarding extends HTMLElement {
     }
 
     // Reset form after confirmation
-    this.resetForm();
-  }
-
-  async handleSendAgain() {
-    const email =
-      this.state.submissionEmail ||
-      this.state.formData.businessDetails.businessEmail;
-    const moovAccountId = this.state.submissionMoovAccountId;
-
-    console.log("Send again clicked - calling onSuccess callback");
-    console.log("Email:", email);
-    console.log("MoovAccountId:", moovAccountId);
-
-    // Dispatch event for parent to handle email resend
-    this.dispatchEvent(
-      new CustomEvent("resendVerification", {
-        detail: {
-          email,
-          moovAccountId,
-          timestamp: new Date().toISOString(),
-        },
-        bubbles: true,
-        composed: true,
-      })
-    );
-
-    // Call the same onSuccess callback
-    if (this.onSuccess && typeof this.onSuccess === "function") {
-      await this.onSuccess({
-        email,
-        moovAccountId,
-        formData: this.state.formData,
-        resend: true,
-      });
+    if (this.onDone && typeof this.onDone === "function") {
+      this.onDone(confirmData);
     }
+    this.resetForm();
   }
 
   // ==================== FILE HANDLING ====================
@@ -2230,11 +2228,8 @@ class WioOnboarding extends HTMLElement {
         </div>
 
         <div class="success-actions">
-          <button class="btn-send-again" type="button">
-            Send again
-          </button>
           <button class="btn-confirm-success" type="button">
-            Done
+            ${this.doneButtonText || "Done"}
           </button>
         </div>
       </div>
@@ -2294,11 +2289,7 @@ class WioOnboarding extends HTMLElement {
       confirmBtn.addEventListener("click", () => this.handleSuccessConfirm());
     }
 
-    // Send again button
-    const sendAgainBtn = shadow.querySelector(".btn-send-again");
-    if (sendAgainBtn) {
-      sendAgainBtn.addEventListener("click", () => this.handleSendAgain());
-    }
+
 
     // Submission failure resubmit button
     if (this.state.isSubmissionFailed) {
@@ -3124,36 +3115,7 @@ class WioOnboarding extends HTMLElement {
             justify-content: center;
         }
 
-        .btn-send-again {
-          padding: 12px 24px;
-          background: var(--color-white, #fff);
-          color: var(--primary-color);
-          border: 1px solid var(--border-color);
-          border-radius: var(--border-radius-sm);
-          cursor: pointer;
-          font-size: 15px;
-          font-weight: 600;
-          flex: 1;
-          max-width: 200px;
-        }
 
-        .btn-confirm-success {
-          padding: 12px 24px;
-          background: var(--primary-color);
-          color: var(--color-white, #fff);
-          border: none;
-          border-radius: var(--border-radius-sm);
-          cursor: pointer;
-          font-size: 15px;
-          font-weight: 600;
-          flex: 1;
-          max-width: 200px;
-        }
-        
-        .btn-send-again:hover {
-            border-color: var(--primary-color);
-            background: #f0fdf4;
-        }
         
         .btn-confirm-success:hover {
             background-color: var(--primary-hover);
@@ -3200,7 +3162,7 @@ class WioOnboarding extends HTMLElement {
               flex-direction: column;
           }
           
-          .btn-send-again, .btn-confirm-success {
+          .btn-confirm-success {
               max-width: 100%;
           }
         }

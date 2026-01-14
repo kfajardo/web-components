@@ -110,7 +110,7 @@
         <!-- Success State -->
         <div class="gallery-item">
             <div class="state-label">State: Success</div>
-            <wio-onboarding id="success"></wio-onboarding>
+            <wio-onboarding id="success" done-button-text="Complete Setup"></wio-onboarding>
         </div>
 
         <!-- Failure State -->
@@ -196,6 +196,10 @@
 
             // Force Success
             const success = document.getElementById('success');
+            success.onDone = (data) => {
+                console.log('✅ Done button clicked!', data);
+                alert('Done button clicked! Check console for data.');
+            };
             setTimeout(() => {
                 success.setState({
                     formData: mockData,
