@@ -273,14 +273,58 @@ class WioOnboarding extends HTMLElement {
   }
 
   static get observedAttributes() {
-    return ["on-success", "on-error", "on-submit", "on-load", "on-done", "done-button-text"];
+    return [
+      "on-success",
+      "on-error",
+      "on-submit",
+      "on-load",
+      "on-done",
+      "done-button-text",
+      "api-base-url",
+      "embeddable-key",
+    ];
   }
 
   attributeChangedCallback(name, oldValue, newValue) {
     if (oldValue === newValue) return;
 
-    if (name === "done-button-text") {
-      this.doneButtonText = newValue;
+    switch (name) {
+      case "done-button-text":
+        this.doneButtonText = newValue;
+        break;
+
+      case "api-base-url": {
+        const fallbackURL = "https://bison-jib-development.azurewebsites.net";
+        this.apiBaseURL = newValue || fallbackURL;
+        const BisonJibPayAPIClass =
+          typeof BisonJibPayAPI !== "undefined"
+            ? BisonJibPayAPI
+            : typeof window !== "undefined" && window.BisonJibPayAPI;
+        if (BisonJibPayAPIClass) {
+          this.api = new BisonJibPayAPIClass(
+            this.apiBaseURL,
+            this.embeddableKey
+          );
+        }
+        break;
+      }
+
+      case "embeddable-key": {
+        const fallbackKey =
+          "R80WMkbNN8457RofiMYx03DL65P06IaVT30Q2emYJUBQwYCzRC";
+        this.embeddableKey = newValue || fallbackKey;
+        const BisonJibPayAPIClass =
+          typeof BisonJibPayAPI !== "undefined"
+            ? BisonJibPayAPI
+            : typeof window !== "undefined" && window.BisonJibPayAPI;
+        if (BisonJibPayAPIClass) {
+          this.api = new BisonJibPayAPIClass(
+            this.apiBaseURL,
+            this.embeddableKey
+          );
+        }
+        break;
+      }
     }
   }
 
