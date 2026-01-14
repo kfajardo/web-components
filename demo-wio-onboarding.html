@@ -77,10 +77,16 @@
             <p class="subtitle">Static showcase of all component states</p>
         </header>
 
-        <!-- Step 1: Business Details -->
+        <!-- Step 1: Business Details (No Email Pre-Load) -->
         <div class="gallery-item">
-            <div class="state-label">Step 1: Business Details</div>
+            <div class="state-label">Step 1: Business Details (No Email Pre-Load)</div>
             <wio-onboarding id="step1"></wio-onboarding>
+        </div>
+
+        <!-- Step 1: Business Details (With Email Pre-Load - Phone+EIN same row) -->
+        <div class="gallery-item">
+            <div class="state-label">Step 1: Business Details (Email Pre-Loaded)</div>
+            <wio-onboarding id="step1-email-preload"></wio-onboarding>
         </div>
 
         <!-- Step 2: Bank Details -->
@@ -155,6 +161,10 @@
                     }
                 ]
             };
+
+            // Step 1 with Email Pre-Load (demonstrates phone + EIN on same row, email hidden)
+            const step1EmailPreload = document.getElementById('step1-email-preload');
+            step1EmailPreload.onLoad = mockData; // Pre-fill with email - will hide email field
 
             // Force Step 2
             const step2 = document.getElementById('step2');

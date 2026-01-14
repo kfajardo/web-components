@@ -1092,68 +1092,141 @@ class WioOnboarding extends HTMLElement {
           isSuccess
         );
         console.error("Full response:", response);
-        this.handleSubmissionFailure(processedData);
+
+        // Determine status code from response
+        let statusCode = 500; // Default to server error
+        if (response?.errors?.length > 0) {
+          // Check for authentication errors
+          const hasAuthError = response.errors.some(
+            (err) =>
+              err.toLowerCase().includes("unauthorized") ||
+              err.toLowerCase().includes("authentication")
+          );
+          if (hasAuthError) {
+            statusCode = 401;
+          } else {
+            // Assume validation/bad request error
+            statusCode = 400;
+          }
+        }
+
+        this.handleSubmissionFailure(processedData, {
+          statusCode,
+          success: response?.success ?? false,
+          message: response?.message || null,
+          errors: response?.errors || [],
+          timestamp: response?.timestamp || new Date().toISOString(),
+          traceId: response?.traceId || null,
+        });
         return;
       }
 
       console.log("✅ WioOnboarding: Submission successful!");
 
-      // Extract email and moovAccountId from response
-      const email = processedData.businessDetails.businessEmail;
-      const moovAccountId = response?.data?.moovAccountId || null;
+      // Extract data from 201 success response matching Swagger schema
+      const responseData = response?.data || {};
+      const successData = {
+        // Form data
+        formData: processedData,
+        // API response metadata
+        success: response.success,
+        message: response.message || null,
+        timestamp: response.timestamp,
+        traceId: response.traceId || null,
+        // WIO registration data from response.data
+        userId: responseData.userId || null,
+        wioId: responseData.wioId || null,
+        tenantId: responseData.tenantId || null,
+        moovAccountId: responseData.moovAccountId || null,
+        moovBankAccountId: responseData.moovBankAccountId || null,
+        uploadedDocumentsCount: responseData.uploadedDocumentsCount || 0,
+        uploadErrors: responseData.uploadErrors || [],
+        requiresOnboarding: responseData.requiresOnboarding ?? false,
+        // Legacy fields for backward compatibility
+        email: processedData.businessDetails.businessEmail,
+        apiResponse: response,
+      };
 
-      console.log("Extracted email:", email);
-      console.log("Extracted moovAccountId:", moovAccountId);
+      console.log("Success data:", successData);
 
       this.setState({
         isSubmitted: true,
-        submissionEmail: email,
-        submissionMoovAccountId: moovAccountId,
+        submissionEmail: successData.email,
+        submissionMoovAccountId: successData.moovAccountId,
+        submissionData: successData,
         uiState: { isLoading: false },
       });
 
       this.dispatchEvent(
         new CustomEvent("formComplete", {
-          detail: {
-            ...processedData,
-            apiResponse: response,
-            email,
-            moovAccountId,
-          },
+          detail: successData,
           bubbles: true,
           composed: true,
         })
       );
 
       if (this.onSuccess && typeof this.onSuccess === "function") {
-        await this.onSuccess({
-          email,
-          moovAccountId,
-          formData: processedData,
-          apiResponse: response,
-        });
+        await this.onSuccess(successData);
       }
     } catch (error) {
       console.error("WioOnboarding: registerWIO API error", error);
-      this.handleSubmissionFailure(processedData);
+
+      // Handle network or unexpected errors
+      this.handleSubmissionFailure(processedData, {
+        statusCode: 500,
+        success: false,
+        message: error.message || "An unexpected error occurred",
+        errors: [error.message || "Network error or server unavailable"],
+        timestamp: new Date().toISOString(),
+        traceId: null,
+      });
     }
   }
 
-  async handleSubmissionFailure(formData) {
+  async handleSubmissionFailure(formData, apiError = null) {
+    // Build structured error data matching Swagger schema
     const errorData = {
       formData,
-      message: "Form submission failed. Please try again.",
-      timestamp: new Date().toISOString(),
+      // API error response fields
+      statusCode: apiError?.statusCode || 500,
+      success: apiError?.success ?? false,
+      message: apiError?.message || null,
+      errors: apiError?.errors || [],
+      timestamp: apiError?.timestamp || new Date().toISOString(),
+      traceId: apiError?.traceId || null,
     };
+
+    // Build user-friendly error message
+    let displayMessage = "Form submission failed. Please try again.";
+
+    if (errorData.statusCode === 400) {
+      displayMessage = "Validation failed. Please check your information and try again.";
+    } else if (errorData.statusCode === 401) {
+      displayMessage = "Authentication failed. Please check your credentials.";
+    } else if (errorData.statusCode === 500) {
+      displayMessage = "Server error. Please try again later.";
+    }
+
+    // Use API message if available, otherwise use status-based message
+    if (errorData.message) {
+      displayMessage = errorData.message;
+    }
+
+    // Append specific errors if available
+    const errorDetails =
+      errorData.errors.length > 0 ? errorData.errors.join("; ") : null;
 
     console.error("Submission Failed:", errorData);
 
     this.setState({
       isSubmissionFailed: true,
+      submissionError: errorData,
       uiState: {
         ...this.state.uiState,
         isLoading: false,
-        errorMessage: errorData.message,
+        errorMessage: displayMessage,
+        errorDetails: errorDetails,
+        statusCode: errorData.statusCode,
         showErrors: false,
       },
     });
@@ -1774,6 +1847,27 @@ class WioOnboarding extends HTMLElement {
       error: this.getFieldError("doingBusinessAs"),
     })}
 
+          ${this._initialData?.businessDetails?.businessEmail ? `
+          ${this.renderField({
+      name: "businessPhoneNumber",
+      label: "Business Phone *",
+      type: "tel",
+      value: data.businessPhoneNumber,
+      error: this.getFieldError("businessPhoneNumber"),
+      placeholder: "(555) 123-4567",
+      dataFormat: "phone",
+    })}
+
+          ${this.renderField({
+      name: "ein",
+      label: "EIN *",
+      value: data.ein,
+      error: this.getFieldError("ein"),
+      placeholder: "12-3456789",
+      maxLength: 10,
+      dataFormat: "ein",
+    })}
+          ` : `
           ${this.renderField({
       name: "ein",
       label: "EIN *",
@@ -1784,6 +1878,7 @@ class WioOnboarding extends HTMLElement {
       dataFormat: "ein",
       className: "full-width",
     })}
+          `}
 
           ${this.renderField({
       name: "businessWebsite",
@@ -1795,6 +1890,7 @@ class WioOnboarding extends HTMLElement {
       className: "full-width",
     })}
 
+          ${!this._initialData?.businessDetails?.businessEmail ? `
           ${this.renderField({
       name: "businessPhoneNumber",
       label: "Business Phone *",
@@ -1813,6 +1909,7 @@ class WioOnboarding extends HTMLElement {
       error: this.getFieldError("businessEmail"),
       readOnly: false,
     })}
+          ` : ``}
 
           ${this.renderField({
       name: "BusinessAddress1",
@@ -2229,48 +2326,6 @@ class WioOnboarding extends HTMLElement {
           Your WIO onboarding has been successfully completed.
         </p>
 
-        <div class="verification-notice">
-          <div class="verification-icon">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--primary-color);">
-              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-              <polyline points="22,6 12,13 2,6"></polyline>
-            </svg>
-          </div>
-          <h3 style="font-size: 18px; color: var(--color-headline, #0f2a39); margin-bottom: var(--spacing-sm);">
-            We've sent a verification link to
-          </h3>
-          <p style="font-size: 16px; font-weight: 600; color: var(--primary-color); margin-bottom: var(--spacing-sm);">
-            ${businessDetails.businessEmail}
-          </p>
-          <p style="font-size: 14px; color: var(--gray-medium); line-height: 1.6;">
-            If an account exists with this email, a magic link has been sent.
-          </p>
-        </div>
-
-        <div class="success-details">
-          <h3>Account Summary</h3>
-          <div class="detail-item">
-            <span class="detail-label">Business Name</span>
-            <span class="detail-value">${businessDetails.businessName}</span>
-          </div>
-          <div class="detail-item">
-            <span class="detail-label">Business Email</span>
-            <span class="detail-value">${businessDetails.businessEmail}</span>
-          </div>
-          <div class="detail-item">
-            <span class="detail-label">Phone Number</span>
-            <span class="detail-value">${businessDetails.businessPhoneNumber
-      }</span>
-          </div>
-          <div class="detail-item">
-            <span class="detail-label">Bank Account</span>
-            <span class="detail-value">${bankDetails.bankAccountType === "checking"
-        ? "Checking"
-        : "Savings"
-      } (****${bankDetails.bankAccountNumber.slice(-4)})</span>
-          </div>
-        </div>
-
         <div class="success-actions">
           <button class="btn-confirm-success" type="button">
             ${this.doneButtonText || "Done"}
@@ -2281,7 +2336,49 @@ class WioOnboarding extends HTMLElement {
   }
 
   renderSubmissionFailurePage() {
-    const { errorMessage } = this.state.uiState;
+    const { errorMessage, errorDetails, statusCode } = this.state.uiState;
+    const submissionError = this.state.submissionError || {};
+
+    // Determine error title based on status code
+    let errorTitle = "Submission Failed";
+    let errorSubtitle = "Your onboarding submission could not be processed.";
+
+    if (statusCode === 400) {
+      errorTitle = "Validation Error";
+      errorSubtitle = "Some of your information needs to be corrected.";
+    } else if (statusCode === 401) {
+      errorTitle = "Authentication Error";
+      errorSubtitle = "Your session may have expired or credentials are invalid.";
+    } else if (statusCode === 500) {
+      errorTitle = "Server Error";
+      errorSubtitle = "We encountered an issue processing your request.";
+    }
+
+    // Build error list HTML if there are specific errors
+    const errorsListHtml =
+      submissionError.errors && submissionError.errors.length > 0
+        ? `
+          <ul style="
+            text-align: left;
+            margin: var(--spacing-md) 0;
+            padding-left: var(--spacing-lg);
+            color: var(--color-error-dark, #991b1b);
+            font-size: 14px;
+            line-height: 1.6;
+          ">
+            ${submissionError.errors.map((err) => `<li>${err}</li>`).join("")}
+          </ul>
+        `
+        : "";
+
+    // Show trace ID if available (for support reference)
+    const traceIdHtml = submissionError.traceId
+      ? `<p style="
+            margin-top: var(--spacing-sm);
+            font-size: 12px;
+            color: var(--gray-medium);
+          ">Reference ID: <code style="background: var(--gray-light, #f3f4f6); padding: 2px 6px; border-radius: 4px;">${submissionError.traceId}</code></p>`
+      : "";
 
     return `
       <div class="error-container">
@@ -2292,13 +2389,14 @@ class WioOnboarding extends HTMLElement {
           </svg>
         </div>
 
-        <h2>Submission Failed</h2>
-        <p>Your onboarding submission could not be processed.</p>
+        <h2>${errorTitle}</h2>
+        <p>${errorSubtitle}</p>
 
         <div class="error-details">
           <h3>Error Details</h3>
-          <p><strong>Issue:</strong> ${errorMessage || "The submission failed due to a server error."
-      }</p>
+          <p><strong>Issue:</strong> ${errorMessage || "The submission failed due to a server error."}</p>
+          ${errorsListHtml}
+          ${traceIdHtml}
           <p style="margin-top: var(--spacing-md); color: var(--color-error-dark, #991b1b);">
             Please try submitting again. If the problem persists, contact support.
           </p>
@@ -2307,7 +2405,7 @@ class WioOnboarding extends HTMLElement {
         <div style="margin-top: var(--spacing-lg); display: flex; gap: var(--spacing-sm); justify-content: center; width: 100%;">
           <button type="button" class="btn-resubmit" style="
             padding: 12px 24px;
-            background: var(--error-color);
+            background: var(--primary-color);
             color: var(--color-white, #fff);
             border: none;
             border-radius: var(--border-radius-sm);
@@ -2316,7 +2414,7 @@ class WioOnboarding extends HTMLElement {
             cursor: pointer;
             box-shadow: 0 1px 2px rgba(0,0,0,0.05);
             transition: all 0.2s ease;
-          ">Resubmit Application</button>
+          ">Try Again</button>
         </div>
       </div>
     `;
@@ -3159,10 +3257,24 @@ class WioOnboarding extends HTMLElement {
             justify-content: center;
         }
 
+        .btn-confirm-success {
+            padding: 12px 32px;
+            background: var(--primary-color);
+            color: var(--color-white, #fff);
+            border: none;
+            border-radius: var(--border-radius-sm);
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            min-width: 120px;
+            box-shadow: var(--shadow-sm);
+        }
 
-        
         .btn-confirm-success:hover {
             background-color: var(--primary-hover);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
         }
 
         /* Error Page */
