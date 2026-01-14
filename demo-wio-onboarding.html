@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WIO Onboarding Demo</title>
+    <title>WIO Onboarding Static Gallery</title>
     <style>
         :root {
             --primary-color: #0070ba;
@@ -15,19 +16,22 @@
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
             margin: 0;
-            padding: 20px;
+            padding: 40px;
             background-color: var(--background-color);
             color: var(--text-color);
         }
 
-        .container {
-            max-width: 1000px;
+        .gallery-container {
+            max-width: 1200px;
             margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 60px;
         }
 
         header {
-            margin-bottom: 40px;
             text-align: center;
+            margin-bottom: 20px;
         }
 
         h1 {
@@ -40,111 +44,81 @@
             font-size: 1.1rem;
         }
 
-        .demo-wrapper {
-            background: white;
-            border-radius: var(--border-radius);
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-            padding: 40px;
-            margin-bottom: 30px;
+        .gallery-item {
+            position: relative;
         }
 
-        .controls {
-            margin-bottom: 30px;
-            padding: 20px;
-            background: #fff;
-            border-radius: var(--border-radius);
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-            display: flex;
-            gap: 15px;
-            align-items: center;
-            justify-content: center;
-            flex-wrap: wrap;
-        }
-
-        button {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-weight: 500;
-            transition: opacity 0.2s;
-            background-color: #e0e0e0;
-            color: #333;
-        }
-
-        button:hover {
-            opacity: 0.9;
-        }
-
-        button.primary {
-            background-color: var(--primary-color);
+        .state-label {
+            position: absolute;
+            top: -15px;
+            left: 20px;
+            background: #333;
             color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            z-index: 10;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
         }
 
-        .console-log {
-            background: #1e1e1e;
-            color: #d4d4d4;
-            padding: 20px;
-            border-radius: var(--border-radius);
-            font-family: "Menlo", "Monaco", "Courier New", monospace;
-            font-size: 13px;
-            height: 300px;
-            overflow-y: auto;
-            border: 1px solid #333;
+        /* Mock specific environment for components */
+        wio-onboarding {
+            display: block;
+            margin-bottom: 0;
         }
-
-        .log-entry {
-            margin-bottom: 8px;
-            border-bottom: 1px solid #333;
-            padding-bottom: 8px;
-        }
-
-        .log-time {
-            color: #569cd6;
-            margin-right: 10px;
-        }
-
-        .log-label {
-            color: #c586c0;
-            font-weight: bold;
-            margin-right: 10px;
-        }
-
-        .success { color: #4ec9b0; }
-        .error { color: #f44747; }
-        .info { color: #9cdcfe; }
-
     </style>
 </head>
+
 <body>
-    <div class="container">
+    <div class="gallery-container">
         <header>
-            <h1>WIO Onboarding Component</h1>
-            <p class="subtitle">Complete business onboarding flow with inline stepper</p>
+            <h1>WIO Onboarding UI Gallery</h1>
+            <p class="subtitle">Static showcase of all component states</p>
         </header>
 
-        <div class="controls">
-            <button class="primary" onclick="resetForm()">Reset Form</button>
-            <button onclick="prefillData()">Prefill Demo Data</button>
-            <button onclick="clearLogs()">Clear Logs</button>
+        <!-- Step 1: Business Details -->
+        <div class="gallery-item">
+            <div class="state-label">Step 1: Business Details</div>
+            <wio-onboarding id="step1"></wio-onboarding>
         </div>
 
-        <div class="demo-wrapper">
-            <!-- WIO Onboarding Component -->
-            <wio-onboarding 
-                id="wioOnboarding"
-                api-base-url="https://bison-jib-development.azurewebsites.net"
-                embeddable-key="R80WMkbNN8457RofiMYx03DL65P06IaVT30Q2emYJUBQwYCzRC"
-            ></wio-onboarding>
+        <!-- Step 2: Bank Details -->
+        <div class="gallery-item">
+            <div class="state-label">Step 2: Bank Account</div>
+            <wio-onboarding id="step2"></wio-onboarding>
         </div>
 
-        <div class="console-log" id="consoleLog">
-            <div class="log-entry info">
-                <span class="log-time">System</span>
-                <span class="log-label">Ready</span>
-                Waitng for interactions...
-            </div>
+        <!-- Step 3: Representatives -->
+        <div class="gallery-item">
+            <div class="state-label">Step 3: Representatives</div>
+            <wio-onboarding id="step3"></wio-onboarding>
         </div>
+
+        <!-- Step 4: Verification -->
+        <div class="gallery-item">
+            <div class="state-label">Step 4: Business Verification</div>
+            <wio-onboarding id="step4"></wio-onboarding>
+        </div>
+
+        <!-- Loading State -->
+        <div class="gallery-item">
+            <div class="state-label">State: Loading</div>
+            <wio-onboarding id="loading"></wio-onboarding>
+        </div>
+
+        <!-- Success State -->
+        <div class="gallery-item">
+            <div class="state-label">State: Success</div>
+            <wio-onboarding id="success"></wio-onboarding>
+        </div>
+
+        <!-- Failure State -->
+        <div class="gallery-item">
+            <div class="state-label">State: Failure</div>
+            <wio-onboarding id="failure"></wio-onboarding>
+        </div>
+
     </div>
 
     <!-- Dependencies -->
@@ -152,53 +126,14 @@
     <script src="wio-onboarding.js"></script>
 
     <script>
-        const onboardingComponent = document.getElementById('wioOnboarding');
-        const consoleLog = document.getElementById('consoleLog');
-
-        function log(label, message, type = 'info') {
-            const entry = document.createElement('div');
-            entry.className = `log-entry ${type}`;
-            const time = new Date().toLocaleTimeString();
-            
-            // Format object if necessary
-            let displayMessage = message;
-            if (typeof message === 'object') {
-                displayMessage = JSON.stringify(message, null, 2);
-            }
-
-            entry.innerHTML = `
-                <span class="log-time">[${time}]</span>
-                <span class="log-label">${label}</span>
-                <pre style="margin: 5px 0 0 0; white-space: pre-wrap;">${displayMessage}</pre>
-            `;
-            
-            consoleLog.insertBefore(entry, consoleLog.firstChild);
-        }
-
-        function clearLogs() {
-            consoleLog.innerHTML = '';
-        }
-
-        function resetForm() {
-            // Re-render essentially or call internal reset if exposed
-            // Since resetForm() is a method on the class instance, we can call it if available
-            if (onboardingComponent.resetForm) {
-                onboardingComponent.resetForm();
-                log('Action', 'Form reset triggered', 'info');
-            } else {
-                // Fallback: reload page or re-insert component
-                log('Action', 'resetForm method not found on component', 'error');
-            }
-        }
-
-        function prefillData() {
-            const demoData = {
+        document.addEventListener('DOMContentLoaded', () => {
+            const mockData = {
                 businessDetails: {
                     businessName: "Acme Corp Demo",
                     doingBusinessAs: "Acme",
-                    ein: "123456789",
+                    ein: "12-3456789",
                     businessWebsite: "https://example.com",
-                    businessPhoneNumber: "5551234567",
+                    businessPhoneNumber: "(555) 123-4567",
                     businessEmail: "admin@acmecorp.com",
                     BusinessAddress1: "123 Demo St",
                     businessCity: "New York",
@@ -210,47 +145,76 @@
                     bankAccountType: "checking",
                     bankRoutingNumber: "123456789",
                     bankAccountNumber: "000123456789"
-                }
+                },
+                representatives: [
+                    {
+                        representativeFirstName: "John",
+                        representativeLastName: "Doe",
+                        representativeJobTitle: "CEO",
+                        representativeEmail: "john@acme.com"
+                    }
+                ]
             };
 
-            if (onboardingComponent.onLoad !== undefined) {
-                onboardingComponent.onLoad = demoData;
-                log('Action', 'Demo data loaded via .onLoad', 'success');
-            } else {
-                 // Try calling loadInitialData directly if onLoad setter isn't working as expected or for transparency
-                if (onboardingComponent.loadInitialData) {
-                    onboardingComponent.loadInitialData(demoData);
-                    log('Action', 'Demo data loaded via .loadInitialData()', 'success');
-                }
-            }
-        }
+            // Force Step 2
+            const step2 = document.getElementById('step2');
+            step2.onLoad = mockData; // Pre-fill data
+            setTimeout(() => {
+                step2.setState({
+                    currentStep: 1,
+                    completedSteps: new Set([0])
+                });
+            }, 100);
 
-        // Attach Event Listeners
-        
-        onboardingComponent.onSuccess = (data) => {
-            log('Event: onSuccess', data, 'success');
-            alert('Onboarding Success! Check logs for details.');
-        };
+            // Force Step 3
+            const step3 = document.getElementById('step3');
+            step3.onLoad = mockData;
+            setTimeout(() => {
+                step3.setState({
+                    currentStep: 2,
+                    completedSteps: new Set([0, 1])
+                });
+            }, 100);
 
-        onboardingComponent.onError = (error) => {
-            log('Event: onError', error, 'error');
-        };
+            // Force Step 4
+            const step4 = document.getElementById('step4');
+            step4.onLoad = mockData;
+            setTimeout(() => {
+                step4.setState({
+                    currentStep: 3,
+                    completedSteps: new Set([0, 1, 2])
+                });
+            }, 100);
 
-        onboardingComponent.onSubmit = (data) => {
-            log('Event: onSubmit', 'Submitting form data...', 'info');
-        };
+            // Force Loading
+            const loading = document.getElementById('loading');
+            setTimeout(() => {
+                loading.setState({
+                    uiState: { isLoading: true }
+                });
+            }, 100);
 
-        // Standard DOM event listeners if dispatched
-        onboardingComponent.addEventListener('success', (e) => {
-            log('DOM Event: success', e.detail, 'success');
+            // Force Success
+            const success = document.getElementById('success');
+            setTimeout(() => {
+                success.setState({
+                    formData: mockData,
+                    isSubmitted: true
+                });
+            }, 100);
+
+            // Force Failure
+            const failure = document.getElementById('failure');
+            setTimeout(() => {
+                failure.setState({
+                    isSubmissionFailed: true,
+                    uiState: {
+                        errorMessage: "We were unable to verify your business information. Please double-check your details and try again."
+                    }
+                });
+            }, 100);
         });
-
-        onboardingComponent.addEventListener('error', (e) => {
-            log('DOM Event: error', e.detail, 'error');
-        });
-
-        log('System', 'Component initialized. API Key and Base URL configured.', 'info');
-
     </script>
 </body>
+
 </html>

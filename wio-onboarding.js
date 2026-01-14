@@ -1496,26 +1496,26 @@ class WioOnboarding extends HTMLElement {
       `;
     } else {
       content = `
-        <div class="form-container">
-          <div class="form-header">
-            <div class="form-logo">
-              <img src="https://bisonpaywell.com/lovable-uploads/28831244-e8b3-4e7b-8dbb-c016f9f9d54f.png" alt="Logo" />
-            </div>
-            ${this.renderStepperHeader()}
+        <div class="form-header">
+          <div class="form-logo">
+            <img src="https://bisonpaywell.com/lovable-uploads/28831244-e8b3-4e7b-8dbb-c016f9f9d54f.png" alt="Logo" />
           </div>
-          <div class="form-body">
-            ${this.renderFormContent()}
-          </div>
-          <div class="form-footer">
-            ${this.renderNavigationFooter()}
-          </div>
+          ${this.renderStepperHeader()}
+        </div>
+        <div class="form-body">
+          ${this.renderFormContent()}
+        </div>
+        <div class="form-footer">
+          ${this.renderNavigationFooter()}
         </div>
       `;
     }
 
     this.shadowRoot.innerHTML = `
       ${this.renderStyles()}
-      ${content}
+      <div class="form-container">
+        ${content}
+      </div>
     `;
 
     this.attachEventListeners();
@@ -2176,8 +2176,9 @@ class WioOnboarding extends HTMLElement {
     return `
       <div class="success-container">
         <div class="success-icon">
-          <svg viewBox="0 0 52 52">
-            <path d="M14 27l7 7 16-16"/>
+          <svg class="checkmark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52">
+            <circle class="checkmark__circle" cx="26" cy="26" r="25" fill="none"/>
+            <path class="checkmark__check" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
           </svg>
         </div>
 
@@ -2246,9 +2247,9 @@ class WioOnboarding extends HTMLElement {
     return `
       <div class="error-container">
         <div class="error-icon">
-          <svg viewBox="0 0 52 52">
-            <circle cx="26" cy="26" r="25" fill="none"/>
-            <path d="M16 16 L36 36 M36 16 L16 36"/>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10" stroke-opacity="0.2"></circle>
+            <path d="M12 8v4m0 4h.01" stroke-linecap="round" stroke-linejoin="round"></path>
           </svg>
         </div>
 
@@ -2259,22 +2260,24 @@ class WioOnboarding extends HTMLElement {
           <h3>Error Details</h3>
           <p><strong>Issue:</strong> ${errorMessage || "The submission failed due to a server error."
       }</p>
-          <p style="margin-top: var(--spacing-md);">
+          <p style="margin-top: var(--spacing-md); color: var(--color-error-dark, #991b1b);">
             Please try submitting again. If the problem persists, contact support.
           </p>
         </div>
 
-        <div style="margin-top: var(--spacing-lg); display: flex; gap: var(--spacing-sm); justify-content: center;">
+        <div style="margin-top: var(--spacing-lg); display: flex; gap: var(--spacing-sm); justify-content: center; width: 100%;">
           <button type="button" class="btn-resubmit" style="
             padding: 12px 24px;
-            background: var(--primary-color);
+            background: var(--error-color);
             color: var(--color-white, #fff);
             border: none;
-            border-radius: var(--border-radius);
-            font-size: 14px;
-            font-weight: 500;
+            border-radius: var(--border-radius-sm);
+            font-size: 15px;
+            font-weight: 600;
             cursor: pointer;
-          ">Resubmit</button>
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            transition: all 0.2s ease;
+          ">Resubmit Application</button>
         </div>
       </div>
     `;
@@ -2426,6 +2429,7 @@ class WioOnboarding extends HTMLElement {
 
   renderStyles() {
     return `
+      <style>
         * {
           box-sizing: border-box;
           margin: 0;
@@ -2495,12 +2499,88 @@ class WioOnboarding extends HTMLElement {
           min-height: 400px;
           text-align: center;
           padding: var(--spacing-lg);
-          background: var(--color-white, #fff);
-          border-radius: var(--border-radius-lg);
           max-width: 600px;
           margin: 40px auto;
         }
+        
+        /* ... existing styles ... */
+        
+        /* Success Page - Centered & Polished */
+        .success-container {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          text-align: center;
+          padding: var(--spacing-lg);
+          max-width: 600px;
+          margin: 0 auto;
+          min-height: 500px;
+        }
 
+        /* ... existing styles ... */
+
+        /* Error Page */
+        .error-container {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding: var(--spacing-lg);
+          max-width: 600px;
+          margin: 0 auto;
+          min-height: 500px;
+          text-align: center;
+        }
+
+        .error-icon {
+          width: 96px;
+          height: 96px;
+          border-radius: 50%;
+          background: #fee2e2; /* Red 100 */
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin-bottom: var(--spacing-lg);
+        }
+
+        .error-icon svg {
+          width: 48px;
+          height: 48px;
+          stroke: var(--error-color);
+        }
+
+        .error-container h2 {
+          font-size: 32px;
+          color: var(--color-headline, #0f2a39);
+          margin-bottom: 0.75rem;
+        }
+
+        .error-container > p {
+          color: var(--gray-medium);
+          margin-bottom: var(--spacing-lg);
+        }
+        
+        .error-details {
+          background: #fef2f2; /* Red 50 */
+          border: 1px solid #fee2e2;
+          border-radius: var(--border-radius);
+          padding: var(--spacing-lg);
+          margin: var(--spacing-lg) 0;
+          text-align: left;
+          width: 100%;
+        }
+
+        .error-details h3 {
+          font-size: 16px;
+          color: var(--color-error-dark, #991b1b);
+          margin-bottom: var(--spacing-md);
+        }
+
+        .error-details p {
+          color: var(--color-headline, #0f2a39);
+          line-height: 1.5;
+        }
         .loading-content h2 {
           margin-bottom: var(--spacing-md);
           color: var(--color-headline, #111827);
@@ -2955,21 +3035,63 @@ class WioOnboarding extends HTMLElement {
         }
 
         .success-icon {
-          width: 96px;
-          height: 96px;
+          width: 80px;
+          height: 80px;
+          margin-bottom: var(--spacing-lg);
           border-radius: 50%;
-          background: #dcfce7; /* Green 100 */
           display: flex;
           align-items: center;
           justify-content: center;
-          margin-bottom: var(--spacing-lg);
         }
 
-        .success-icon svg {
-          width: 48px;
-          height: 48px;
+        .checkmark {
+          width: 80px;
+          height: 80px;
+          border-radius: 50%;
+          display: block;
+          stroke-width: 2;
+          stroke: #fff;
+          stroke-miterlimit: 10;
+          box-shadow: inset 0px 0px 0px var(--success-color);
+          animation: fill .4s ease-in-out .4s forwards, scale .3s ease-in-out .9s both;
+        }
+
+        .checkmark__circle {
+          stroke-dasharray: 166;
+          stroke-dashoffset: 166;
+          stroke-width: 2;
+          stroke-miterlimit: 10;
           stroke: var(--success-color);
-          stroke-width: 2.5;
+          fill: none;
+          animation: stroke 0.6s cubic-bezier(0.65, 0, 0.45, 1) forwards;
+        }
+
+        .checkmark__check {
+          transform-origin: 50% 50%;
+          stroke-dasharray: 48;
+          stroke-dashoffset: 48;
+          animation: stroke 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.8s forwards;
+        }
+
+        @keyframes stroke {
+          100% {
+            stroke-dashoffset: 0;
+          }
+        }
+
+        @keyframes scale {
+          0%, 100% {
+            transform: none;
+          }
+          50% {
+            transform: scale3d(1.1, 1.1, 1);
+          }
+        }
+
+        @keyframes fill {
+          100% {
+            box-shadow: inset 0px 0px 0px 50px var(--success-color);
+          }
         }
 
         .success-container h2 {
@@ -3084,6 +3206,7 @@ class WioOnboarding extends HTMLElement {
         }
       </style>
     `;
+
   }
 }
 
