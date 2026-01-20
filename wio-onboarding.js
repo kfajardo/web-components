@@ -63,7 +63,7 @@ class WioOnboarding extends HTMLElement {
     // Initialize state (no isModalOpen needed for inline component)
     this.state = {
       currentStep: 0,
-      totalSteps: 4, // Business, Bank, Representatives, Business Verification
+      totalSteps: 3, // Business, Representatives, Business Verification
       isSubmitted: false,
       isFailed: false,
       isSubmissionFailed: false,
@@ -85,18 +85,12 @@ class WioOnboarding extends HTMLElement {
         businessVerification: {
           verificationDocuments: [],
         },
-        bankDetails: {
-          bankAccountHolderName: "",
-          bankAccountType: "checking",
-          bankRoutingNumber: "",
-          bankAccountNumber: "",
-        },
+
       },
       validationState: {
         step0: { isValid: false, errors: {} }, // Business Details
-        step1: { isValid: false, errors: {} }, // Bank Details
-        step2: { isValid: false, errors: {} }, // Representatives
-        step3: { isValid: false, errors: {} }, // Business Verification (required)
+        step1: { isValid: false, errors: {} }, // Representatives
+        step2: { isValid: false, errors: {} }, // Business Verification (required)
       },
       completedSteps: new Set(),
       uiState: {
@@ -114,12 +108,7 @@ class WioOnboarding extends HTMLElement {
         description: "Provide your business details",
         canSkip: false,
       },
-      {
-        id: "bank-details",
-        title: "Bank Account",
-        description: "Link your bank account",
-        canSkip: false,
-      },
+
       {
         id: "representative-details",
         title: "Representative",
@@ -349,21 +338,7 @@ class WioOnboarding extends HTMLElement {
       };
     },
 
-    routingNumber: (value) => {
-      const cleaned = value.replace(/\D/g, "");
-      return {
-        isValid: cleaned.length === 9,
-        error: "Routing number must be 9 digits",
-      };
-    },
 
-    accountNumber: (value) => {
-      const cleaned = value.replace(/\D/g, "");
-      return {
-        isValid: cleaned.length >= 4 && cleaned.length <= 17,
-        error: "Account number must be 4-17 digits",
-      };
-    },
 
     ein: (value) => {
       const cleaned = value.replace(/\D/g, "");
@@ -522,42 +497,6 @@ class WioOnboarding extends HTMLElement {
         errors.verificationDocuments = "At least one document is required";
         isValid = false;
       }
-    } else if (stepId === "bank-details") {
-      const data = this.state.formData.bankDetails;
-      const fields = [
-        {
-          name: "bankAccountHolderName",
-          validators: ["required"],
-          label: "Account Holder Name",
-        },
-        {
-          name: "bankAccountType",
-          validators: ["required"],
-          label: "Account Type",
-        },
-        {
-          name: "bankRoutingNumber",
-          validators: ["required", "routingNumber"],
-          label: "Routing Number",
-        },
-        {
-          name: "bankAccountNumber",
-          validators: ["required", "accountNumber"],
-          label: "Account Number",
-        },
-      ];
-
-      fields.forEach((field) => {
-        const error = this.validateField(
-          data[field.name],
-          field.validators,
-          field.label
-        );
-        if (error) {
-          errors[field.name] = error;
-          isValid = false;
-        }
-      });
     } else if (stepId === "representative-details") {
       // Validate each representative if any field is filled
       this.state.formData.representatives.forEach((rep, index) => {
@@ -770,12 +709,7 @@ class WioOnboarding extends HTMLElement {
       };
     }
 
-    if (data.bankDetails) {
-      newFormData.bankDetails = {
-        ...newFormData.bankDetails,
-        ...data.bankDetails,
-      };
-    }
+
 
     if (data.representatives && Array.isArray(data.representatives)) {
       newFormData.representatives = data.representatives.map((rep) => ({
@@ -827,19 +761,13 @@ class WioOnboarding extends HTMLElement {
       businessVerification: {
         verificationDocuments: [],
       },
-      bankDetails: {
-        bankAccountHolderName: "",
-        bankAccountType: "checking",
-        bankRoutingNumber: "",
-        bankAccountNumber: "",
-      },
+
     };
 
     const defaultValidationState = {
       step0: { isValid: false, errors: {} },
       step1: { isValid: false, errors: {} },
       step2: { isValid: false, errors: {} },
-      step3: { isValid: false, errors: {} },
     };
 
     this.state = {
@@ -916,7 +844,6 @@ class WioOnboarding extends HTMLElement {
       businessDetails: this.state.formData.businessDetails,
       representatives: this.state.formData.representatives,
       businessVerification: this.state.formData.businessVerification,
-      bankDetails: this.state.formData.bankDetails,
     };
 
     let processedData = formData;
@@ -980,14 +907,12 @@ class WioOnboarding extends HTMLElement {
 
     try {
       const businessDetails = processedData.businessDetails;
-      const bankDetails = processedData.bankDetails;
       const representativeDetails = processedData.representativeDetails;
       const businessVerification = processedData.businessVerification;
 
       // Debug: Log the extracted data objects
       console.log("=== DATA EXTRACTION DEBUG ===");
       console.log("businessDetails:", JSON.stringify(businessDetails, null, 2));
-      console.log("bankDetails:", JSON.stringify(bankDetails, null, 2));
       console.log(
         "representativeDetails:",
         JSON.stringify(representativeDetails, null, 2)
@@ -1036,18 +961,6 @@ class WioOnboarding extends HTMLElement {
           JSON.stringify(processedData.representatives)
         );
       }
-
-      // Add bank details
-      payload.append(
-        "bankAccountHolderName",
-        bankDetails.bankAccountHolderName || ""
-      );
-      payload.append("bankRoutingNumber", bankDetails.bankRoutingNumber || "");
-      payload.append("bankAccountNumber", bankDetails.bankAccountNumber || "");
-      payload.append(
-        "bankAccountType",
-        bankDetails.bankAccountType || "checking"
-      );
 
       // Add business verification documents (files)
       const verificationDocs = businessVerification.verificationDocuments || [];
@@ -1398,8 +1311,6 @@ class WioOnboarding extends HTMLElement {
 
     if (stepId === "business-details") {
       this.state.formData.businessDetails[name] = input.value;
-    } else if (stepId === "bank-details") {
-      this.state.formData.bankDetails[name] = input.value;
     } else if (stepId === "representative-details") {
       const repIndex = input.dataset.repIndex;
       if (repIndex !== undefined) {
@@ -1559,8 +1470,6 @@ class WioOnboarding extends HTMLElement {
 
     if (stepId === "business-details") {
       this.state.formData.businessDetails[name] = input.value;
-    } else if (stepId === "bank-details") {
-      this.state.formData.bankDetails[name] = input.value;
     } else if (stepId === "representative-details") {
       const repIndex = input.dataset.repIndex;
       if (repIndex !== undefined) {
@@ -1669,8 +1578,6 @@ class WioOnboarding extends HTMLElement {
     switch (stepId) {
       case "business-details":
         return this.renderBusinessDetailsForm();
-      case "bank-details":
-        return this.renderBankDetailsForm();
       case "representative-details":
         return this.renderRepresentativeDetailsForm();
       case "business-verification":
@@ -1967,59 +1874,7 @@ class WioOnboarding extends HTMLElement {
     `;
   }
 
-  renderBankDetailsForm() {
-    const data = this.state.formData.bankDetails;
 
-    return `
-      <div class="form-section">
-        <h2>Bank Account</h2>
-        <p>Link your bank account</p>
-
-        <div class="form-grid">
-          ${this.renderField({
-      name: "bankAccountHolderName",
-      label: "Account Holder Name *",
-      value: data.bankAccountHolderName,
-      error: this.getFieldError("bankAccountHolderName"),
-      className: "full-width",
-    })}
-
-          <div class="form-field full-width">
-            <label>Account Type <span class="required-asterisk">*</span></label>
-            <div class="radio-group">
-              <div class="radio-option">
-                <input type="radio" id="checking" name="bankAccountType" value="checking" ${data.bankAccountType === "checking" ? "checked" : ""
-      }>
-                <label for="checking">Checking</label>
-              </div>
-              <div class="radio-option">
-                <input type="radio" id="savings" name="bankAccountType" value="savings" ${data.bankAccountType === "savings" ? "checked" : ""
-      }>
-                <label for="savings">Savings</label>
-              </div>
-            </div>
-          </div>
-
-          ${this.renderField({
-        name: "bankRoutingNumber",
-        label: "Routing Number *",
-        value: data.bankRoutingNumber,
-        error: this.getFieldError("bankRoutingNumber"),
-        placeholder: "123456789",
-        maxLength: 9,
-      })}
-
-          ${this.renderField({
-        name: "bankAccountNumber",
-        label: "Account Number *",
-        value: data.bankAccountNumber,
-        error: this.getFieldError("bankAccountNumber"),
-        placeholder: "1234567890",
-      })}
-        </div>
-      </div>
-    `;
-  }
 
   renderRepresentativeDetailsForm() {
     const representatives = this.state.formData.representatives;
@@ -2310,7 +2165,7 @@ class WioOnboarding extends HTMLElement {
   }
 
   renderSuccessPage() {
-    const { businessDetails, bankDetails } = this.state.formData;
+    const { businessDetails } = this.state.formData;
 
     return `
       <div class="success-container">
