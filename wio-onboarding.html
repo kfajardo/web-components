@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WIO Onboarding Demo</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 2rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .page-header {
+      text-align: center;
+      color: white;
+      margin-bottom: 2rem;
+    }
+
+    .page-header h1 {
+      font-size: 2.5rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+
+    .page-header p {
+      font-size: 1.125rem;
+      opacity: 0.9;
+    }
+
+    .component-container {
+      width: 100%;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    .controls {
+      background: white;
+      padding: 1.5rem;
+      border-radius: 12px;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    }
+
+    .controls h3 {
+      margin-bottom: 1rem;
+      color: #333;
+      font-size: 1.25rem;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    button {
+      padding: 0.75rem 1.5rem;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: #667eea;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #5568d3;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    .btn-secondary {
+      background: #48bb78;
+      color: white;
+    }
+
+    .btn-secondary:hover {
+      background: #38a169;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(72, 187, 120, 0.4);
+    }
+
+    .btn-danger {
+      background: #f56565;
+      color: white;
+    }
+
+    .btn-danger:hover {
+      background: #e53e3e;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(245, 101, 101, 0.4);
+    }
+
+    .event-log {
+      background: white;
+      padding: 1.5rem;
+      border-radius: 12px;
+      margin-top: 1.5rem;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    .event-log h3 {
+      margin-bottom: 1rem;
+      color: #333;
+      font-size: 1.25rem;
+    }
+
+    .log-entry {
+      padding: 0.75rem;
+      margin-bottom: 0.5rem;
+      border-radius: 6px;
+      font-family: 'Monaco', 'Courier New', monospace;
+      font-size: 0.875rem;
+      border-left: 4px solid #667eea;
+      background: #f7fafc;
+    }
+
+    .log-entry.success {
+      border-left-color: #48bb78;
+      background: #f0fff4;
+    }
+
+    .log-entry.error {
+      border-left-color: #f56565;
+      background: #fff5f5;
+    }
+
+    .log-timestamp {
+      color: #718096;
+      font-size: 0.75rem;
+      margin-bottom: 0.25rem;
+    }
+
+    .log-message {
+      color: #2d3748;
+      word-break: break-word;
+    }
+
+    .clear-log {
+      margin-top: 1rem;
+    }
+
+    .info-box {
+      background: #edf2f7;
+      padding: 1rem;
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      border-left: 4px solid #4299e1;
+    }
+
+    .info-box h4 {
+      margin-bottom: 0.5rem;
+      color: #2c5282;
+      font-size: 1rem;
+    }
+
+    .info-box ul {
+      margin-left: 1.5rem;
+      color: #2d3748;
+      font-size: 0.9rem;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+  <div class="page-header">
+    <h1>🚀 WIO Onboarding Demo</h1>
+    <p>Test the web component with various configurations</p>
+  </div>
+
+  <div class="component-container">
+    <!-- Controls -->
+    <div class="controls">
+      <h3>Controls</h3>
+      <div class="info-box">
+        <h4>Current Flow: 3 Steps (Bank Account Removed)</h4>
+        <ul>
+          <li>Step 1: Business Details</li>
+          <li>Step 2: Representative Details (Optional)</li>
+          <li>Step 3: Business Verification</li>
+        </ul>
+      </div>
+      <div class="button-group">
+        <button class="btn-primary" onclick="prefillBasicData()">Prefill Business Data</button>
+        <button class="btn-secondary" onclick="prefillWithEmail()">Prefill with Email</button>
+        <button class="btn-danger" onclick="resetComponent()">Reset Component</button>
+      </div>
+    </div>
+
+    <!-- WIO Onboarding Component -->
+    <wio-onboarding id="onboarding" done-button-text="Complete Onboarding"></wio-onboarding>
+
+    <!-- Event Log -->
+    <div class="event-log">
+      <h3>Event Log</h3>
+      <div id="logContainer"></div>
+      <button class="btn-danger clear-log" onclick="clearLog()">Clear Log</button>
+    </div>
+  </div>
+
+  <!-- Load the API and component scripts -->
+  <script src="api.js"></script>
+  <script src="wio-onboarding.js"></script>
+
+  <script>
+    // Get the component
+    const onboarding = document.getElementById('onboarding');
+
+    // Log function
+    function logEvent(message, type = 'info') {
+      const logContainer = document.getElementById('logContainer');
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${type}`;
+      
+      const timestamp = new Date().toLocaleTimeString();
+      entry.innerHTML = `
+        <div class="log-timestamp">${timestamp}</div>
+        <div class="log-message">${message}</div>
+      `;
+      
+      logContainer.insertBefore(entry, logContainer.firstChild);
+    }
+
+    function clearLog() {
+      document.getElementById('logContainer').innerHTML = '';
+      logEvent('Log cleared');
+    }
+
+    // Set up callbacks
+    onboarding.onSuccess = (data) => {
+      console.log('✅ Success callback:', data);
+      logEvent(`Success! WIO ID: ${data.wioId || 'N/A'}, Moov Account: ${data.moovAccountId || 'N/A'}`, 'success');
+      logEvent(`Full response: ${JSON.stringify(data, null, 2)}`);
+    };
+
+    onboarding.onError = (error) => {
+      console.error('❌ Error callback:', error);
+      logEvent(`Error: ${error.message || JSON.stringify(error)}`, 'error');
+      if (error.errors && error.errors.length > 0) {
+        error.errors.forEach(err => logEvent(`  - ${err}`, 'error'));
+      }
+    };
+
+    onboarding.onSubmit = (data) => {
+      console.log('📤 Submit callback (before API call):', data);
+      logEvent('Form submitted to API...');
+      // Return the data as-is, or modify it if needed
+      return data;
+    };
+
+    onboarding.onConfirm = (data) => {
+      console.log('✓ Confirm callback:', data);
+      logEvent('User confirmed completion');
+    };
+
+    onboarding.onDone = (data) => {
+      console.log('🎉 Done callback:', data);
+      logEvent('Done button clicked - onboarding complete!', 'success');
+    };
+
+    // Listen to custom events
+    onboarding.addEventListener('formComplete', (event) => {
+      console.log('Event: formComplete', event.detail);
+      logEvent('Event: formComplete triggered', 'success');
+    });
+
+    onboarding.addEventListener('submissionFailed', (event) => {
+      console.log('Event: submissionFailed', event.detail);
+      logEvent('Event: submissionFailed triggered', 'error');
+    });
+
+    onboarding.addEventListener('onboardingConfirmed', (event) => {
+      console.log('Event: onboardingConfirmed', event.detail);
+      logEvent('Event: onboardingConfirmed triggered', 'success');
+    });
+
+    // Control functions
+    function prefillBasicData() {
+      onboarding.onLoad = {
+        businessDetails: {
+          businessName: 'Acme Corporation',
+          doingBusinessAs: 'Acme Corp',
+          ein: '123456789',
+          businessWebsite: 'https://acme.example.com',
+          businessPhoneNumber: '5551234567',
+          businessEmail: 'contact@acme.example.com',
+          BusinessAddress1: '123 Main Street',
+          businessAddress2: 'Suite 100',
+          businessCity: 'San Francisco',
+          businessState: 'CA',
+          businessPostalCode: '94102'
+        }
+      };
+      logEvent('Prefilled with basic business data');
+    }
+
+    function prefillWithEmail() {
+      onboarding.onLoad = {
+        businessDetails: {
+          businessEmail: 'demo@example.com',
+          businessName: 'Demo Business Inc',
+          doingBusinessAs: 'Demo Business',
+          ein: '987654321',
+          businessPhoneNumber: '5559876543',
+          BusinessAddress1: '456 Demo Ave',
+          businessCity: 'New York',
+          businessState: 'NY',
+          businessPostalCode: '10001'
+        }
+      };
+      logEvent('Prefilled with email (triggers condensed layout)');
+    }
+
+    function resetComponent() {
+      // Create a new component
+      const container = onboarding.parentElement;
+      const newComponent = document.createElement('wio-onboarding');
+      newComponent.id = 'onboarding';
+      newComponent.setAttribute('done-button-text', 'Complete Onboarding');
+      
+      container.replaceChild(newComponent, onboarding);
+      
+      // Re-run the script to set up callbacks on the new component
+      setTimeout(() => {
+        location.reload();
+      }, 100);
+      
+      logEvent('Component reset - page will reload');
+    }
+
+    // Initial log
+    logEvent('WIO Onboarding component initialized (3-step flow without bank account)');
+    logEvent('Component is ready for testing');
+  </script>
+</body>
+</html>
