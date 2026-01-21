@@ -15,6 +15,7 @@
  * <operator-bank-account
  *   id="addBank"
  *   email="operator@example.com"
+ *   operator-id="OP123456"
  *   api-url="https://your-api.com"
  * ></operator-bank-account>
  *
@@ -53,6 +54,7 @@ class OperatorBankAccount extends HTMLElement {
     // Internal state
     this._state = {
       email: null,
+      operatorId: null,
       isLoading: true, // Loading by default for verification
       moovAccountId: null,
       moovToken: null,
@@ -75,7 +77,7 @@ class OperatorBankAccount extends HTMLElement {
   // ==================== STATIC PROPERTIES ====================
 
   static get observedAttributes() {
-    return ["email", "api-url", "embeddable-key"];
+    return ["email", "operator-id", "api-url", "embeddable-key"];
   }
 
   // ==================== PROPERTY GETTERS/SETTERS ====================
@@ -110,16 +112,78 @@ class OperatorBankAccount extends HTMLElement {
       }
     }
 
-    // Trigger verification if email changed and component is connected
-    if (value && value !== oldEmail && this.isConnected) {
+    // Trigger verification if required fields are set and component is connected
+    const missingMessage = this.getMissingOperatorInfoMessage();
+    if (!missingMessage && value && value !== oldEmail && this.isConnected) {
       this.verifyAndInitialize();
-    } else if (!value && this.isConnected) {
-      // No email provided, show error state
+    } else if (missingMessage && this.isConnected) {
+      // Missing required fields, show error state
       this._state.isLoading = false;
       this._state.initializationError = true;
-      this._state.error = "Email is required";
+      this._state.error = missingMessage;
       this.updateButtonState();
     }
+  }
+
+  /**
+   * Get the operatorId
+   * @returns {string|null}
+   */
+  get operatorId() {
+    return this._state.operatorId;
+  }
+
+  /**
+   * Set the operatorId
+   * @param {string} value - Operator ID
+   */
+  set operatorId(value) {
+    console.log("OperatorBankAccount: Setting operatorId to:", value);
+
+    const oldOperatorId = this._state.operatorId;
+
+    // Update internal state
+    this._state.operatorId = value;
+
+    // Update attribute only if different to prevent circular updates
+    const currentAttr = this.getAttribute("operator-id");
+    if (currentAttr !== value) {
+      if (value) {
+        this.setAttribute("operator-id", value);
+      } else {
+        this.removeAttribute("operator-id");
+      }
+    }
+
+    // Trigger verification if required fields are set and component is connected
+    const missingMessage = this.getMissingOperatorInfoMessage();
+    if (
+      !missingMessage &&
+      value &&
+      value !== oldOperatorId &&
+      this.isConnected
+    ) {
+      this.verifyAndInitialize();
+    } else if (missingMessage && this.isConnected) {
+      // Missing required fields, show error state
+      this._state.isLoading = false;
+      this._state.initializationError = true;
+      this._state.error = missingMessage;
+      this.updateButtonState();
+    }
+  }
+
+  getMissingOperatorInfoMessage() {
+    if (!this._state.email && !this._state.operatorId) {
+      return "Email and operator ID are required";
+    }
+    if (!this._state.email) {
+      return "Email is required";
+    }
+    if (!this._state.operatorId) {
+      return "Operator ID is required";
+    }
+    return null;
   }
 
   /**
@@ -183,19 +247,26 @@ class OperatorBankAccount extends HTMLElement {
       this._state.email = emailAttr;
     }
 
+    // Initialize operatorId from attribute if present
+    const operatorIdAttr = this.getAttribute("operator-id");
+    if (operatorIdAttr && !this._state.operatorId) {
+      this._state.operatorId = operatorIdAttr;
+    }
+
     // Load Moov SDK (preload for faster access later)
     this.ensureMoovSDK();
 
     this.setupEventListeners();
 
-    // Auto-verify if email is already set
-    if (this._state.email) {
+    // Auto-verify if required fields are already set
+    const missingMessage = this.getMissingOperatorInfoMessage();
+    if (!missingMessage) {
       this.verifyAndInitialize();
     } else {
-      // No email provided yet, show error state with tooltip
+      // Missing required fields, show error state with tooltip
       this._state.isLoading = false;
       this._state.initializationError = true;
-      this._state.error = "Email is required";
+      this._state.error = missingMessage;
       this.updateButtonState();
     }
   }
@@ -221,9 +292,44 @@ class OperatorBankAccount extends HTMLElement {
         this._state.isLoading = true;
         this._state.initializationError = false;
         this.updateButtonState();
-        // Trigger verification
-        if (newValue && this.isConnected) {
-          this.verifyAndInitialize();
+        // Trigger verification if required fields are set
+        if (this.isConnected) {
+          const missingMessage = this.getMissingOperatorInfoMessage();
+          if (!missingMessage) {
+            this.verifyAndInitialize();
+          } else {
+            this._state.isLoading = false;
+            this._state.initializationError = true;
+            this._state.error = missingMessage;
+            this.updateButtonState();
+          }
+        }
+        break;
+
+      case "operator-id":
+        console.log(
+          "OperatorBankAccount: attributeChangedCallback - operator-id:",
+          newValue
+        );
+        this._state.operatorId = newValue;
+        // Reset state when operator ID changes
+        this._state.moovToken = null;
+        this._state.moovAccountId = null;
+        this._state.isVerified = false;
+        this._state.isLoading = true;
+        this._state.initializationError = false;
+        this.updateButtonState();
+        // Trigger verification if required fields are set
+        if (this.isConnected) {
+          const missingMessage = this.getMissingOperatorInfoMessage();
+          if (!missingMessage) {
+            this.verifyAndInitialize();
+          } else {
+            this._state.isLoading = false;
+            this._state.initializationError = true;
+            this._state.error = missingMessage;
+            this.updateButtonState();
+          }
         }
         break;
 
@@ -358,12 +464,15 @@ class OperatorBankAccount extends HTMLElement {
   handleButtonClick() {
     console.log("OperatorBankAccount: Button clicked");
 
-    // Validate email is set
-    if (!this._state.email) {
-      console.warn("OperatorBankAccount: Cannot open - email is not set");
+    // Validate required fields are set
+    const missingMessage = this.getMissingOperatorInfoMessage();
+    if (missingMessage) {
+      console.warn(
+        "OperatorBankAccount: Cannot open - required fields missing"
+      );
       this.triggerFail({
         errorType: "validation",
-        error: "Email is required",
+        error: missingMessage,
       });
       return;
     }
@@ -425,12 +534,14 @@ class OperatorBankAccount extends HTMLElement {
       this._state.email
     );
 
-    if (!this._state.email) {
+    const missingMessage = this.getMissingOperatorInfoMessage();
+    if (missingMessage) {
       console.warn(
-        "❌ OperatorBankAccount: Email is required for verification"
+        "❌ OperatorBankAccount: Required fields are missing for verification"
       );
       this._state.isLoading = false;
       this._state.initializationError = true;
+      this._state.error = missingMessage;
       this.updateButtonState();
       return;
     }
@@ -467,7 +578,10 @@ class OperatorBankAccount extends HTMLElement {
       );
 
       // Step 1: Verify operator exists
-      const verifyResult = await this.api.verifyOperator(this._state.email);
+      const verifyResult = await this.api.verifyOperator(
+        this._state.email,
+        this._state.operatorId
+      );
 
       if (!verifyResult.success) {
         throw new Error(verifyResult.message || "Operator verification failed");
@@ -952,7 +1066,7 @@ class OperatorBankAccount extends HTMLElement {
       </style>
 
       <div class="btn-wrapper">
-        <span class="tooltip">Email is required</span>
+        <span class="tooltip">Email and operator ID are required</span>
         <button class="add-bank-btn error">
           <span class="loading-spinner"></span>
           <svg class="error-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

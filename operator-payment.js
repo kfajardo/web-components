@@ -15,7 +15,11 @@
  * <script src="component.js"></script>
  * <script src="operator-payment.js"></script>
  *
- * <operator-payment id="payment" operator-email="operator@example.com"></operator-payment>
+ * <operator-payment
+ *   id="payment"
+ *   operator-email="operator@example.com"
+ *   operator-id="OP123456"
+ * ></operator-payment>
  * <script>
  *   const payment = document.getElementById('payment');
  *   payment.addEventListener('payment-linking-success', (e) => {
@@ -54,6 +58,7 @@ class OperatorPayment extends HTMLElement {
     // Internal state
     this._state = {
       operatorEmail: null,
+      operatorId: null,
       isOpen: false,
       isLoading: false,
       accountData: null,
@@ -84,7 +89,7 @@ class OperatorPayment extends HTMLElement {
   // ==================== STATIC PROPERTIES ====================
 
   static get observedAttributes() {
-    return ["operator-email", "api-base-url", "embeddable-key"];
+    return ["operator-email", "operator-id", "api-base-url", "embeddable-key"];
   }
 
   // ==================== PROPERTY GETTERS/SETTERS ====================
@@ -132,10 +137,76 @@ class OperatorPayment extends HTMLElement {
       this._state.operatorEmail
     );
 
-    // Trigger initialization if email changed and component is connected
-    if (value && value !== oldEmail && this.isConnected) {
+    // Trigger initialization if required fields are set and component is connected
+    const missingMessage = this.getMissingOperatorInfoMessage();
+    if (!missingMessage && value && value !== oldEmail && this.isConnected) {
       this.initializeAccount();
+    } else if (missingMessage && this.isConnected) {
+      this._state.isLoading = false;
+      this._state.initializationError = true;
+      this._state.error = missingMessage;
+      this.updateMainButtonState();
     }
+  }
+
+  /**
+   * Get the operator ID
+   * @returns {string|null}
+   */
+  get operatorId() {
+    return this._state.operatorId;
+  }
+
+  /**
+   * Set the operator ID
+   * @param {string} value - Operator ID
+   */
+  set operatorId(value) {
+    console.log("OperatorPayment: Setting operator ID to:", value);
+
+    const oldOperatorId = this._state.operatorId;
+
+    // Update internal state
+    this._state.operatorId = value;
+
+    // Update attribute only if different to prevent circular updates
+    const currentAttr = this.getAttribute("operator-id");
+    if (currentAttr !== value) {
+      if (value) {
+        this.setAttribute("operator-id", value);
+      } else {
+        this.removeAttribute("operator-id");
+      }
+    }
+
+    // Trigger initialization if required fields are set and component is connected
+    const missingMessage = this.getMissingOperatorInfoMessage();
+    if (
+      !missingMessage &&
+      value &&
+      value !== oldOperatorId &&
+      this.isConnected
+    ) {
+      this.initializeAccount();
+    } else if (missingMessage && this.isConnected) {
+      this._state.isLoading = false;
+      this._state.initializationError = true;
+      this._state.error = missingMessage;
+      this.updateMainButtonState();
+    }
+  }
+
+  getMissingOperatorInfoMessage() {
+    if (!this._state.operatorEmail && !this._state.operatorId) {
+      return "Operator email and operator ID are required";
+    }
+    if (!this._state.operatorEmail) {
+      return "Operator email is required";
+    }
+    if (!this._state.operatorId) {
+      return "Operator ID is required";
+    }
+    return null;
   }
 
   /**
@@ -158,9 +229,15 @@ class OperatorPayment extends HTMLElement {
     this._state.error = null;
     this._state.initializationError = false;
 
-    // Re-initialize account if email is set
-    if (this._state.operatorEmail) {
+    // Re-initialize account if required fields are set
+    const missingMessage = this.getMissingOperatorInfoMessage();
+    if (!missingMessage) {
       await this.initializeAccount();
+    } else {
+      this._state.isLoading = false;
+      this._state.initializationError = true;
+      this._state.error = missingMessage;
+      this.updateMainButtonState();
     }
   }
 
@@ -173,14 +250,26 @@ class OperatorPayment extends HTMLElement {
       this._state.operatorEmail = emailAttr;
     }
 
+    // Initialize operator ID from attribute if present
+    const operatorIdAttr = this.getAttribute("operator-id");
+    if (operatorIdAttr && !this._state.operatorId) {
+      this._state.operatorId = operatorIdAttr;
+    }
+
     // Load Moov SDK (preload for faster access later)
     this.ensureMoovSDK();
 
     this.setupEventListeners();
 
-    // Auto-initialize if email is already set to fetch and cache moovAccountId
-    if (this._state.operatorEmail) {
+    // Auto-initialize if required fields are already set
+    const missingMessage = this.getMissingOperatorInfoMessage();
+    if (!missingMessage) {
       this.initializeAccount();
+    } else {
+      this._state.isLoading = false;
+      this._state.initializationError = true;
+      this._state.error = missingMessage;
+      this.updateMainButtonState();
     }
   }
 
@@ -199,6 +288,17 @@ class OperatorPayment extends HTMLElement {
         );
         this._state.operatorEmail = newValue;
         // Clear any existing token when email changes (new email = new account)
+        this._state.moovToken = null;
+        this._state.moovAccountId = null;
+        break;
+
+      case "operator-id":
+        console.log(
+          "OperatorPayment: attributeChangedCallback - operator-id:",
+          newValue
+        );
+        this._state.operatorId = newValue;
+        // Clear any existing token when operator ID changes
         this._state.moovToken = null;
         this._state.moovAccountId = null;
         break;
@@ -688,14 +788,15 @@ class OperatorPayment extends HTMLElement {
       this._state.operatorEmail
     );
 
-    // Validate email is set before opening modal
-    if (!this._state.operatorEmail) {
+    // Validate required fields are set before opening modal
+    const missingMessage = this.getMissingOperatorInfoMessage();
+    if (missingMessage) {
       console.warn(
-        "OperatorPayment: Cannot open modal - operator email is not set"
+        "OperatorPayment: Cannot open modal - required fields are missing"
       );
       this.dispatchEvent(
         new CustomEvent("payment-linking-error", {
-          detail: { error: "Operator email is required", type: "validation" },
+          detail: { error: missingMessage, type: "validation" },
           bubbles: true,
           composed: true,
         })
@@ -751,10 +852,14 @@ class OperatorPayment extends HTMLElement {
    * Uses cached moovAccountId when available to avoid extra API calls
    */
   async fetchPaymentMethods() {
-    if (!this._state.operatorEmail) {
+    const missingMessage = this.getMissingOperatorInfoMessage();
+    if (missingMessage) {
       console.warn(
-        "OperatorPayment: Email is required to fetch payment methods"
+        "OperatorPayment: Required fields missing to fetch payment methods"
       );
+      this._state.isLoadingPaymentMethods = false;
+      this._state.paymentMethodsError = missingMessage;
+      this.updateBankAccountsList();
       return;
     }
 
@@ -1007,9 +1112,14 @@ class OperatorPayment extends HTMLElement {
    * Token generation is deferred to when "Add Bank Account" is clicked
    */
   async initializeAccount() {
-    // Validate email
-    if (!this._state.operatorEmail) {
-      console.warn("OperatorPayment: Email is required for initialization");
+    // Validate required fields
+    const missingMessage = this.getMissingOperatorInfoMessage();
+    if (missingMessage) {
+      console.warn("OperatorPayment: Required fields missing for initialization");
+      this._state.isLoading = false;
+      this._state.initializationError = true;
+      this._state.error = missingMessage;
+      this.updateMainButtonState();
       return;
     }
 
@@ -1037,7 +1147,8 @@ class OperatorPayment extends HTMLElement {
       // First, verify the operator is registered/onboarded
       console.log("OperatorPayment: Verifying operator...");
       const verifyResult = await this.api.verifyOperator(
-        this._state.operatorEmail
+        this._state.operatorEmail,
+        this._state.operatorId
       );
 
       if (!verifyResult.success) {
@@ -1387,6 +1498,7 @@ class OperatorPayment extends HTMLElement {
   updateMainButtonState() {
     const button = this.shadowRoot.querySelector(".link-payment-btn");
     const wrapper = this.shadowRoot.querySelector(".btn-wrapper");
+    const tooltip = this.shadowRoot.querySelector(".tooltip");
     if (!button) return;
 
     // Handle loading state
@@ -1402,6 +1514,9 @@ class OperatorPayment extends HTMLElement {
       button.classList.add("error");
       button.disabled = true;
       if (wrapper) wrapper.classList.add("has-error");
+      if (tooltip && this._state.error) {
+        tooltip.textContent = this._state.error;
+      }
     }
     // Handle normal state
     else {
@@ -2214,7 +2329,7 @@ class OperatorPayment extends HTMLElement {
       
       <!-- Main Button -->
       <div class="btn-wrapper">
-        <span class="tooltip">Operator is not onboarded to the Bison system</span>
+        <span class="tooltip">Operator email and operator ID are required</span>
         <button class="link-payment-btn">
           <span class="loading-spinner"></span>
           <svg class="broken-link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

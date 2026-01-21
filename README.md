@@ -558,7 +558,10 @@ const api = new BisonJibPayAPI(
 
 // Validate operator email
 try {
-  const result = await api.validateOperatorEmail('operator@example.com');
+  const result = await api.validateOperatorEmail(
+    'operator@example.com',
+    'OP123456'
+  );
   console.log('Operator email is valid:', result);
 } catch (error) {
   console.error('Validation failed:', error);
@@ -580,18 +583,19 @@ try {
 
 ### API Methods
 
-#### `validateOperatorEmail(email)`
+#### `validateOperatorEmail(email, operatorId)`
 Validates an operator email address.
 
 **Parameters:**
 - `email` (string) - The operator email address to validate
+- `operatorId` (string) - The operator ID to validate
 
 **Returns:**
 - Promise resolving to the API response
 
 **Example:**
 ```javascript
-const result = await api.validateOperatorEmail('operator@company.com');
+const result = await api.validateOperatorEmail('operator@company.com', 'OP123456');
 ```
 
 #### `registerOperator(formData)`
@@ -626,13 +630,14 @@ function EmailValidator() {
     'YOUR_KEY'
   ));
   const [email, setEmail] = useState('');
+  const [operatorId, setOperatorId] = useState('');
   const [isValid, setIsValid] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
 
   const validateEmail = async () => {
     setIsLoading(true);
     try {
-      await api.validateOperatorEmail(email);
+      await api.validateOperatorEmail(email, operatorId);
       setIsValid(true);
     } catch (error) {
       setIsValid(false);
@@ -644,6 +649,12 @@ function EmailValidator() {
 
   return (
     <div>
+      <input
+        type="text"
+        value={operatorId}
+        onChange={(e) => setOperatorId(e.target.value)}
+        placeholder="Enter operator ID"
+      />
       <input
         type="email"
         value={email}
@@ -667,7 +678,7 @@ The API methods throw structured errors that you can catch:
 
 ```javascript
 try {
-  await api.validateOperatorEmail('invalid@email.com');
+  await api.validateOperatorEmail('invalid@email.com', 'OP123456');
 } catch (error) {
   console.error('Status:', error.status);
   console.error('Message:', error.data.message);

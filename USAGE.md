@@ -223,6 +223,7 @@ Payment methods integration using Moov's drop-in component.
 ```html
 <operator-payment 
   id="payment"
+  operator-id="OP123456"
   api-base-url="https://your-api.com"
   embeddable-key="your-key-here">
 </operator-payment>
@@ -232,6 +233,9 @@ Payment methods integration using Moov's drop-in component.
   
   // Set operator email
   payment.operatorEmail = 'operator@example.com';
+
+  // Set operator ID (required)
+  payment.operatorId = 'OP123456';
   
   // Success callback
   payment.onSuccess = (result) => {
@@ -253,8 +257,9 @@ Payment methods integration using Moov's drop-in component.
 ```javascript
 const payment = document.getElementById('payment');
 
-// Set email and open
+// Set email and ID, then open
 payment.operatorEmail = 'user@example.com';
+payment.operatorId = 'OP123456';
 payment.open = true;
 
 // Check if open
@@ -268,7 +273,8 @@ payment.open = false;
 
 | Attribute | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `operator-email` | string | - | Operator's email address |
+| `operator-email` | string | - | Operator's email address (required) |
+| `operator-id` | string | - | Operator's ID (required) |
 | `api-base-url` | string | `https://bison-jib-development.azurewebsites.net` | API base URL |
 | `embeddable-key` | string | (dev key) | Your embeddable API key |
 | `on-success` | string | - | Global function name for success callback |
@@ -280,8 +286,9 @@ payment.open = false;
 ```javascript
 const payment = document.getElementById('payment');
 
-// Email (triggers initialization when set)
+// Operator email and ID (triggers initialization when set)
 payment.operatorEmail = 'user@example.com';
+payment.operatorId = 'OP123456';
 
 // Open state
 payment.open = true;
@@ -317,7 +324,10 @@ const api = new BisonJibPayAPI(
 
 // Validate operator email
 try {
-  const result = await api.validateOperatorEmail('operator@example.com');
+  const result = await api.validateOperatorEmail(
+    'operator@example.com',
+    'OP123456'
+  );
   console.log('Email valid:', result);
 } catch (error) {
   console.error('Validation failed:', error);
@@ -346,9 +356,9 @@ try {
 
 ### Methods
 
-#### `validateOperatorEmail(email)`
+#### `validateOperatorEmail(email, operatorId)`
 ```javascript
-const result = await api.validateOperatorEmail('operator@example.com');
+const result = await api.validateOperatorEmail('operator@example.com', 'OP123456');
 // Returns: { valid: boolean, message: string }
 ```
 

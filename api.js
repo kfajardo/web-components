@@ -17,7 +17,10 @@
  * );
  *
  * // Validate operator email
- * const result = await api.validateOperatorEmail('operator@example.com');
+ * const result = await api.validateOperatorEmail(
+ *   'operator@example.com',
+ *   'OP123456'
+ * );
  *
  * // Generate Moov token
  * const token = await api.generateMoovToken('operator@example.com');
@@ -76,11 +79,14 @@ class BisonJibPayAPI {
 
   /**
    * Validate operator email
+   *
+   * @param {string} email - Operator's email address
+   * @param {string} operatorId - Operator's ID
    */
-  async validateOperatorEmail(email) {
+  async validateOperatorEmail(email, operatorId) {
     return this.request("/api/embeddable/validate/operator-email", {
       method: "POST",
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email, operatorId }),
     });
   }
 
@@ -89,17 +95,18 @@ class BisonJibPayAPI {
    * Checks if an operator is registered/onboarded in the system
    *
    * @param {string} email - Operator's email address
+   * @param {string} operatorId - Operator's ID
    * @returns {Promise<{success: boolean, message: string, data?: any}>}
    *
    * @example
    * const api = new BisonJibPayAPI(baseURL, embeddableKey);
-   * const result = await api.verifyOperator('operator@example.com');
+   * const result = await api.verifyOperator('operator@example.com', 'OP123456');
    * if (result.success) {
    *   console.log('Operator is verified');
    * }
    */
-  async verifyOperator(email) {
-    return this.validateOperatorEmail(email);
+  async verifyOperator(email, operatorId) {
+    return this.validateOperatorEmail(email, operatorId);
   }
 
   /**
