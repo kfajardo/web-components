@@ -156,6 +156,15 @@ class BisonJibPayAPI {
     });
   }
 
+  async getAccountByOperatorId(operatorId) {
+    const param = new URLSearchParams();
+    param.append("operatorId", operatorId);
+
+    return this.request(`/api/embeddable/moov-account-id?${param.toString()}`, {
+      method: "GET",
+    });
+  }
+
   /**
    * Generate Moov access token for operator
    *
@@ -163,6 +172,8 @@ class BisonJibPayAPI {
    * The backend handles the secure communication with Moov's API.
    *
    * @param {string} operatorEmail - Operator's email address
+   * @param {string|null} moovAccountId - Optional Moov account ID
+   * @param {string|null} operatorId - Optional operator ID
    * @returns {Promise<{access_token: string, expires_in?: number, scope?: string}>}
    *
    * @example
@@ -170,14 +181,28 @@ class BisonJibPayAPI {
    * const tokenData = await api.generateMoovToken('operator@example.com');
    * console.log(tokenData.access_token);
    */
-  async generateMoovToken(operatorEmail, moovAccountId = null) {
+  async generateMoovToken(operatorEmail, moovAccountId = null, operatorId = null) {
     console.log("CALLED GENERATE MOOV TOKEN");
 
     // Use provided moovAccountId or fetch it if not provided
     let accountId = moovAccountId;
     if (!accountId) {
-      const account = await this.getAccountByEmail(operatorEmail);
-      accountId = account.data.moovAccountId;
+      if (operatorEmail) {
+        const account = await this.getAccountByEmail(operatorEmail);
+        accountId = account.data.moovAccountId;
+      } else if (operatorId) {
+        const account = await this.getAccountByOperatorId(operatorId);
+        accountId = account.data.moovAccountId;
+      } else {
+        throw {
+          status: 400,
+          data: {
+            success: false,
+            message: "Email or operator ID is required to generate a token",
+            errors: ["Missing operator identifier"],
+          },
+        };
+      }
     }
     console.log("MOOV ACCOUNT ID", accountId);
     let accountScopes = [
@@ -199,18 +224,27 @@ class BisonJibPayAPI {
       );
     }
 
+    const tokenPayload = {
+      scopes: [
+        "/accounts.read",
+        "/accounts.write",
+        "/fed.read",
+        "/profile-enrichment.read",
+        ...accountScopes,
+      ],
+    };
+
+    if (operatorEmail) {
+      tokenPayload.email = operatorEmail;
+    }
+
+    if (operatorId) {
+      tokenPayload.operatorId = operatorId;
+    }
+
     return this.request("/api/embeddable/moov-access-token", {
       method: "POST",
-      body: JSON.stringify({
-        email: operatorEmail,
-        scopes: [
-          "/accounts.read",
-          "/accounts.write",
-          "/fed.read",
-          "/profile-enrichment.read",
-          ...accountScopes,
-        ],
-      }),
+      body: JSON.stringify(tokenPayload),
     });
   }
 

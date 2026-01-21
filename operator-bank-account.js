@@ -19,6 +19,8 @@
  *   api-url="https://your-api.com"
  * ></operator-bank-account>
  *
+ * Provide either email or operator-id (or both).
+ *
  * <script>
  *   const addBank = document.getElementById('addBank');
  *
@@ -175,13 +177,7 @@ class OperatorBankAccount extends HTMLElement {
 
   getMissingOperatorInfoMessage() {
     if (!this._state.email && !this._state.operatorId) {
-      return "Email and operator ID are required";
-    }
-    if (!this._state.email) {
-      return "Email is required";
-    }
-    if (!this._state.operatorId) {
-      return "Operator ID is required";
+      return "Email or operator ID is required";
     }
     return null;
   }
@@ -579,8 +575,8 @@ class OperatorBankAccount extends HTMLElement {
 
       // Step 1: Verify operator exists
       const verifyResult = await this.api.verifyOperator(
-        this._state.email,
-        this._state.operatorId
+        this._state.email || undefined,
+        this._state.operatorId || undefined
       );
 
       if (!verifyResult.success) {
@@ -590,7 +586,9 @@ class OperatorBankAccount extends HTMLElement {
       console.log("OperatorBankAccount: Operator verified successfully");
 
       // Step 2: Get account to retrieve moovAccountId
-      const accountResult = await this.api.getAccountByEmail(this._state.email);
+      const accountResult = this._state.email
+        ? await this.api.getAccountByEmail(this._state.email)
+        : await this.api.getAccountByOperatorId(this._state.operatorId);
 
       if (!accountResult.data?.moovAccountId) {
         throw new Error("Operator does not have a Moov account");
@@ -615,6 +613,7 @@ class OperatorBankAccount extends HTMLElement {
         new CustomEvent("operator-bank-account-ready", {
           detail: {
             email: this._state.email,
+            operatorId: this._state.operatorId,
             moovAccountId: this._state.moovAccountId,
           },
           bubbles: true,
@@ -656,7 +655,8 @@ class OperatorBankAccount extends HTMLElement {
 
       const tokenResult = await this.api.generateMoovToken(
         this._state.email,
-        this._state.moovAccountId
+        this._state.moovAccountId,
+        this._state.operatorId
       );
 
       if (!tokenResult || !tokenResult.data?.accessToken) {
@@ -1066,7 +1066,7 @@ class OperatorBankAccount extends HTMLElement {
       </style>
 
       <div class="btn-wrapper">
-        <span class="tooltip">Email and operator ID are required</span>
+        <span class="tooltip">Email or operator ID is required</span>
         <button class="add-bank-btn error">
           <span class="loading-spinner"></span>
           <svg class="error-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
