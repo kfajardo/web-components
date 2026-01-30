@@ -91,6 +91,28 @@ class BisonJibPayAPI {
   }
 
   /**
+   * Validate user email
+   *
+   * Checks if a user email exists in the system.
+   *
+   * @param {string} email - User's email address
+   * @returns {Promise<{success: boolean, message: string, data: {exists: boolean, message: string}, errors: string[], timestamp: string, traceId: string}>}
+   *
+   * @example
+   * const api = new BisonJibPayAPI(baseURL, embeddableKey);
+   * const result = await api.validateUserEmail('user@example.com');
+   * if (result.data.exists) {
+   *   console.log('User email exists');
+   * }
+   */
+  async validateUserEmail(email) {
+    return this.request("/api/embeddable/validate/user-email", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    });
+  }
+
+  /**
    * Verify operator email
    * Checks if an operator is registered/onboarded in the system
    *

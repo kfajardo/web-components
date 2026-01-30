@@ -660,6 +660,7 @@ class WioOnboarding extends HTMLElement {
       representativeCity: "",
       representativeState: "",
       representativeZip: "",
+      isStaged: false,
     };
 
     this.setState({
@@ -683,11 +684,197 @@ class WioOnboarding extends HTMLElement {
     representatives[index] = {
       ...representatives[index],
       [field]: value,
+      // Reset staged status when any field changes
+      isStaged: false,
     };
 
     this.setState({
       formData: { representatives },
     });
+  }
+
+  /**
+   * Validate a single representative's fields
+   * @param {number} index - The index of the representative to validate
+   * @returns {{isValid: boolean, errors: Object}} Validation result
+   */
+  validateSingleRepresentative(index) {
+    const rep = this.state.formData.representatives[index];
+    if (!rep) return { isValid: false, errors: {} };
+
+    const errors = {};
+    let isValid = true;
+
+    const requiredFields = [
+      {
+        name: "representativeFirstName",
+        validators: ["required"],
+        label: "First Name",
+      },
+      {
+        name: "representativeLastName",
+        validators: ["required"],
+        label: "Last Name",
+      },
+      {
+        name: "representativeJobTitle",
+        validators: ["required"],
+        label: "Job Title",
+      },
+      {
+        name: "representativePhone",
+        validators: ["required", "usPhone"],
+        label: "Phone",
+      },
+      {
+        name: "representativeEmail",
+        validators: ["required", "email"],
+        label: "Email",
+      },
+      {
+        name: "representativeDateOfBirth",
+        validators: ["required"],
+        label: "Date of Birth",
+      },
+      {
+        name: "representativeAddress",
+        validators: ["required"],
+        label: "Address",
+      },
+      {
+        name: "representativeCity",
+        validators: ["required"],
+        label: "City",
+      },
+      {
+        name: "representativeState",
+        validators: ["required"],
+        label: "State",
+      },
+      {
+        name: "representativeZip",
+        validators: ["required", "postalCode"],
+        label: "ZIP Code",
+      },
+    ];
+
+    requiredFields.forEach((field) => {
+      const error = this.validateField(
+        rep[field.name],
+        field.validators,
+        field.label
+      );
+      if (error) {
+        errors[field.name] = error;
+        isValid = false;
+      }
+    });
+
+    return { isValid, errors };
+  }
+
+  /**
+   * Stage a representative after validation and email check
+   * @param {number} index - The index of the representative to stage
+   */
+  async stageRepresentative(index) {
+    const rep = this.state.formData.representatives[index];
+    if (!rep) return;
+
+    // Step 1: Validate all fields for this representative
+    const { isValid, errors } = this.validateSingleRepresentative(index);
+
+    if (!isValid) {
+      // Show validation errors for this representative
+      const currentErrors = this.state.validationState[`step${this.state.currentStep}`]?.errors || {};
+      this.setState({
+        validationState: {
+          [`step${this.state.currentStep}`]: {
+            isValid: false,
+            errors: {
+              ...currentErrors,
+              [`rep${index}`]: errors,
+            },
+          },
+        },
+        uiState: { showErrors: true },
+      });
+      return;
+    }
+
+    // Step 2: Call validateUserEmail API
+    if (!this.api) {
+      console.error("API not initialized");
+      return;
+    }
+
+    try {
+      const response = await this.api.validateUserEmail(rep.representativeEmail);
+
+      // Step 3: Check if email exists
+      if (response.data?.exists === true) {
+        // Add error to the representative email field
+        const currentErrors = this.state.validationState[`step${this.state.currentStep}`]?.errors || {};
+        this.setState({
+          validationState: {
+            [`step${this.state.currentStep}`]: {
+              isValid: false,
+              errors: {
+                ...currentErrors,
+                [`rep${index}`]: {
+                  representativeEmail: "A representative with this email already exists",
+                },
+              },
+            },
+          },
+          uiState: { showErrors: true },
+        });
+        return;
+      }
+
+      // Email doesn't exist - mark representative as staged
+      const representatives = [...this.state.formData.representatives];
+      representatives[index] = {
+        ...representatives[index],
+        isStaged: true,
+      };
+
+      // Clear any previous errors for this representative
+      const currentErrors = this.state.validationState[`step${this.state.currentStep}`]?.errors || {};
+      const updatedErrors = { ...currentErrors };
+      delete updatedErrors[`rep${index}`];
+
+      this.setState({
+        formData: { representatives },
+        validationState: {
+          [`step${this.state.currentStep}`]: {
+            isValid: Object.keys(updatedErrors).length === 0,
+            errors: updatedErrors,
+          },
+        },
+        uiState: { showErrors: Object.keys(updatedErrors).length > 0 },
+      });
+
+      console.log(`✅ Representative ${index + 1} staged successfully`);
+    } catch (error) {
+      console.error("Error validating user email:", error);
+      // Show API error
+      const currentErrors = this.state.validationState[`step${this.state.currentStep}`]?.errors || {};
+      this.setState({
+        validationState: {
+          [`step${this.state.currentStep}`]: {
+            isValid: false,
+            errors: {
+              ...currentErrors,
+              [`rep${index}`]: {
+                representativeEmail: error.data?.message || "Failed to validate email. Please try again.",
+              },
+            },
+          },
+        },
+        uiState: { showErrors: true },
+      });
+    }
   }
 
   // ==================== INITIAL DATA LOADING ====================
@@ -724,6 +911,7 @@ class WioOnboarding extends HTMLElement {
         representativeCity: rep.representativeCity || "",
         representativeState: rep.representativeState || "",
         representativeZip: rep.representativeZip || "",
+        isStaged: rep.isStaged || false,
       }));
     }
 
@@ -1906,10 +2094,12 @@ class WioOnboarding extends HTMLElement {
   }
 
   renderRepresentativeCard(representative, index) {
+    const isStaged = representative.isStaged === true;
+
     return `
-      <div class="representative-card" data-index="${index}">
+      <div class="representative-card ${isStaged ? 'staged' : ''}" data-index="${index}">
         <div class="card-header">
-          <h3>Representative ${index + 1}</h3>
+          <h3>Representative ${index + 1}${isStaged ? ' <span class="staged-badge">✓ Staged</span>' : ''}</h3>
           <button type="button" class="remove-btn" data-index="${index}">Remove</button>
         </div>
         <div class="card-body">
@@ -2021,6 +2211,17 @@ class WioOnboarding extends HTMLElement {
         dataRepIndex: index,
       })}
           </div>
+        </div>
+        <div class="card-footer">
+          ${isStaged
+        ? `<div class="staged-status">
+                <span class="staged-icon">✓</span>
+                <span>Representative validated and staged</span>
+              </div>`
+        : `<button type="button" class="btn-stage-representative" data-index="${index}">
+                Confirm Representative
+              </button>`
+      }
         </div>
       </div>
     `;
@@ -2411,6 +2612,15 @@ class WioOnboarding extends HTMLElement {
         e.preventDefault();
         const index = parseInt(e.target.dataset.index);
         this.removeRepresentative(index);
+      });
+    });
+
+    // Stage representative buttons
+    shadow.querySelectorAll(".btn-stage-representative").forEach((btn) => {
+      btn.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        const index = parseInt(e.target.dataset.index);
+        this.stageRepresentative(index);
       });
     });
   }
@@ -2915,6 +3125,71 @@ class WioOnboarding extends HTMLElement {
         .add-representative-btn:hover {
           background: var(--color-primary-light, #f0fdf4);
           border-style: solid;
+        }
+
+        /* Staged Representative Styles */
+        .representative-card.staged {
+          border-color: var(--success-color);
+          background: linear-gradient(to bottom, rgba(34, 197, 94, 0.05), var(--color-white, #fff));
+        }
+
+        .staged-badge {
+          display: inline-block;
+          font-size: 12px;
+          font-weight: 600;
+          color: var(--success-color);
+          background: rgba(34, 197, 94, 0.1);
+          padding: 2px 8px;
+          border-radius: 12px;
+          margin-left: 8px;
+          vertical-align: middle;
+        }
+
+        .card-footer {
+          padding-top: var(--spacing-md);
+          margin-top: var(--spacing-md);
+          border-top: 1px solid var(--border-color);
+          display: flex;
+          justify-content: flex-end;
+        }
+
+        .btn-stage-representative {
+          background: var(--primary-color);
+          color: var(--color-white, #fff);
+          border: none;
+          padding: 10px 20px;
+          border-radius: var(--border-radius-sm);
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: 600;
+          transition: all 0.2s ease;
+        }
+
+        .btn-stage-representative:hover {
+          background: var(--primary-hover);
+          transform: translateY(-1px);
+          box-shadow: var(--shadow-sm);
+        }
+
+        .staged-status {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          color: var(--success-color);
+          font-size: 14px;
+          font-weight: 500;
+        }
+
+        .staged-icon {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 20px;
+          height: 20px;
+          background: var(--success-color);
+          color: white;
+          border-radius: 50%;
+          font-size: 12px;
         }
 
         /* File Upload */
