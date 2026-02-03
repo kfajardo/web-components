@@ -661,6 +661,9 @@ class WioOnboarding extends HTMLElement {
       representativeState: "",
       representativeZip: "",
       isStaged: false,
+      stagedData: null,
+      isExpanded: true,
+      isValidating: false,
     };
 
     this.setState({
@@ -681,11 +684,12 @@ class WioOnboarding extends HTMLElement {
 
   updateRepresentative(index, field, value) {
     const representatives = [...this.state.formData.representatives];
+    const currentRep = representatives[index];
+
     representatives[index] = {
-      ...representatives[index],
+      ...currentRep,
       [field]: value,
-      // Reset staged status when any field changes
-      isStaged: false,
+      // Don't reset isStaged - we track modifications via stagedData comparison
     };
 
     this.setState({
@@ -808,6 +812,14 @@ class WioOnboarding extends HTMLElement {
       return;
     }
 
+    // Set validating state to disable fields
+    const repsBeforeValidation = [...this.state.formData.representatives];
+    repsBeforeValidation[index] = {
+      ...repsBeforeValidation[index],
+      isValidating: true,
+    };
+    this.setState({ formData: { representatives: repsBeforeValidation } });
+
     try {
       const response = await this.api.validateUserEmail(rep.representativeEmail);
 
@@ -815,7 +827,10 @@ class WioOnboarding extends HTMLElement {
       if (response.data?.exists === true) {
         // Add error to the representative email field
         const currentErrors = this.state.validationState[`step${this.state.currentStep}`]?.errors || {};
+        const repsAfterError = [...this.state.formData.representatives];
+        repsAfterError[index] = { ...repsAfterError[index], isValidating: false };
         this.setState({
+          formData: { representatives: repsAfterError },
           validationState: {
             [`step${this.state.currentStep}`]: {
               isValid: false,
@@ -832,11 +847,30 @@ class WioOnboarding extends HTMLElement {
         return;
       }
 
-      // Email doesn't exist - mark representative as staged
+      // Email doesn't exist - mark representative as staged and store snapshot
       const representatives = [...this.state.formData.representatives];
+      const currentRep = representatives[index];
+
+      // Store current data as stagedData for undo functionality
+      const stagedData = {
+        representativeFirstName: currentRep.representativeFirstName,
+        representativeLastName: currentRep.representativeLastName,
+        representativeJobTitle: currentRep.representativeJobTitle,
+        representativePhone: currentRep.representativePhone,
+        representativeEmail: currentRep.representativeEmail,
+        representativeDateOfBirth: currentRep.representativeDateOfBirth,
+        representativeAddress: currentRep.representativeAddress,
+        representativeCity: currentRep.representativeCity,
+        representativeState: currentRep.representativeState,
+        representativeZip: currentRep.representativeZip,
+      };
+
       representatives[index] = {
-        ...representatives[index],
+        ...currentRep,
         isStaged: true,
+        stagedData: stagedData,
+        isExpanded: false, // Collapse the card after staging
+        isValidating: false,
       };
 
       // Clear any previous errors for this representative
@@ -855,12 +889,15 @@ class WioOnboarding extends HTMLElement {
         uiState: { showErrors: Object.keys(updatedErrors).length > 0 },
       });
 
-      console.log(`✅ Representative ${index + 1} staged successfully`);
+      console.log(`✅ Representative ${index + 1} confirmed successfully`);
     } catch (error) {
       console.error("Error validating user email:", error);
-      // Show API error
+      // Show API error and reset validating state
       const currentErrors = this.state.validationState[`step${this.state.currentStep}`]?.errors || {};
+      const repsAfterCatch = [...this.state.formData.representatives];
+      repsAfterCatch[index] = { ...repsAfterCatch[index], isValidating: false };
       this.setState({
+        formData: { representatives: repsAfterCatch },
         validationState: {
           [`step${this.state.currentStep}`]: {
             isValid: false,
@@ -878,20 +915,102 @@ class WioOnboarding extends HTMLElement {
   }
 
   /**
-   * Check if there's an active (non-staged) representative form
-   * An "active" form means the user has added a representative but hasn't confirmed/staged it yet
-   * @returns {boolean} True if there's at least one non-staged representative
+   * Check if there's an active (non-staged OR modified staged) representative form
+   * An "active" form means the user has added a representative but hasn't confirmed/staged it yet,
+   * OR a staged representative has been modified and needs re-confirmation
+   * @returns {boolean} True if there's at least one non-staged or modified staged representative
    */
   hasActiveRepresentativeForm() {
-    return this.state.formData.representatives.some((rep) => rep.isStaged !== true);
+    return this.state.formData.representatives.some((rep, index) => {
+      if (rep.isStaged !== true) return true;
+      // Staged rep is "active" if it has been modified
+      return this.isRepresentativeModified(index);
+    });
   }
 
   /**
-   * Check if there's at least one staged (confirmed) representative
-   * @returns {boolean} True if at least one representative has been staged
+   * Check if there's at least one staged (confirmed) representative that is NOT modified
+   * @returns {boolean} True if at least one representative is staged and unmodified
    */
   hasStagedRepresentative() {
-    return this.state.formData.representatives.some((rep) => rep.isStaged === true);
+    return this.state.formData.representatives.some((rep, index) => {
+      return rep.isStaged === true && !this.isRepresentativeModified(index);
+    });
+  }
+
+  /**
+   * Check if a staged representative has been modified from its staged state
+   * @param {number} index - The index of the representative
+   * @returns {boolean} True if the representative has been modified
+   */
+  isRepresentativeModified(index) {
+    const rep = this.state.formData.representatives[index];
+    if (!rep || !rep.isStaged || !rep.stagedData) return false;
+
+    const fieldsToCompare = [
+      'representativeFirstName',
+      'representativeLastName',
+      'representativeJobTitle',
+      'representativePhone',
+      'representativeEmail',
+      'representativeDateOfBirth',
+      'representativeAddress',
+      'representativeCity',
+      'representativeState',
+      'representativeZip',
+    ];
+
+    return fieldsToCompare.some((field) => rep[field] !== rep.stagedData[field]);
+  }
+
+  /**
+   * Undo changes to a staged representative, restoring it to its original staged state
+   * @param {number} index - The index of the representative
+   */
+  undoRepresentativeChanges(index) {
+    const rep = this.state.formData.representatives[index];
+    if (!rep || !rep.isStaged || !rep.stagedData) return;
+
+    const representatives = [...this.state.formData.representatives];
+    representatives[index] = {
+      ...rep,
+      representativeFirstName: rep.stagedData.representativeFirstName,
+      representativeLastName: rep.stagedData.representativeLastName,
+      representativeJobTitle: rep.stagedData.representativeJobTitle,
+      representativePhone: rep.stagedData.representativePhone,
+      representativeEmail: rep.stagedData.representativeEmail,
+      representativeDateOfBirth: rep.stagedData.representativeDateOfBirth,
+      representativeAddress: rep.stagedData.representativeAddress,
+      representativeCity: rep.stagedData.representativeCity,
+      representativeState: rep.stagedData.representativeState,
+      representativeZip: rep.stagedData.representativeZip,
+      isExpanded: false,
+    };
+
+    this.setState({
+      formData: { representatives },
+    });
+
+    console.log(`✅ Representative ${index + 1} changes undone`);
+  }
+
+  /**
+   * Toggle the expanded/collapsed state of a representative card
+   * @param {number} index - The index of the representative
+   */
+  toggleRepresentativeExpand(index) {
+    const representatives = [...this.state.formData.representatives];
+    const rep = representatives[index];
+    if (!rep) return;
+
+    representatives[index] = {
+      ...rep,
+      isExpanded: !rep.isExpanded,
+    };
+
+    this.setState({
+      formData: { representatives },
+    });
   }
 
   /**
@@ -1936,6 +2055,7 @@ class WioOnboarding extends HTMLElement {
     value = "",
     error = "",
     readOnly = false,
+    disabled = false,
     placeholder = "",
     className = "",
     maxLength = null,
@@ -1957,6 +2077,7 @@ class WioOnboarding extends HTMLElement {
           name="${name}"
           value="${value}"
           ${readOnly ? "readonly" : ""}
+          ${disabled ? "disabled" : ""}
           ${placeholder ? `placeholder="${placeholder}"` : ""}
           ${maxLength ? `maxlength="${maxLength}"` : ""}
           ${dataRepIndex !== null ? `data-rep-index="${dataRepIndex}"` : ""}
@@ -2143,14 +2264,39 @@ class WioOnboarding extends HTMLElement {
 
   renderRepresentativeCard(representative, index) {
     const isStaged = representative.isStaged === true;
+    const isExpanded = representative.isExpanded !== false; // Default to expanded for new reps
+    const isModified = this.isRepresentativeModified(index);
+    const isValidating = representative.isValidating === true;
 
+    // Collapsed view for staged representatives (not expanded)
+    if (isStaged && !isExpanded) {
+      return `
+        <div class="representative-card staged collapsed" data-index="${index}">
+          <div class="card-header collapsed-header">
+            <div class="collapsed-info">
+              <span class="confirmed-badge">✓</span>
+              <div class="collapsed-details">
+                <h3>Representative ${index + 1}</h3>
+                <p class="collapsed-summary">${representative.representativeFirstName} ${representative.representativeLastName} · ${representative.representativeEmail}</p>
+              </div>
+            </div>
+            <div class="collapsed-actions">
+              <button type="button" class="btn-expand-representative" data-index="${index}">Edit</button>
+              <button type="button" class="remove-btn" data-index="${index}">Remove</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // Expanded view (for new reps, or when editing a staged rep)
     return `
-      <div class="representative-card ${isStaged ? 'staged' : ''}" data-index="${index}">
+      <div class="representative-card ${isStaged ? 'staged' : ''} ${isModified ? 'modified' : ''}" data-index="${index}">
         <div class="card-header">
-          <h3>Representative ${index + 1}${isStaged ? ' <span class="staged-badge">✓ Staged</span>' : ''}</h3>
+          <h3>Representative ${index + 1}${isStaged && !isModified ? ' <span class="confirmed-badge-inline">✓ Confirmed</span>' : ''}${isModified ? ' <span class="modified-badge">Modified</span>' : ''}</h3>
           <button type="button" class="remove-btn" data-index="${index}">Remove</button>
         </div>
-        <div class="card-body">
+        <div class="card-body ${isValidating ? 'validating' : ''}">
           <div class="form-grid">
             ${this.renderField({
       name: "representativeFirstName",
@@ -2158,6 +2304,7 @@ class WioOnboarding extends HTMLElement {
       value: representative.representativeFirstName,
       error: this.getFieldError("representativeFirstName", index),
       dataRepIndex: index,
+      disabled: isValidating,
     })}
             
             ${this.renderField({
@@ -2166,6 +2313,7 @@ class WioOnboarding extends HTMLElement {
       value: representative.representativeLastName,
       error: this.getFieldError("representativeLastName", index),
       dataRepIndex: index,
+      disabled: isValidating,
     })}
             
             ${this.renderField({
@@ -2175,6 +2323,7 @@ class WioOnboarding extends HTMLElement {
       error: this.getFieldError("representativeJobTitle", index),
       dataRepIndex: index,
       className: "full-width",
+      disabled: isValidating,
     })}
             
             ${this.renderField({
@@ -2186,6 +2335,7 @@ class WioOnboarding extends HTMLElement {
       placeholder: "(555) 123-4567",
       dataRepIndex: index,
       dataFormat: "phone",
+      disabled: isValidating,
     })}
             
             ${this.renderField({
@@ -2195,6 +2345,7 @@ class WioOnboarding extends HTMLElement {
       value: representative.representativeEmail,
       error: this.getFieldError("representativeEmail", index),
       dataRepIndex: index,
+      disabled: isValidating,
     })}
             
             ${this.renderField({
@@ -2205,6 +2356,7 @@ class WioOnboarding extends HTMLElement {
       error: this.getFieldError("representativeDateOfBirth", index),
       dataRepIndex: index,
       className: "full-width",
+      disabled: isValidating,
     })}
             
             ${this.renderField({
@@ -2214,6 +2366,7 @@ class WioOnboarding extends HTMLElement {
       error: this.getFieldError("representativeAddress", index),
       dataRepIndex: index,
       className: "full-width",
+      disabled: isValidating,
     })}
             
             ${this.renderField({
@@ -2222,6 +2375,7 @@ class WioOnboarding extends HTMLElement {
       value: representative.representativeCity,
       error: this.getFieldError("representativeCity", index),
       dataRepIndex: index,
+      disabled: isValidating,
     })}
             
             <div class="form-field ${this.getFieldError("representativeState", index)
@@ -2229,7 +2383,7 @@ class WioOnboarding extends HTMLElement {
         : ""
       }">
               <label for="representativeState-${index}">State <span class="required-asterisk">*</span></label>
-              <select id="representativeState-${index}" name="representativeState" data-rep-index="${index}">
+              <select id="representativeState-${index}" name="representativeState" data-rep-index="${index}" ${isValidating ? 'disabled' : ''}>
                 <option value="">Select State</option>
                 ${this.US_STATES.map(
         (state) => `
@@ -2257,16 +2411,31 @@ class WioOnboarding extends HTMLElement {
         placeholder: "12345",
         maxLength: 5,
         dataRepIndex: index,
+        disabled: isValidating,
       })}
           </div>
         </div>
         <div class="card-footer">
-          ${isStaged
-        ? `<div class="staged-status">
-                <span class="staged-icon">✓</span>
-                <span>Representative validated and staged</span>
+          ${isValidating
+        ? `<div class="card-footer-actions">
+                <span class="validating-indicator">Validating...</span>
               </div>`
-        : `<div class="card-footer-actions">
+        : isStaged && isModified
+          ? `<div class="card-footer-actions">
+                <button type="button" class="btn-undo-representative" data-index="${index}">
+                  Undo Changes
+                </button>
+                <button type="button" class="btn-stage-representative" data-index="${index}">
+                  Confirm Changes
+                </button>
+              </div>`
+          : isStaged && !isModified
+            ? `<div class="card-footer-actions">
+                <button type="button" class="btn-collapse-representative" data-index="${index}">
+                  Done
+                </button>
+              </div>`
+            : `<div class="card-footer-actions">
                 <button type="button" class="btn-discard-representative" data-index="${index}">
                   Discard
                 </button>
@@ -2703,6 +2872,33 @@ class WioOnboarding extends HTMLElement {
         e.preventDefault();
         const index = parseInt(e.target.dataset.index);
         this.discardRepresentative(index);
+      });
+    });
+
+    // Expand representative buttons (Edit on collapsed card)
+    shadow.querySelectorAll(".btn-expand-representative").forEach((btn) => {
+      btn.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        const index = parseInt(e.target.dataset.index);
+        this.toggleRepresentativeExpand(index);
+      });
+    });
+
+    // Collapse representative buttons (Done after editing)
+    shadow.querySelectorAll(".btn-collapse-representative").forEach((btn) => {
+      btn.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        const index = parseInt(e.target.dataset.index);
+        this.toggleRepresentativeExpand(index);
+      });
+    });
+
+    // Undo representative changes buttons
+    shadow.querySelectorAll(".btn-undo-representative").forEach((btn) => {
+      btn.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        const index = parseInt(e.target.dataset.index);
+        this.undoRepresentativeChanges(index);
       });
     });
   }
@@ -3292,6 +3488,173 @@ class WioOnboarding extends HTMLElement {
           color: var(--success-color);
           font-size: 14px;
           font-weight: 500;
+        }
+
+        /* Collapsed Representative Card */
+        .representative-card.collapsed {
+          background: var(--gray-light);
+          border: 1px solid var(--success-color);
+        }
+
+        .representative-card.collapsed .collapsed-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0;
+        }
+
+        .collapsed-info {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .confirmed-badge {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 28px;
+          height: 28px;
+          background: var(--success-color);
+          color: white;
+          border-radius: 50%;
+          font-size: 14px;
+          font-weight: bold;
+          flex-shrink: 0;
+        }
+
+        .collapsed-details h3 {
+          font-size: 15px;
+          font-weight: 600;
+          color: var(--color-headline, #111827);
+          margin: 0;
+        }
+
+        .collapsed-summary {
+          font-size: 13px;
+          color: var(--gray-medium);
+          margin: 4px 0 0 0;
+        }
+
+        .collapsed-actions {
+          display: flex;
+          gap: 8px;
+        }
+
+        .btn-expand-representative {
+          background: var(--color-white, #fff);
+          color: var(--primary-color);
+          border: 1px solid var(--primary-color);
+          padding: 8px 16px;
+          border-radius: var(--border-radius-sm);
+          cursor: pointer;
+          font-size: 13px;
+          font-weight: 500;
+          transition: all 0.2s ease;
+        }
+
+        .btn-expand-representative:hover {
+          background: var(--primary-color);
+          color: var(--color-white, #fff);
+        }
+
+        /* Confirmed badge inline in expanded view */
+        .confirmed-badge-inline {
+          background: var(--success-color);
+          color: white;
+          padding: 2px 8px;
+          border-radius: 12px;
+          font-size: 12px;
+          font-weight: 500;
+          margin-left: 8px;
+        }
+
+        /* Modified badge */
+        .modified-badge {
+          background: #fef3c7;
+          color: #92400e;
+          padding: 2px 8px;
+          border-radius: 12px;
+          font-size: 12px;
+          font-weight: 500;
+          margin-left: 8px;
+        }
+
+        .representative-card.modified {
+          border-color: #f59e0b;
+        }
+
+        /* Undo button */
+        .btn-undo-representative {
+          background: transparent;
+          color: var(--gray-medium);
+          border: 1px solid var(--border-color);
+          padding: 10px 20px;
+          border-radius: var(--border-radius-sm);
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: 500;
+          transition: all 0.2s ease;
+        }
+
+        .btn-undo-representative:hover {
+          background: var(--gray-light);
+          border-color: var(--gray-medium);
+        }
+
+        /* Collapse/Done button */
+        .btn-collapse-representative {
+          background: var(--primary-color);
+          color: var(--color-white, #fff);
+          border: none;
+          padding: 10px 20px;
+          border-radius: var(--border-radius-sm);
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: 600;
+          transition: all 0.2s ease;
+        }
+
+        .btn-collapse-representative:hover {
+          background: var(--primary-hover);
+          transform: translateY(-1px);
+          box-shadow: var(--shadow-sm);
+        }
+
+        /* Validating state */
+        .validating-indicator {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          color: var(--primary-color);
+          font-size: 14px;
+          font-weight: 500;
+        }
+
+        .validating-indicator::before {
+          content: '';
+          width: 16px;
+          height: 16px;
+          border: 2px solid var(--primary-color);
+          border-top-color: transparent;
+          border-radius: 50%;
+          animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+
+        .card-body.validating {
+          opacity: 0.6;
+          pointer-events: none;
+        }
+
+        input:disabled,
+        select:disabled {
+          background: var(--gray-light);
+          cursor: not-allowed;
+          opacity: 0.7;
         }
 
         .staged-icon {
