@@ -112,8 +112,8 @@ class WioOnboarding extends HTMLElement {
       {
         id: "representative-details",
         title: "Representative",
-        description: "Add representative information (optional)",
-        canSkip: true,
+        description: "Add representative information (required)",
+        canSkip: false,
       },
       {
         id: "business-verification",
@@ -884,6 +884,14 @@ class WioOnboarding extends HTMLElement {
    */
   hasActiveRepresentativeForm() {
     return this.state.formData.representatives.some((rep) => rep.isStaged !== true);
+  }
+
+  /**
+   * Check if there's at least one staged (confirmed) representative
+   * @returns {boolean} True if at least one representative has been staged
+   */
+  hasStagedRepresentative() {
+    return this.state.formData.representatives.some((rep) => rep.isStaged === true);
   }
 
   /**
@@ -2399,9 +2407,23 @@ class WioOnboarding extends HTMLElement {
 
     const showBack = !isFirstStep;
 
-    // Disable Next button on representative step if there are active (non-staged) forms
-    const hasActiveRepForm = stepId === 'representative-details' && this.hasActiveRepresentativeForm();
-    const isNextDisabled = hasActiveRepForm;
+    // Disable Next button on representative step if:
+    // 1. There are active (non-staged) forms, OR
+    // 2. No representative has been staged yet (step is required)
+    const isRepStep = stepId === 'representative-details';
+    const hasActiveRepForm = isRepStep && this.hasActiveRepresentativeForm();
+    const noStagedRep = isRepStep && !this.hasStagedRepresentative();
+    const isNextDisabled = hasActiveRepForm || noStagedRep;
+
+    // Determine hint message
+    let hintMessage = '';
+    if (isRepStep && isNextDisabled) {
+      if (hasActiveRepForm) {
+        hintMessage = 'Please confirm or discard all representatives before proceeding';
+      } else if (noStagedRep) {
+        hintMessage = 'At least one representative is required to proceed';
+      }
+    }
 
     return `
       <div class="navigation-footer">
@@ -2411,7 +2433,7 @@ class WioOnboarding extends HTMLElement {
         <button type="button" class="btn-next" ${isNextDisabled ? 'disabled' : ''}>
           ${isLastStep ? "Submit" : "Next"}
         </button>
-        ${hasActiveRepForm ? '<p class="next-disabled-hint">Please confirm or discard all representatives before proceeding</p>' : ''}
+        ${hintMessage ? `<p class="next-disabled-hint">${hintMessage}</p>` : ''}
       </div>
     `;
   }
