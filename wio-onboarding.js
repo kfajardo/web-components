@@ -2118,7 +2118,7 @@ class WioOnboarding extends HTMLElement {
     return `
       <div class="form-section">
         <h2>Business Representatives</h2>
-        <p>Add business representatives (optional)</p>
+        <p>Add business representatives (required)</p>
         
         <div class="representatives-list">
           ${representatives.length === 0
