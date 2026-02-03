@@ -877,6 +877,46 @@ class WioOnboarding extends HTMLElement {
     }
   }
 
+  /**
+   * Check if there's an active (non-staged) representative form
+   * An "active" form means the user has added a representative but hasn't confirmed/staged it yet
+   * @returns {boolean} True if there's at least one non-staged representative
+   */
+  hasActiveRepresentativeForm() {
+    return this.state.formData.representatives.some((rep) => rep.isStaged !== true);
+  }
+
+  /**
+   * Discard an active (non-staged) representative form
+   * @param {number} index - The index of the representative to discard
+   */
+  discardRepresentative(index) {
+    const rep = this.state.formData.representatives[index];
+    if (!rep || rep.isStaged) return; // Can only discard non-staged representatives
+
+    const representatives = this.state.formData.representatives.filter(
+      (_, i) => i !== index
+    );
+
+    // Clear any previous errors for this representative
+    const currentErrors = this.state.validationState[`step${this.state.currentStep}`]?.errors || {};
+    const updatedErrors = { ...currentErrors };
+    delete updatedErrors[`rep${index}`];
+
+    this.setState({
+      formData: { representatives },
+      validationState: {
+        [`step${this.state.currentStep}`]: {
+          isValid: Object.keys(updatedErrors).length === 0,
+          errors: updatedErrors,
+        },
+      },
+      uiState: { showErrors: Object.keys(updatedErrors).length > 0 },
+    });
+
+    console.log(`✅ Representative ${index + 1} discarded`);
+  }
+
   // ==================== INITIAL DATA LOADING ====================
 
   loadInitialData(data) {
@@ -2218,9 +2258,14 @@ class WioOnboarding extends HTMLElement {
                 <span class="staged-icon">✓</span>
                 <span>Representative validated and staged</span>
               </div>`
-        : `<button type="button" class="btn-stage-representative" data-index="${index}">
-                Confirm Representative
-              </button>`
+        : `<div class="card-footer-actions">
+                <button type="button" class="btn-discard-representative" data-index="${index}">
+                  Discard
+                </button>
+                <button type="button" class="btn-stage-representative" data-index="${index}">
+                  Confirm Representative
+                </button>
+              </div>`
       }
         </div>
       </div>
@@ -2350,17 +2395,23 @@ class WioOnboarding extends HTMLElement {
     const isFirstStep = this.state.currentStep === 0;
     const isLastStep = this.state.currentStep === this.state.totalSteps - 1;
     const canSkip = this.STEPS[this.state.currentStep].canSkip;
+    const stepId = this.STEPS[this.state.currentStep].id;
 
     const showBack = !isFirstStep;
+
+    // Disable Next button on representative step if there are active (non-staged) forms
+    const hasActiveRepForm = stepId === 'representative-details' && this.hasActiveRepresentativeForm();
+    const isNextDisabled = hasActiveRepForm;
 
     return `
       <div class="navigation-footer">
         ${showBack ? '<button type="button" class="btn-back">Back</button>' : ""
       }
         ${canSkip ? '<button type="button" class="btn-skip">Skip</button>' : ""}
-        <button type="button" class="btn-next">
+        <button type="button" class="btn-next" ${isNextDisabled ? 'disabled' : ''}>
           ${isLastStep ? "Submit" : "Next"}
         </button>
+        ${hasActiveRepForm ? '<p class="next-disabled-hint">Please confirm or discard all representatives before proceeding</p>' : ''}
       </div>
     `;
   }
@@ -2621,6 +2672,15 @@ class WioOnboarding extends HTMLElement {
         e.preventDefault();
         const index = parseInt(e.target.dataset.index);
         this.stageRepresentative(index);
+      });
+    });
+
+    // Discard representative buttons
+    shadow.querySelectorAll(".btn-discard-representative").forEach((btn) => {
+      btn.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        const index = parseInt(e.target.dataset.index);
+        this.discardRepresentative(index);
       });
     });
   }
@@ -3171,6 +3231,38 @@ class WioOnboarding extends HTMLElement {
           box-shadow: var(--shadow-sm);
         }
 
+        .card-footer-actions {
+          display: flex;
+          gap: 12px;
+          align-items: center;
+        }
+
+        .btn-discard-representative {
+          background: transparent;
+          color: var(--gray-medium);
+          border: 1px solid var(--border-color);
+          padding: 10px 20px;
+          border-radius: var(--border-radius-sm);
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: 500;
+          transition: all 0.2s ease;
+        }
+
+        .btn-discard-representative:hover {
+          background: var(--gray-light);
+          border-color: var(--gray-medium);
+          color: var(--error-color);
+        }
+
+        .next-disabled-hint {
+          font-size: 13px;
+          color: var(--gray-medium);
+          margin-top: 8px;
+          text-align: center;
+          width: 100%;
+        }
+
         .staged-status {
           display: flex;
           align-items: center;
@@ -3241,6 +3333,7 @@ class WioOnboarding extends HTMLElement {
           justify-content: flex-end;
           gap: 1.5rem; /* Explicit larger gap */
           align-items: center;
+          flex-wrap: wrap;
         }
 
         .btn-back,
@@ -3278,10 +3371,18 @@ class WioOnboarding extends HTMLElement {
           box-shadow: var(--shadow-sm);
         }
 
-        .btn-next:hover {
+        .btn-next:hover:not(:disabled) {
           background-color: var(--primary-hover);
           transform: translateY(-1px);
           box-shadow: var(--shadow-md);
+        }
+
+        .btn-next:disabled {
+          background: var(--gray-medium);
+          cursor: not-allowed;
+          opacity: 0.6;
+          transform: none;
+          box-shadow: none;
         }
 
         /* Success Page - Centered & Polished */
