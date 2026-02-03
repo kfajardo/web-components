@@ -987,8 +987,20 @@ class WioOnboarding extends HTMLElement {
       isExpanded: false,
     };
 
+    // Clear any validation errors for this representative
+    const currentErrors = this.state.validationState[`step${this.state.currentStep}`]?.errors || {};
+    const updatedErrors = { ...currentErrors };
+    delete updatedErrors[`rep${index}`];
+
     this.setState({
       formData: { representatives },
+      validationState: {
+        [`step${this.state.currentStep}`]: {
+          isValid: Object.keys(updatedErrors).length === 0,
+          errors: updatedErrors,
+        },
+      },
+      uiState: { showErrors: Object.keys(updatedErrors).length > 0 },
     });
 
     console.log(`✅ Representative ${index + 1} changes undone`);
