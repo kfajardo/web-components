@@ -271,6 +271,7 @@ class WioOnboarding extends HTMLElement {
       "done-button-text",
       "api-base-url",
       "embeddable-key",
+      "initial-step",
     ];
   }
 
@@ -311,6 +312,14 @@ class WioOnboarding extends HTMLElement {
             this.apiBaseURL,
             this.embeddableKey
           );
+        }
+        break;
+      }
+
+      case "initial-step": {
+        const step = parseInt(newValue, 10);
+        if (!isNaN(step) && step >= 0 && step < this.STEPS.length) {
+          this.setState({ currentStep: step });
         }
         break;
       }
