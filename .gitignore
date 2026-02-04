@@ -1,2 +1,4 @@
 .claude
 *.md
+.npmrc.envrc
+.envrc
