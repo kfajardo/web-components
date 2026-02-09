@@ -29,6 +29,9 @@ class WioBankAccount extends HTMLElement {
     super();
     this.attachShadow({ mode: "open" });
 
+    // Consumer-assignable callback
+    this._onPlaidSuccess = null;
+
     // API Configuration
     this.apiBaseURL =
       this.getAttribute("api-base-url") ||
@@ -83,6 +86,18 @@ class WioBankAccount extends HTMLElement {
 
   get buttonText() {
     return this._state.buttonText;
+  }
+
+  get onPlaidSuccess() {
+    return this._onPlaidSuccess;
+  }
+
+  set onPlaidSuccess(fn) {
+    if (fn !== null && typeof fn !== "function") {
+      console.warn("WioBankAccount: onPlaidSuccess must be a function or null");
+      return;
+    }
+    this._onPlaidSuccess = fn;
   }
 
   set email(value) {
@@ -321,6 +336,15 @@ class WioBankAccount extends HTMLElement {
     const handler = window.Plaid.create({
       token: this._state.plaidLinkToken,
       onSuccess: async (public_token, metadata) => {
+        // Invoke consumer-assigned callback immediately on Plaid success
+        if (typeof this._onPlaidSuccess === "function") {
+          try {
+            this._onPlaidSuccess({ public_token, metadata });
+          } catch (cbError) {
+            console.error("WioBankAccount: onPlaidSuccess callback error", cbError);
+          }
+        }
+
         const moovAccountId = this._state.moovAccountId;
 
         if (!moovAccountId) {
@@ -347,9 +371,11 @@ class WioBankAccount extends HTMLElement {
             this._state.isLoading = false;
             this.updateMainButtonState();
 
+            const successDetail = { public_token, metadata, result };
+
             this.dispatchEvent(
               new CustomEvent("plaid-link-success", {
-                detail: { public_token, metadata, result },
+                detail: successDetail,
                 bubbles: true,
                 composed: true,
               })
