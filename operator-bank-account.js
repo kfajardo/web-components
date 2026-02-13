@@ -16,10 +16,11 @@
  *   id="addBank"
  *   email="operator@example.com"
  *   operator-id="OP123456"
+ *   client-id="CLIENT789"
  *   api-url="https://your-api.com"
  * ></operator-bank-account>
  *
- * Provide either email or operator-id (or both).
+ * Provide at least one of: email, operator-id, or client-id.
  *
  * <script>
  *   const addBank = document.getElementById('addBank');
@@ -57,6 +58,7 @@ class OperatorBankAccount extends HTMLElement {
     this._state = {
       email: null,
       operatorId: null,
+      clientId: null,
       isLoading: true, // Loading by default for verification
       moovAccountId: null,
       moovToken: null,
@@ -79,7 +81,7 @@ class OperatorBankAccount extends HTMLElement {
   // ==================== STATIC PROPERTIES ====================
 
   static get observedAttributes() {
-    return ["email", "operator-id", "api-url", "embeddable-key"];
+    return ["email", "operator-id", "client-id", "api-url", "embeddable-key"];
   }
 
   // ==================== PROPERTY GETTERS/SETTERS ====================
@@ -175,9 +177,57 @@ class OperatorBankAccount extends HTMLElement {
     }
   }
 
+  /**
+   * Get the clientId
+   * @returns {string|null}
+   */
+  get clientId() {
+    return this._state.clientId;
+  }
+
+  /**
+   * Set the clientId
+   * @param {string} value - Client ID
+   */
+  set clientId(value) {
+    console.log("OperatorBankAccount: Setting clientId to:", value);
+
+    const oldClientId = this._state.clientId;
+
+    // Update internal state
+    this._state.clientId = value;
+
+    // Update attribute only if different to prevent circular updates
+    const currentAttr = this.getAttribute("client-id");
+    if (currentAttr !== value) {
+      if (value) {
+        this.setAttribute("client-id", value);
+      } else {
+        this.removeAttribute("client-id");
+      }
+    }
+
+    // Trigger verification if required fields are set and component is connected
+    const missingMessage = this.getMissingOperatorInfoMessage();
+    if (
+      !missingMessage &&
+      value &&
+      value !== oldClientId &&
+      this.isConnected
+    ) {
+      this.verifyAndInitialize();
+    } else if (missingMessage && this.isConnected) {
+      // Missing required fields, show error state
+      this._state.isLoading = false;
+      this._state.initializationError = true;
+      this._state.error = missingMessage;
+      this.updateButtonState();
+    }
+  }
+
   getMissingOperatorInfoMessage() {
-    if (!this._state.email && !this._state.operatorId) {
-      return "Email or operator ID is required";
+    if (!this._state.email && !this._state.operatorId && !this._state.clientId) {
+      return "Email, operator ID, or client ID is required";
     }
     return null;
   }
@@ -249,6 +299,12 @@ class OperatorBankAccount extends HTMLElement {
       this._state.operatorId = operatorIdAttr;
     }
 
+    // Initialize clientId from attribute if present
+    const clientIdAttr = this.getAttribute("client-id");
+    if (clientIdAttr && !this._state.clientId) {
+      this._state.clientId = clientIdAttr;
+    }
+
     // Load Moov SDK (preload for faster access later)
     this.ensureMoovSDK();
 
@@ -309,6 +365,33 @@ class OperatorBankAccount extends HTMLElement {
         );
         this._state.operatorId = newValue;
         // Reset state when operator ID changes
+        this._state.moovToken = null;
+        this._state.moovAccountId = null;
+        this._state.isVerified = false;
+        this._state.isLoading = true;
+        this._state.initializationError = false;
+        this.updateButtonState();
+        // Trigger verification if required fields are set
+        if (this.isConnected) {
+          const missingMessage = this.getMissingOperatorInfoMessage();
+          if (!missingMessage) {
+            this.verifyAndInitialize();
+          } else {
+            this._state.isLoading = false;
+            this._state.initializationError = true;
+            this._state.error = missingMessage;
+            this.updateButtonState();
+          }
+        }
+        break;
+
+      case "client-id":
+        console.log(
+          "OperatorBankAccount: attributeChangedCallback - client-id:",
+          newValue
+        );
+        this._state.clientId = newValue;
+        // Reset state when client ID changes
         this._state.moovToken = null;
         this._state.moovAccountId = null;
         this._state.isVerified = false;
@@ -576,7 +659,8 @@ class OperatorBankAccount extends HTMLElement {
       // Step 1: Verify operator exists
       const verifyResult = await this.api.verifyOperator(
         this._state.email || undefined,
-        this._state.operatorId || undefined
+        this._state.operatorId || undefined,
+        this._state.clientId || undefined
       );
 
       if (!verifyResult.success) {
@@ -586,9 +670,15 @@ class OperatorBankAccount extends HTMLElement {
       console.log("OperatorBankAccount: Operator verified successfully");
 
       // Step 2: Get account to retrieve moovAccountId
-      const accountResult = this._state.email
-        ? await this.api.getAccountByEmail(this._state.email)
-        : await this.api.getAccountByOperatorId(this._state.operatorId);
+      // Priority: operatorId > clientId > email
+      let accountResult;
+      if (this._state.operatorId) {
+        accountResult = await this.api.getAccountByOperatorId(this._state.operatorId);
+      } else if (this._state.clientId) {
+        accountResult = await this.api.getAccountByClientId(this._state.clientId);
+      } else {
+        accountResult = await this.api.getAccountByEmail(this._state.email);
+      }
 
       if (!accountResult.data?.moovAccountId) {
         throw new Error("Operator does not have a Moov account");
@@ -614,6 +704,7 @@ class OperatorBankAccount extends HTMLElement {
           detail: {
             email: this._state.email,
             operatorId: this._state.operatorId,
+            clientId: this._state.clientId,
             moovAccountId: this._state.moovAccountId,
           },
           bubbles: true,
@@ -656,7 +747,8 @@ class OperatorBankAccount extends HTMLElement {
       const tokenResult = await this.api.generateMoovToken(
         this._state.email,
         this._state.moovAccountId,
-        this._state.operatorId
+        this._state.operatorId,
+        this._state.clientId
       );
 
       if (!tokenResult || !tokenResult.data?.accessToken) {
@@ -1066,7 +1158,7 @@ class OperatorBankAccount extends HTMLElement {
       </style>
 
       <div class="btn-wrapper">
-        <span class="tooltip">Email or operator ID is required</span>
+        <span class="tooltip">Email, operator ID, or client ID is required</span>
         <button class="add-bank-btn error">
           <span class="loading-spinner"></span>
           <svg class="error-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
