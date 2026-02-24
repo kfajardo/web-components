@@ -17,7 +17,7 @@
  */
 
 const BOP_BANKS = [
-  { id: 'chase', name: 'Chase', bg: '#2563eb' },
+  { id: 'column', name: 'Column', bg: '#2563eb', logo: 'data:image/webp;base64,UklGRo4EAABXRUJQVlA4IIIEAADQJQCdASrIAMgAPjEYikOiIaESynxIIAMEs7dwuZ1mfbbyf9bv6EjLhT0o7frzAecmThWHxnmv7wDLZTwKhEWVszsp4FQiLK2Z2U8CoAYHdb1FyfKwcyAvtZKhmzMQSUkX1hDNlWUo1xG/MvAqAIUPlSz0acNJIcHJAJy+ivRfBtU1Z/w1jgLBTwSdeUz0KuNFIqihDq1U5wtIROb4RbrcGstLGqG09CNfPZoMGyc5Dc7oG+M8RLHjBiYg8ocJqFnBhqVz91eATvib57qJwO6aGJ/AdhZ0/PG8/9TzH0Y7DCyd0tEtIFWk1lbMvf31T5Q3ujiIRXKWQA3SSIbeEynin4eoY3lWd3wVBM1AVCIFIjLNJ06OE0VEmg/6iTHTjsgj1UlPArNNhAqERZWzOyngVCIsrZnY0AD+/zpn//+2h/+tD/9aH+Ln//5Bjxu8bprgAANIFMnvK97f+Ocf625lz4qecTpAln1+EgNH0XafLP9v+4Q0Z+d5bHqp3j4UKo1Do0ogL+UyH6v8TZ0FT+NuXrzP/pkDZnqpixf0hQnUExChC0Q5ZGH5jxarFFhlhN2xMWzddI4im3tOtbqWkSiX34Sk5Cn/oa/pzlAj+1Z7+D+aVTl18MYs6vw+SbmUMQ4H9EfJ6vFVOs6Rn+y5RD8dAYB2mN2UKdmxuxqQLFOuFoH9zGCozB9SjacV4gUX0j5Z5PsHlRZoCth7KSpyRs+xp5tDMMfe3zOPea03PuJE1BJDZi2icCrlz9e9UkEYCgXM1XDAbEHNKN38CS4kHgLEqKjd4CZ6h7Tsg8v/ZaDGaODkm+/57hPvrZJBf+rA/uxNslwmOLriu3OK5TKwuT7ynS/h+vlmNYEST8KgNeuEByWjTdunfORavneYy5lhI9akGBlGgkh7YEHOlDaL19CFHOri3pO8K+pv+5LFYo8C5eVVXQo9n2UavnkEkk8Nf7b0669sSzL+7bnehT/pH5Jn/x/53dtME2+2ijNgFmL26ibzskf52xaK1VjIiDSVOXWh6Zsf444o2Qy0n38LXhFGhf78GtA/KwPGuF0moTkcsJZkGxFv8z9rAmJKS+PLPfDvJeyegzkfrI4YCdcCGnvXT9RBwBskcY3ZtNJGx41DVGUCr2tIZvKmXXWPR7vvyfmbS0EqJcD0IrGd4gLXPkZJA/BeAw3Q7sSR/Jiy+L6vD3m5/wete8XXQitH3savoIxtgpoHEGWQNZiDyxNWhG7YTvED/PtDzJeifaxt3MDdtHBs7bXdX8EC1vKxZ1l9vtXI6LZcd7kQONBYygMp+/B7+9PGNlIkPgCZ7/JNAKirsm1rKscJThY3hIdFwfMDh0ERh9fHV0U5/cyO5G4hexQ58X47WQhq+XuJNssRAgiTTDS+s8gU4hArLi6ZogddiwDtcGz8SAJV+CRF7cVAgoYM3U5jfY7v8W4TAax6VVCElRPdbNIodskBfgzlsm0nF6n6Nr0ntcFlVrKAOxLcyNOHIyqd+rXAa6BWTYcjIwsP4yT6kieJqzk4W0rH+egAAAAAAA==' },
   // { id: 'bofa', name: 'Bank of America', bg: '#dc2626' },
   // { id: 'wells', name: 'Wells Fargo', bg: '#eab308', text: '#ca8a04' },
   // { id: 'citi', name: 'Citibank', bg: '#3b82f6' },
@@ -135,7 +135,14 @@ class BisonOperatorPayments extends HTMLElement {
   _handleAccountToggle(id) {
     if (this._selectedAccounts.has(id)) this._selectedAccounts.delete(id);
     else this._selectedAccounts.add(id);
-    this._renderAccountCards(); this._renderAccountsButton();
+    // Update selection state in-place without re-rendering
+    if (this._accountListEl) {
+      this._accountListEl.querySelectorAll('.bop-account-card').forEach(card => {
+        const cardId = card.dataset.accountId;
+        card.setAttribute('data-selected', String(this._selectedAccounts.has(cardId)));
+      });
+    }
+    this._renderAccountsButton();
   }
 
   async _handleLinkAccounts() {
@@ -256,7 +263,8 @@ class BisonOperatorPayments extends HTMLElement {
 .bop-bank-item{width:100%;display:flex;align-items:center;justify-content:space-between;padding:.875rem;background:#fff;border:1px solid transparent;border-radius:var(--bop-radius-xl);cursor:pointer;transition:all var(--bop-dur-norm) var(--bop-ease);font-family:var(--bop-font);animation:bopItemFade .3s var(--bop-ease) forwards;opacity:0}
 .bop-bank-item:hover{border-color:var(--bop-border);box-shadow:var(--bop-shadow-sm);background:rgba(248,250,252,1)}
 .bop-bank-item-left{display:flex;align-items:center;gap:1rem}
-.bop-bank-logo{width:2.5rem;height:2.5rem;border-radius:var(--bop-radius-md);display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:var(--bop-shadow-sm);outline:1px solid rgba(0,0,0,.05)}
+.bop-bank-logo{width:2.5rem;height:2.5rem;border-radius:var(--bop-radius-md);display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:var(--bop-shadow-sm);outline:1px solid rgba(0,0,0,.05);overflow:hidden}
+.bop-logo-img{width:100%;height:100%;object-fit:cover}
 .bop-bank-name{font-size:var(--bop-sm);font-weight:500;color:var(--bop-headline);transition:color var(--bop-dur-norm) var(--bop-ease)}
 .bop-bank-item:hover .bop-bank-name{color:var(--bop-primary)}
 .bop-chevron{color:rgba(95,110,120,.5);transition:color var(--bop-dur-norm) var(--bop-ease);display:flex}
@@ -292,7 +300,7 @@ class BisonOperatorPayments extends HTMLElement {
 .bop-accounts{padding:1.5rem}
 .bop-accounts-header{flex-shrink:0;margin-bottom:1.5rem}
 .bop-accounts-bank{display:flex;align-items:center;gap:.75rem;margin-bottom:.5rem}
-.bop-accounts-bank-logo{width:2rem;height:2rem;border-radius:var(--bop-radius-md);display:flex;align-items:center;justify-content:center;color:#fff;outline:1px solid rgba(0,0,0,.05)}
+.bop-accounts-bank-logo{width:2rem;height:2rem;border-radius:var(--bop-radius-md);display:flex;align-items:center;justify-content:center;color:#fff;outline:1px solid rgba(0,0,0,.05);overflow:hidden}
 .bop-accounts-bank-name{font-weight:500;color:var(--bop-headline)}
 .bop-accounts-desc{font-size:var(--bop-sm);color:var(--bop-secondary);line-height:1.5}
 .bop-account-list{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:.75rem;padding:0 .25rem 1rem;scrollbar-width:none}
@@ -304,8 +312,8 @@ class BisonOperatorPayments extends HTMLElement {
 .bop-check-circle{width:1.5rem;height:1.5rem;border-radius:var(--bop-radius-full);border:2px solid var(--bop-border);display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all var(--bop-dur-norm) var(--bop-ease)}
 .bop-account-card:hover .bop-check-circle{border-color:rgba(76,123,99,.5)}
 .bop-account-card[data-selected="true"] .bop-check-circle{background:var(--bop-primary);border-color:var(--bop-primary);transform:scale(1.1)}
-.bop-check-icon{color:#fff;display:none}
-.bop-account-card[data-selected="true"] .bop-check-icon{display:block;animation:bopCheckPop .25s var(--bop-ease-spring) forwards}
+.bop-check-icon{color:#fff;display:none;line-height:0}
+.bop-account-card[data-selected="true"] .bop-check-icon{display:flex;animation:bopCheckPop .25s var(--bop-ease-spring) forwards}
 .bop-account-details{flex:1}
 .bop-account-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:.25rem}
 .bop-account-type{font-size:var(--bop-sm);font-weight:600;color:var(--bop-headline);display:flex;align-items:center;gap:.5rem}
@@ -336,7 +344,7 @@ class BisonOperatorPayments extends HTMLElement {
 .bop-spinner{animation:bopSpin 1s linear infinite}
 .bop-hidden{display:none!important}
 .bop-loading-view{padding:2rem;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:#fff;gap:1.5rem}
-.bop-loading-logo{width:4.5rem;height:4.5rem;border-radius:1.25rem;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:var(--bop-shadow-md);outline:1px solid rgba(0,0,0,.05);animation:bopFadeInUp .5s var(--bop-ease-spring) forwards,bopBreath 2s ease-in-out .5s infinite}
+.bop-loading-logo{width:4.5rem;height:4.5rem;border-radius:1.25rem;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:var(--bop-shadow-md);outline:1px solid rgba(0,0,0,.05);overflow:hidden;animation:bopFadeInUp .5s var(--bop-ease-spring) forwards,bopBreath 2s ease-in-out .5s infinite}
 .bop-loading-body{display:flex;flex-direction:column;align-items:center;gap:.375rem;opacity:0;animation:bopFadeInUp .4s var(--bop-ease) .15s forwards}
 .bop-loading-title{font-size:var(--bop-base);font-weight:600;color:var(--bop-headline)}
 .bop-loading-text{font-size:var(--bop-sm);color:var(--bop-secondary);line-height:1.5}
@@ -487,7 +495,7 @@ class BisonOperatorPayments extends HTMLElement {
       const btn = document.createElement('button');
       btn.className = 'bop-bank-item';
       btn.style.animationDelay = `${i * 50}ms`;
-      btn.innerHTML = `<div class="bop-bank-item-left"><div class="bop-bank-logo" style="background:${bank.bg}">${BOP_ICONS.building}</div><span class="bop-bank-name">${bank.name}</span></div><span class="bop-chevron">${BOP_ICONS.chevron}</span>`;
+      btn.innerHTML = `<div class="bop-bank-item-left"><div class="bop-bank-logo" style="background:${bank.bg}">${bank.logo ? `<img class="bop-logo-img" src="${bank.logo}" alt="${bank.name}">` : BOP_ICONS.building}</div><span class="bop-bank-name">${bank.name}</span></div><span class="bop-chevron">${BOP_ICONS.chevron}</span>`;
       btn.addEventListener('click', () => this._handleBankSelect(bank));
       this._bankListEl.appendChild(btn);
     });
@@ -498,7 +506,7 @@ class BisonOperatorPayments extends HTMLElement {
     step.className = 'bop-step bop-loading-view';
     step.setAttribute('data-direction', this._direction > 0 ? 'forward' : 'backward');
     step.innerHTML = `
-      <div class="bop-loading-logo" style="background:${this._selectedBank?.bg || '#2563eb'}">${BOP_ICONS.buildingLg}</div>
+      <div class="bop-loading-logo" style="background:${this._selectedBank?.bg || '#2563eb'}">${this._selectedBank?.logo ? `<img class="bop-logo-img" src="${this._selectedBank.logo}" alt="${this._selectedBank.name}">` : BOP_ICONS.buildingLg}</div>
       <div class="bop-loading-body">
         <p class="bop-loading-title">${this._selectedBank?.name || ''}</p>
         <p class="bop-loading-text">Securely retrieving your accounts</p>
@@ -545,7 +553,7 @@ class BisonOperatorPayments extends HTMLElement {
     const inner = document.createElement('div');
     inner.style.cssText = 'flex:1;display:flex;flex-direction:column;min-height:0;';
     const hd = document.createElement('div'); hd.className = 'bop-accounts-header';
-    hd.innerHTML = `<div class="bop-accounts-bank"><div class="bop-accounts-bank-logo" style="background:${this._selectedBank?.bg || ''}">${BOP_ICONS.buildingSm}</div><span class="bop-accounts-bank-name">${this._selectedBank?.name || ''}</span></div><p class="bop-accounts-desc">Select the accounts you want to use for deposits and payments.</p>`;
+    hd.innerHTML = `<div class="bop-accounts-bank"><div class="bop-accounts-bank-logo" style="background:${this._selectedBank?.bg || ''}">${this._selectedBank?.logo ? `<img class="bop-logo-img" src="${this._selectedBank.logo}" alt="${this._selectedBank.name}">` : BOP_ICONS.buildingSm}</div><span class="bop-accounts-bank-name">${this._selectedBank?.name || ''}</span></div><p class="bop-accounts-desc">Select the accounts you want to use for deposits and payments.</p>`;
     inner.appendChild(hd);
     this._accountListEl = document.createElement('div');
     this._accountListEl.className = 'bop-account-list';
@@ -565,6 +573,7 @@ class BisonOperatorPayments extends HTMLElement {
     this._mockAccounts.forEach((acct, i) => {
       const sel = this._selectedAccounts.has(acct.id);
       const card = document.createElement('button'); card.className = 'bop-account-card';
+      card.dataset.accountId = acct.id;
       card.style.animationDelay = `${i * 100}ms`;
       card.setAttribute('data-selected', String(sel));
       card.innerHTML = `<div class="bop-card-inner"><div class="bop-check-circle"><span class="bop-check-icon">${BOP_ICONS.checkSm}</span></div><div class="bop-account-details"><div class="bop-account-top"><p class="bop-account-type">${BOP_ICONS.wallet} ${acct.type}</p><p class="bop-account-balance">$${acct.balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p></div><p class="bop-account-number">•••• ${acct.lastFour}</p></div></div>`;
