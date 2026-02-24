@@ -82,8 +82,14 @@ class BisonOperatorPayments extends HTMLElement {
 
   _generateMockAccounts() {
     return [
-      { id: '1', type: 'Checking', lastFour: String(Math.floor(1000 + Math.random() * 9000)), balance: Math.floor(5000 + Math.random() * 20000) },
-      { id: '2', type: 'Savings', lastFour: String(Math.floor(1000 + Math.random() * 9000)), balance: Math.floor(10000 + Math.random() * 50000) },
+      { id: '1', type: 'Checking', lastFour: String(Math.floor(1000 + Math.random() * 9000)), balance: 0 },
+      { id: '2', type: 'Savings', lastFour: String(Math.floor(1000 + Math.random() * 9000)), balance: 0 },
+      { id: '3', type: 'Checking', lastFour: '4821', balance: 0, linked: true },
+      { id: '4', type: 'Money Market', lastFour: '7703', balance: 0, linked: true },
+      { id: '5', type: 'Business Checking', lastFour: '9154', balance: 0 },
+      { id: '6', type: 'Savings', lastFour: '3367', balance: 0, linked: true },
+      { id: '7', type: 'CD Account', lastFour: '6012', balance: 0 },
+      { id: '8', type: 'Business Savings', lastFour: '2289', balance: 0 },
     ];
   }
 
@@ -152,7 +158,30 @@ class BisonOperatorPayments extends HTMLElement {
     const firstId = Array.from(this._selectedAccounts)[0];
     const account = this._mockAccounts.find(a => a.id === firstId);
     if (account) this._linkedAccount = account;
-    this._isLoading = false; this._navigateStep('success', 1);
+    this._isLoading = false;
+    // Animated shrink transition to compact success view
+    const modal = this.shadowRoot.querySelector('.bop-modal');
+    this._contentEl.classList.add('bop-content-fading');
+    setTimeout(() => {
+      this._contentEl.innerHTML = '';
+      if (modal) {
+        const currentH = modal.getBoundingClientRect().height;
+        modal.style.height = currentH + 'px';
+        modal.classList.remove('bop-modal-wide');
+        modal.classList.add('bop-modal-compact');
+        modal.offsetHeight; // force reflow
+        modal.style.height = '480px';
+      }
+      this._step = 'success';
+      this._renderHeader();
+      setTimeout(() => {
+        this._renderSuccess();
+        requestAnimationFrame(() => {
+          this._contentEl.classList.remove('bop-content-fading');
+          if (modal) modal.style.height = '';
+        });
+      }, 400);
+    }, 200);
   }
 
   _handleDone() {
@@ -228,8 +257,9 @@ class BisonOperatorPayments extends HTMLElement {
 .bop-overlay[data-state="closed"]{pointer-events:none}
 .bop-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.4);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);animation:bopBackdropIn .3s var(--bop-ease) forwards}
 .bop-overlay[data-state="closing"] .bop-backdrop{animation:bopBackdropOut .3s var(--bop-ease) forwards}
-.bop-modal{position:relative;width:100%;max-width:28rem;height:520px;background:#fff;border:1px solid var(--bop-border);box-shadow:var(--bop-shadow-2xl);border-radius:var(--bop-radius-xl);overflow:hidden;display:flex;flex-direction:column;max-height:90vh;animation:bopModalIn .3s var(--bop-ease-spring) forwards;transition:max-width .4s var(--bop-ease-spring),height .4s var(--bop-ease-spring)}
-.bop-modal.bop-modal-wide{max-width:34rem;height:720px}
+.bop-modal{position:relative;width:100%;max-width:448px;height:520px;background:#fff;border:1px solid var(--bop-border);box-shadow:var(--bop-shadow-2xl);border-radius:var(--bop-radius-xl);overflow:hidden;display:flex;flex-direction:column;max-height:90vh;animation:bopModalIn .3s var(--bop-ease-spring) forwards;transition:max-width .4s var(--bop-ease-spring),height .4s var(--bop-ease-spring)}
+.bop-modal.bop-modal-wide{max-width:544px;height:720px}
+.bop-modal.bop-modal-compact{max-width:400px;height:480px}
 .bop-overlay[data-state="closing"] .bop-modal{animation:bopModalOut .3s var(--bop-ease-spring) forwards}
 
 .bop-header{display:flex;align-items:center;justify-content:space-between;padding:1rem 1.5rem;border-bottom:1px solid rgba(250,250,250,.5);background:rgba(255,255,255,.5);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:10;flex-shrink:0}
@@ -240,7 +270,7 @@ class BisonOperatorPayments extends HTMLElement {
 .bop-close-btn{padding:.375rem;margin-right:-.375rem;color:var(--bop-secondary);background:transparent;border:none;border-radius:var(--bop-radius-md);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:color var(--bop-dur-norm) var(--bop-ease),background var(--bop-dur-norm) var(--bop-ease)}
 .bop-close-btn:hover{color:var(--bop-headline);background:var(--bop-sidebar)}
 
-.bop-content{position:relative;flex:1;overflow:hidden;min-height:460px;background:rgba(248,250,252,.3);transition:opacity .2s var(--bop-ease)}
+.bop-content{position:relative;flex:1;overflow:hidden;min-height:0;background:rgba(248,250,252,.3);transition:opacity .2s var(--bop-ease)}
 .bop-content.bop-content-fading{opacity:0}
 .bop-step{position:absolute;inset:0;display:flex;flex-direction:column}
 .bop-step[data-direction="forward"]{animation:bopSlideInFwd .4s var(--bop-ease-spring) forwards}
@@ -317,19 +347,24 @@ class BisonOperatorPayments extends HTMLElement {
 .bop-account-details{flex:1}
 .bop-account-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:.25rem}
 .bop-account-type{font-size:var(--bop-sm);font-weight:600;color:var(--bop-headline);display:flex;align-items:center;gap:.5rem}
-.bop-account-balance{font-size:var(--bop-sm);font-weight:700;color:var(--bop-headline)}
 .bop-account-number{font-size:var(--bop-xs);color:var(--bop-secondary);font-family:var(--bop-mono);background:var(--bop-sidebar);padding:.125rem .5rem;border-radius:.375rem;display:inline-block}
+.bop-account-card[data-linked="true"]{opacity:.55;cursor:default;pointer-events:none;border-color:transparent;box-shadow:none;background:var(--bop-sidebar)}
+.bop-account-card[data-linked="true"]:hover{border-color:transparent;box-shadow:none}
+.bop-linked-chip{display:inline-flex;align-items:center;gap:.25rem;font-size:.6875rem;font-weight:600;color:#10b981;background:rgba(16,185,129,.1);padding:.1875rem .5rem;border-radius:var(--bop-radius-full);letter-spacing:.02em;white-space:nowrap;flex-shrink:0}
 .bop-accounts-footer{padding:1rem .25rem .5rem;border-top:1px solid rgba(232,232,232,.5);background:rgba(255,255,255,.5);backdrop-filter:blur(8px)}
 
-.bop-success-view{padding:2rem;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:#fff}
-.bop-success-icon{width:5rem;height:5rem;background:#ecfdf5;border-radius:var(--bop-radius-full);display:flex;align-items:center;justify-content:center;margin-bottom:1.5rem;position:relative;animation:bopSuccessPop .6s var(--bop-ease-spring) forwards}
-.bop-success-ring{position:absolute;inset:0;border-radius:var(--bop-radius-full);border:4px solid rgba(16,185,129,.2);animation:bopPulseRing 2s ease-in-out infinite}
-.bop-success-icon svg{color:#10b981}
-.bop-success-title{font-size:var(--bop-2xl);font-weight:700;color:var(--bop-headline);margin-bottom:.5rem}
-.bop-success-card{background:rgba(248,250,252,1);border:1px solid var(--bop-border);border-radius:var(--bop-radius-xl);padding:1rem;width:100%;margin-bottom:2rem;margin-top:.5rem}
+.bop-success-view{padding:1.5rem 2rem;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:#fff}
+.bop-success-icon{width:4.5rem;height:4.5rem;aspect-ratio:1;flex-shrink:0;display:flex;align-items:center;justify-content:center;margin-bottom:1.25rem;position:relative;animation:bopSuccessPop .6s var(--bop-ease-spring) forwards}
+.bop-success-icon-inner{width:100%;height:100%;border-radius:var(--bop-radius-xl);overflow:hidden;display:flex;align-items:center;justify-content:center;box-shadow:var(--bop-shadow-md);outline:1px solid rgba(0,0,0,.06)}
+.bop-success-icon-inner .bop-logo-img{width:100%;height:100%;object-fit:cover}
+.bop-success-icon-inner .bop-success-logo-fallback{color:#fff;display:flex;align-items:center;justify-content:center;width:100%;height:100%}
+.bop-success-badge{position:absolute;bottom:-4px;right:-4px;width:1.5rem;height:1.5rem;background:#10b981;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid #fff;animation:bopCheckPop .3s var(--bop-ease-spring) .4s both;z-index:1}
+.bop-success-badge svg{color:#fff;width:12px;height:12px}
+.bop-success-title{font-size:var(--bop-2xl);font-weight:700;color:var(--bop-headline);margin-bottom:.375rem}
+.bop-success-card{background:rgba(248,250,252,1);border:1px solid var(--bop-border);border-radius:var(--bop-radius-xl);padding:.875rem;width:100%;margin-bottom:1.25rem;margin-top:.375rem}
 .bop-success-bank{display:flex;align-items:center;justify-content:center;gap:.5rem;font-size:var(--bop-sm);color:var(--bop-headline);font-weight:500;margin-bottom:.25rem}
 .bop-success-four{font-size:var(--bop-xs);color:var(--bop-secondary);font-family:var(--bop-mono)}
-.bop-success-desc{font-size:var(--bop-sm);color:var(--bop-secondary);margin-bottom:2rem;line-height:1.5}
+.bop-success-desc{font-size:var(--bop-sm);color:var(--bop-secondary);margin-bottom:1.5rem;line-height:1.5}
 
 .bop-btn{width:100%;position:relative;display:flex;align-items:center;justify-content:center;gap:.5rem;padding:.875rem 1.25rem;font-size:var(--bop-sm);font-weight:600;font-family:var(--bop-font);color:#fff;background:var(--bop-primary);border:none;border-radius:var(--bop-radius-xl);cursor:pointer;box-shadow:var(--bop-shadow-sm);transition:all var(--bop-dur-norm) var(--bop-ease);min-height:3rem;overflow:hidden}
 .bop-btn:hover{background:rgba(76,123,99,.9)}
@@ -433,8 +468,9 @@ class BisonOperatorPayments extends HTMLElement {
     this._contentEl.innerHTML = '';
     const modal = this.shadowRoot.querySelector('.bop-modal');
     if (modal) {
+      modal.classList.remove('bop-modal-wide', 'bop-modal-compact');
       if (this._step === 'select-accounts') modal.classList.add('bop-modal-wide');
-      else modal.classList.remove('bop-modal-wide');
+      if (this._step === 'success') modal.classList.add('bop-modal-compact');
     }
     switch (this._step) {
       case 'select-bank': this._renderSelectBank(); break;
@@ -540,6 +576,7 @@ class BisonOperatorPayments extends HTMLElement {
           this._renderSelectAccounts();
           requestAnimationFrame(() => {
             this._contentEl.classList.remove('bop-content-fading');
+            if (modal) modal.style.height = '';
           });
         }, 400);
       }, 200);
@@ -571,13 +608,19 @@ class BisonOperatorPayments extends HTMLElement {
     if (!this._accountListEl) return;
     this._accountListEl.innerHTML = '';
     this._mockAccounts.forEach((acct, i) => {
+      const isLinked = !!acct.linked;
       const sel = this._selectedAccounts.has(acct.id);
       const card = document.createElement('button'); card.className = 'bop-account-card';
       card.dataset.accountId = acct.id;
       card.style.animationDelay = `${i * 100}ms`;
       card.setAttribute('data-selected', String(sel));
-      card.innerHTML = `<div class="bop-card-inner"><div class="bop-check-circle"><span class="bop-check-icon">${BOP_ICONS.checkSm}</span></div><div class="bop-account-details"><div class="bop-account-top"><p class="bop-account-type">${BOP_ICONS.wallet} ${acct.type}</p><p class="bop-account-balance">$${acct.balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p></div><p class="bop-account-number">•••• ${acct.lastFour}</p></div></div>`;
-      card.addEventListener('click', () => this._handleAccountToggle(acct.id));
+      if (isLinked) {
+        card.setAttribute('data-linked', 'true');
+        card.innerHTML = `<div class="bop-card-inner"><div class="bop-account-details"><div class="bop-account-top"><p class="bop-account-type">${BOP_ICONS.wallet} ${acct.type}</p><span class="bop-linked-chip">${BOP_ICONS.checkSm} Linked</span></div><p class="bop-account-number">•••• ${acct.lastFour}</p></div></div>`;
+      } else {
+        card.innerHTML = `<div class="bop-card-inner"><div class="bop-check-circle"><span class="bop-check-icon">${BOP_ICONS.checkSm}</span></div><div class="bop-account-details"><div class="bop-account-top"><p class="bop-account-type">${BOP_ICONS.wallet} ${acct.type}</p></div><p class="bop-account-number">•••• ${acct.lastFour}</p></div></div>`;
+        card.addEventListener('click', () => this._handleAccountToggle(acct.id));
+      }
       this._accountListEl.appendChild(card);
     });
   }
@@ -602,7 +645,12 @@ class BisonOperatorPayments extends HTMLElement {
     step.className = 'bop-step bop-success-view';
     step.setAttribute('data-direction', this._direction > 0 ? 'forward' : 'backward');
     const tc = this._selectedBank?.text || this._selectedBank?.bg || '';
-    step.innerHTML = `<div class="bop-success-icon"><div class="bop-success-ring"></div>${BOP_ICONS.check}</div><h3 class="bop-success-title">Successfully Linked!</h3><div class="bop-success-card"><div class="bop-success-bank"><span style="color:${tc}">${this._selectedBank?.name || ''}</span><span>•</span><span>${this._linkedAccount?.type || ''}</span></div><p class="bop-success-four">•••• ${this._linkedAccount?.lastFour || ''}</p></div><p class="bop-success-desc">Your account is now ready to use for deposits and payments across the platform.</p>`;
+    const bankBg = this._selectedBank?.bg || '#2563eb';
+    const bankLogo = this._selectedBank?.logo
+      ? `<img class="bop-logo-img" src="${this._selectedBank.logo}" alt="${this._selectedBank.name}">`
+      : `<span class="bop-success-logo-fallback">${BOP_ICONS.building}</span>`;
+    const checkBadge = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>`;
+    step.innerHTML = `<div class="bop-success-icon"><div class="bop-success-icon-inner" style="background:${bankBg}">${bankLogo}</div><div class="bop-success-badge">${checkBadge}</div></div><h3 class="bop-success-title">Successfully Linked!</h3><div class="bop-success-card"><div class="bop-success-bank"><span style="color:${tc}">${this._selectedBank?.name || ''}</span><span>•</span><span>${this._linkedAccount?.type || ''}</span></div><p class="bop-success-four">•••• ${this._linkedAccount?.lastFour || ''}</p></div><p class="bop-success-desc">Your account is now ready to use for deposits and payments across the platform.</p>`;
     const done = document.createElement('button');
     done.className = 'bop-btn bop-btn-done';
     done.innerHTML = '<span class="bop-btn-label">Done</span>';
