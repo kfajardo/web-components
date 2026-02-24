@@ -44,6 +44,7 @@ const BOP_ICONS = {
   check: '<svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>',
   wallet: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/></svg>',
   checkSm: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>',
+  unlink: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18.84 12.25 1.72-1.71h-.02a5.004 5.004 0 0 0-.12-7.07 5.006 5.006 0 0 0-6.95 0l-1.72 1.71"/><path d="m5.17 11.75-1.71 1.71a5.004 5.004 0 0 0 .12 7.07 5.006 5.006 0 0 0 6.95 0l1.71-1.71"/><line x1="8" y1="2" x2="8" y2="5"/><line x1="2" y1="8" x2="5" y2="8"/><line x1="16" y1="19" x2="16" y2="22"/><line x1="19" y1="16" x2="22" y2="16"/></svg>',
 };
 
 class BisonOperatorPayments extends HTMLElement {
@@ -59,6 +60,7 @@ class BisonOperatorPayments extends HTMLElement {
     this._selectedAccounts = new Set();
     this._linkedAccount = null;
     this._isClosing = false;
+    this._unlinkTarget = null;
   }
 
   get _isSingleBank() { return BOP_BANKS.length === 1; }
@@ -84,12 +86,10 @@ class BisonOperatorPayments extends HTMLElement {
     return [
       { id: '1', type: 'Checking', lastFour: String(Math.floor(1000 + Math.random() * 9000)), balance: 0 },
       { id: '2', type: 'Savings', lastFour: String(Math.floor(1000 + Math.random() * 9000)), balance: 0 },
-      { id: '3', type: 'Checking', lastFour: '4821', balance: 0, linked: true },
-      { id: '4', type: 'Money Market', lastFour: '7703', balance: 0, linked: true },
-      { id: '5', type: 'Business Checking', lastFour: '9154', balance: 0 },
-      { id: '6', type: 'Savings', lastFour: '3367', balance: 0, linked: true },
-      { id: '7', type: 'CD Account', lastFour: '6012', balance: 0 },
-      { id: '8', type: 'Business Savings', lastFour: '2289', balance: 0 },
+      { id: '3', type: 'Business Checking', lastFour: '9154', balance: 0 },
+      { id: '4', type: 'Money Market', lastFour: '7703', balance: 0 },
+      { id: '5', type: 'CD Account', lastFour: '6012', balance: 0 },
+      { id: '6', type: 'Business Savings', lastFour: '2289', balance: 0 },
     ];
   }
 
@@ -98,6 +98,7 @@ class BisonOperatorPayments extends HTMLElement {
     this._selectedBank = this._isSingleBank ? BOP_BANKS[0] : null;
     this._isLoading = false;
     this._mockAccounts = []; this._selectedAccounts = new Set(); this._linkedAccount = null;
+    this._unlinkTarget = null;
   }
 
   _navigateStep(newStep, dir) {
@@ -195,18 +196,46 @@ class BisonOperatorPayments extends HTMLElement {
   }
 
   _handleBack() {
-    if (this._step === 'select-accounts') {
+    if (this._step === 'confirm-unlink') {
+      this._unlinkTarget = null;
+      this._navigateStep('select-accounts', -1);
+    } else if (this._step === 'select-accounts') {
       if (this._isSingleBank) { this._handleClose(); return; }
       this._mockAccounts = []; this._selectedAccounts = new Set();
       this._navigateStep('select-bank', -1);
     }
   }
 
+  _handleUnlinkRequest(accounts) {
+    this._unlinkTarget = accounts;
+    this._navigateStep('confirm-unlink', 1);
+  }
+
+  async _handleConfirmUnlink() {
+    if (!this._unlinkTarget || this._unlinkTarget.length === 0) return;
+    this._isLoading = true;
+    this._renderContent();
+    await new Promise(r => setTimeout(r, 1200));
+    // Remove unlinked accounts from mock data
+    const unlinkIds = new Set(this._unlinkTarget.map(a => a.id));
+    this._mockAccounts = this._mockAccounts.filter(a => !unlinkIds.has(a.id));
+    this._selectedAccounts = new Set();
+    this._isLoading = false;
+    this._unlinkTarget = null;
+    this._navigateStep('select-accounts', -1);
+  }
+
+  _handleCancelUnlink() {
+    this._unlinkTarget = null;
+    this._navigateStep('select-accounts', -1);
+  }
+
   _getHeaderTitle() {
     switch (this._step) {
       case 'select-bank': return 'Link Bank Account';
       case 'loading': return this._selectedBank?.name || 'Connecting';
-      case 'select-accounts': return 'Select Accounts';
+      case 'select-accounts': return 'Manage Accounts';
+      case 'confirm-unlink': return 'Unlink Account';
       case 'success': return 'Account Linked';
       default: return '';
     }
@@ -250,6 +279,7 @@ class BisonOperatorPayments extends HTMLElement {
 @keyframes bopFadeInUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
 @keyframes bopSlideFromLeft{from{opacity:0;transform:translateX(-10px)}to{opacity:1;transform:translateX(0)}}
 @keyframes bopFadeIn{from{opacity:0}to{opacity:1}}
+@keyframes bopFadeOut{from{opacity:1}to{opacity:0}}
 @keyframes bopExpandIn{from{opacity:0;max-height:0;padding-top:0;padding-bottom:0}to{opacity:1;max-height:60px;padding-top:.75rem;padding-bottom:.75rem}}
 
 .bop-overlay{position:fixed;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;padding:1rem}
@@ -327,12 +357,12 @@ class BisonOperatorPayments extends HTMLElement {
 .bop-login-actions{margin-top:1.5rem;padding:0 .5rem;display:flex;flex-direction:column;gap:1rem;flex-shrink:0;padding-bottom:1rem}
 .bop-encrypt{display:flex;align-items:center;justify-content:center;gap:.5rem;font-size:var(--bop-xs);color:var(--bop-secondary)}
 
-.bop-accounts{padding:1.5rem}
+.bop-accounts{padding:1.5rem; padding-top: 0;}
 .bop-accounts-header{flex-shrink:0;margin-bottom:1.5rem}
 .bop-accounts-bank{display:flex;align-items:center;gap:.75rem;margin-bottom:.5rem}
-.bop-accounts-bank-logo{width:2rem;height:2rem;border-radius:var(--bop-radius-md);display:flex;align-items:center;justify-content:center;color:#fff;outline:1px solid rgba(0,0,0,.05);overflow:hidden}
+.bop-accounts-bank-logo{width:3rem;height:3rem;border-radius:var(--bop-radius-md);display:flex;align-items:center;justify-content:center;color:#fff;outline:1px solid rgba(0,0,0,.05);overflow:hidden}
 .bop-accounts-bank-name{font-weight:500;color:var(--bop-headline)}
-.bop-accounts-desc{font-size:var(--bop-sm);color:var(--bop-secondary);line-height:1.5}
+.bop-accounts-desc{font-size:var(--bop-sm);color:var(--bop-secondary);line-height:1.5;text-align:left}
 .bop-account-list{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:.75rem;padding:0 .25rem 1rem;scrollbar-width:none}
 .bop-account-list::-webkit-scrollbar{display:none}
 .bop-account-card{width:100%;display:flex;align-items:center;padding:1rem;border-radius:var(--bop-radius-xl);border:2px solid transparent;background:#fff;box-shadow:var(--bop-shadow-sm);cursor:pointer;transition:all var(--bop-dur-norm) var(--bop-ease);font-family:var(--bop-font);text-align:left;animation:bopItemFade .3s var(--bop-ease) forwards;opacity:0}
@@ -348,10 +378,26 @@ class BisonOperatorPayments extends HTMLElement {
 .bop-account-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:.25rem}
 .bop-account-type{font-size:var(--bop-sm);font-weight:600;color:var(--bop-headline);display:flex;align-items:center;gap:.5rem}
 .bop-account-number{font-size:var(--bop-xs);color:var(--bop-secondary);font-family:var(--bop-mono);background:var(--bop-sidebar);padding:.125rem .5rem;border-radius:.375rem;display:inline-block}
-.bop-account-card[data-linked="true"]{opacity:.55;cursor:default;pointer-events:none;border-color:transparent;box-shadow:none;background:var(--bop-sidebar)}
-.bop-account-card[data-linked="true"]:hover{border-color:transparent;box-shadow:none}
-.bop-linked-chip{display:inline-flex;align-items:center;gap:.25rem;font-size:.6875rem;font-weight:600;color:#10b981;background:rgba(16,185,129,.1);padding:.1875rem .5rem;border-radius:var(--bop-radius-full);letter-spacing:.02em;white-space:nowrap;flex-shrink:0}
-.bop-accounts-footer{padding:1rem .25rem .5rem;border-top:1px solid rgba(232,232,232,.5);background:rgba(255,255,255,.5);backdrop-filter:blur(8px)}
+.bop-confirm-unlink{padding:2rem;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:#fff}
+.bop-unlink-icon{width:3.5rem;height:3.5rem;aspect-ratio:1;flex-shrink:0;background:#fef2f2;border-radius:var(--bop-radius-full);display:flex;align-items:center;justify-content:center;margin-bottom:1.25rem;color:#dd524b;animation:bopSuccessPop .4s var(--bop-ease-spring) forwards}
+.bop-unlink-title{font-size:var(--bop-lg);font-weight:700;color:var(--bop-headline);margin-bottom:.25rem}
+.bop-unlink-desc{font-size:var(--bop-sm);color:var(--bop-secondary);margin-bottom:1.5rem;line-height:1.5;max-width:280px}
+.bop-unlink-card{background:var(--bop-sidebar);border:1px solid var(--bop-border);border-radius:var(--bop-radius-xl);padding:.875rem;min-width:82%;flex-shrink:0;display:flex;align-items:center;gap:.75rem;scroll-snap-align:start}
+.bop-unlink-card-icon{width:2.25rem;height:2.25rem;border-radius:var(--bop-radius-md);display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0;overflow:hidden}
+.bop-unlink-card-icon .bop-logo-img{width:100%;height:100%;object-fit:cover}
+.bop-unlink-card-details{text-align:left}
+.bop-unlink-card-type{font-size:var(--bop-sm);font-weight:600;color:var(--bop-headline)}
+.bop-unlink-card-num{font-size:var(--bop-xs);color:var(--bop-secondary);font-family:var(--bop-mono)}
+.bop-unlink-cards-list{display:flex;flex-direction:row;gap:.625rem;width:100%;margin-bottom:1.5rem;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scrollbar-width:none;padding-bottom:2px}
+.bop-unlink-cards-list[data-single] .bop-unlink-card{min-width:100%}
+.bop-unlink-actions{display:flex;flex-direction:column;gap:.625rem;width:100%}
+.bop-btn.bop-btn-danger{background:#dd524b;box-shadow:0 4px 12px rgba(221,82,75,.3)}
+.bop-btn.bop-btn-danger:hover{background:#c9403a;box-shadow:0 6px 16px rgba(221,82,75,.4)}
+.bop-btn.bop-btn-ghost{background:transparent;color:var(--bop-secondary);box-shadow:none;border:1px solid var(--bop-border)}
+.bop-btn.bop-btn-ghost:hover{background:var(--bop-sidebar);color:var(--bop-headline)}
+.bop-accounts-footer{overflow:hidden;max-height:0;padding:0 .25rem;background:rgba(255,255,255,.5);backdrop-filter:blur(8px);border-top:0px solid rgba(232,232,232,.5);transition:max-height .15s var(--bop-ease),padding .15s var(--bop-ease),border-top-width 0s linear .15s}
+.bop-accounts-footer--open{max-height:80px;padding:1rem .25rem .5rem;border-top-width:1px;overflow:visible;transition:max-height .15s var(--bop-ease),padding .15s var(--bop-ease),border-top-width 0s linear 0s}
+.bop-btn-animate-in{animation:bopFadeIn .2s var(--bop-ease) forwards}
 
 .bop-success-view{padding:1.5rem 2rem;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:#fff}
 .bop-success-icon{width:4.5rem;height:4.5rem;aspect-ratio:1;flex-shrink:0;display:flex;align-items:center;justify-content:center;margin-bottom:1.25rem;position:relative;animation:bopSuccessPop .6s var(--bop-ease-spring) forwards}
@@ -443,7 +489,7 @@ class BisonOperatorPayments extends HTMLElement {
     this._headerEl.innerHTML = '';
     const left = document.createElement('div');
     left.className = 'bop-header-left';
-    const showBack = this._step === 'select-accounts' && !this._isSingleBank;
+    const showBack = (this._step === 'select-accounts' && !this._isSingleBank) || this._step === 'confirm-unlink';
     if (showBack) {
       const back = document.createElement('button');
       back.className = 'bop-back-btn';
@@ -476,6 +522,7 @@ class BisonOperatorPayments extends HTMLElement {
       case 'select-bank': this._renderSelectBank(); break;
       case 'loading': this._renderLoading(); break;
       case 'select-accounts': this._renderSelectAccounts(); break;
+      case 'confirm-unlink': this._renderConfirmUnlink(); break;
       case 'success': this._renderSuccess(); break;
     }
   }
@@ -554,7 +601,7 @@ class BisonOperatorPayments extends HTMLElement {
     setTimeout(() => {
       if (this._step !== 'loading') return;
       this._mockAccounts = this._generateMockAccounts();
-      this._selectedAccounts = new Set([this._mockAccounts[0].id]);
+      this._selectedAccounts = new Set();
       const modal = this.shadowRoot.querySelector('.bop-modal');
       // Phase 1: fade out content
       this._contentEl.classList.add('bop-content-fading');
@@ -590,7 +637,7 @@ class BisonOperatorPayments extends HTMLElement {
     const inner = document.createElement('div');
     inner.style.cssText = 'flex:1;display:flex;flex-direction:column;min-height:0;';
     const hd = document.createElement('div'); hd.className = 'bop-accounts-header';
-    hd.innerHTML = `<div class="bop-accounts-bank"><div class="bop-accounts-bank-logo" style="background:${this._selectedBank?.bg || ''}">${this._selectedBank?.logo ? `<img class="bop-logo-img" src="${this._selectedBank.logo}" alt="${this._selectedBank.name}">` : BOP_ICONS.buildingSm}</div><span class="bop-accounts-bank-name">${this._selectedBank?.name || ''}</span></div><p class="bop-accounts-desc">Select the accounts you want to use for deposits and payments.</p>`;
+    hd.innerHTML = `<div class="bop-accounts-bank"><div class="bop-accounts-bank-logo" style="background:${this._selectedBank?.bg || ''}">${this._selectedBank?.logo ? `<img class="bop-logo-img" src="${this._selectedBank.logo}" alt="${this._selectedBank.name}">` : BOP_ICONS.buildingSm}</div><span class="bop-accounts-bank-name">${this._selectedBank?.name || ''}</span></div><p class="bop-accounts-desc">Add, edit, or remove accounts available in ${this._selectedBank?.name || 'your bank'}</p>`;
     inner.appendChild(hd);
     this._accountListEl = document.createElement('div');
     this._accountListEl.className = 'bop-account-list';
@@ -608,36 +655,126 @@ class BisonOperatorPayments extends HTMLElement {
     if (!this._accountListEl) return;
     this._accountListEl.innerHTML = '';
     this._mockAccounts.forEach((acct, i) => {
-      const isLinked = !!acct.linked;
       const sel = this._selectedAccounts.has(acct.id);
       const card = document.createElement('button'); card.className = 'bop-account-card';
       card.dataset.accountId = acct.id;
       card.style.animationDelay = `${i * 100}ms`;
       card.setAttribute('data-selected', String(sel));
-      if (isLinked) {
-        card.setAttribute('data-linked', 'true');
-        card.innerHTML = `<div class="bop-card-inner"><div class="bop-account-details"><div class="bop-account-top"><p class="bop-account-type">${BOP_ICONS.wallet} ${acct.type}</p><span class="bop-linked-chip">${BOP_ICONS.checkSm} Linked</span></div><p class="bop-account-number">•••• ${acct.lastFour}</p></div></div>`;
-      } else {
-        card.innerHTML = `<div class="bop-card-inner"><div class="bop-check-circle"><span class="bop-check-icon">${BOP_ICONS.checkSm}</span></div><div class="bop-account-details"><div class="bop-account-top"><p class="bop-account-type">${BOP_ICONS.wallet} ${acct.type}</p></div><p class="bop-account-number">•••• ${acct.lastFour}</p></div></div>`;
-        card.addEventListener('click', () => this._handleAccountToggle(acct.id));
-      }
+      card.innerHTML = `<div class="bop-card-inner"><div class="bop-check-circle"><span class="bop-check-icon">${BOP_ICONS.checkSm}</span></div><div class="bop-account-details"><div class="bop-account-top"><p class="bop-account-type">${BOP_ICONS.wallet} ${acct.type}</p></div><p class="bop-account-number">•••• ${acct.lastFour}</p></div></div>`;
+      card.addEventListener('click', () => this._handleAccountToggle(acct.id));
       this._accountListEl.appendChild(card);
     });
   }
 
   _renderAccountsButton() {
     if (!this._accountsFooterEl) return;
-    this._accountsFooterEl.innerHTML = '';
-    const btn = document.createElement('button'); btn.className = 'bop-btn';
-    btn.disabled = this._selectedAccounts.size === 0 || this._isLoading;
-    if (this._isLoading) {
-      btn.innerHTML = `<span class="bop-btn-loading">${BOP_ICONS.loader.replace('width="20"','width="20" class="bop-spinner"')}<span>Linking Accounts...</span></span>`;
-    } else {
-      const c = this._selectedAccounts.size;
-      btn.innerHTML = `<span class="bop-btn-label">Continue with ${c} Account${c !== 1 ? 's' : ''}</span>`;
+    const c = this._selectedAccounts.size;
+    const isOpen = this._accountsFooterEl.classList.contains('bop-accounts-footer--open');
+
+    if (c === 0) {
+      const btn = this._accountsFooterEl.querySelector('.bop-btn-unlink');
+      if (btn) {
+        btn.style.animation = 'bopFadeOut .15s ease forwards';
+        setTimeout(() => {
+          this._accountsFooterEl.classList.remove('bop-accounts-footer--open');
+          this._accountsFooterEl.innerHTML = '';
+        }, 150);
+      } else {
+        this._accountsFooterEl.classList.remove('bop-accounts-footer--open');
+        this._accountsFooterEl.innerHTML = '';
+      }
+      return;
     }
-    btn.addEventListener('click', () => this._handleLinkAccounts());
+
+    const label = `${BOP_ICONS.unlink}<span class="bop-btn-label">Unlink ${c} Account${c !== 1 ? 's' : ''}</span>`;
+    const existing = this._accountsFooterEl.querySelector('.bop-btn-unlink');
+
+    if (existing) {
+      // Already open — just update the label, no rebuild
+      existing.innerHTML = label;
+      return;
+    }
+
+    // Build button, expand footer
+    const btn = document.createElement('button');
+    btn.className = 'bop-btn bop-btn-danger bop-btn-unlink';
+    btn.style.animation = 'bopFadeIn .15s var(--bop-ease) forwards';
+    btn.innerHTML = label;
+    btn.addEventListener('click', () => {
+      const accounts = this._mockAccounts.filter(a => this._selectedAccounts.has(a.id));
+      if (accounts.length) this._handleUnlinkRequest(accounts);
+    });
+    this._accountsFooterEl.innerHTML = '';
     this._accountsFooterEl.appendChild(btn);
+    this._accountsFooterEl.classList.add('bop-accounts-footer--open');
+    // Scroll last selected card into view after footer transition completes
+    setTimeout(() => {
+      if (!this._accountListEl) return;
+      const selected = this._accountListEl.querySelectorAll('.bop-account-card[data-selected="true"]');
+      if (selected.length) selected[selected.length - 1].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }, 180);
+  }
+
+  _renderConfirmUnlink() {
+    const accounts = this._unlinkTarget;
+    if (!accounts || accounts.length === 0) return;
+    const step = document.createElement('div');
+    step.className = 'bop-step bop-confirm-unlink';
+    step.setAttribute('data-direction', this._direction > 0 ? 'forward' : 'backward');
+    const count = accounts.length;
+    const plural = count !== 1;
+
+    if (this._isLoading) {
+      step.innerHTML = `
+        <div class="bop-loading-logo" style="background:${this._selectedBank?.bg || '#2563eb'}">${this._selectedBank?.logo ? `<img class="bop-logo-img" src="${this._selectedBank.logo}" alt="${this._selectedBank.name}">` : BOP_ICONS.buildingLg}</div>
+        <div class="bop-loading-body">
+          <p class="bop-loading-title">Unlinking Account${plural ? 's' : ''}</p>
+          <p class="bop-loading-text">Removing ${count} account${plural ? 's' : ''} from your linked accounts</p>
+        </div>
+        <div class="bop-loading-bar-wrap"><div class="bop-loading-bar"></div></div>
+      `;
+      this._contentEl.appendChild(step);
+      return;
+    }
+
+    const bankLogo = this._selectedBank?.logo
+      ? `<img class="bop-logo-img" src="${this._selectedBank.logo}" alt="${this._selectedBank.name}">`
+      : BOP_ICONS.buildingSm;
+
+    const alertIcon = `<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`;
+
+    const accountCards = accounts.map(acct => `
+      <div class="bop-unlink-card">
+        <div class="bop-unlink-card-icon" style="background:${this._selectedBank?.bg || '#2563eb'}">${bankLogo}</div>
+        <div class="bop-unlink-card-details">
+          <p class="bop-unlink-card-type">${acct.type}</p>
+          <p class="bop-unlink-card-num">•••• ${acct.lastFour}</p>
+        </div>
+      </div>
+    `).join('');
+
+    step.innerHTML = `
+      <div class="bop-unlink-icon">${alertIcon}</div>
+      <h3 class="bop-unlink-title">Unlink ${plural ? count + ' accounts' : 'this account'}?</h3>
+      <p class="bop-unlink-desc">This will disconnect ${plural ? 'these accounts' : 'the account'} from your payment methods. You can re-link ${plural ? 'them' : 'it'} anytime.</p>
+      <div class="bop-unlink-cards-list"${!plural ? ' data-single' : ''}>${accountCards}</div>
+      <div class="bop-unlink-actions"></div>
+    `;
+
+    const actions = step.querySelector('.bop-unlink-actions');
+    const unlinkBtn = document.createElement('button');
+    unlinkBtn.className = 'bop-btn bop-btn-danger';
+    unlinkBtn.innerHTML = `${BOP_ICONS.unlink}<span class="bop-btn-label">Unlink ${count} Account${plural ? 's' : ''}</span>`;
+    unlinkBtn.addEventListener('click', () => this._handleConfirmUnlink());
+    actions.appendChild(unlinkBtn);
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'bop-btn bop-btn-ghost';
+    cancelBtn.innerHTML = '<span class="bop-btn-label">Cancel</span>';
+    cancelBtn.addEventListener('click', () => this._handleCancelUnlink());
+    actions.appendChild(cancelBtn);
+
+    this._contentEl.appendChild(step);
   }
 
   _renderSuccess() {
