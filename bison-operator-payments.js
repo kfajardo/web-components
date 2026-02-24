@@ -18,13 +18,13 @@
 
 const BOP_BANKS = [
   { id: 'chase', name: 'Chase', bg: '#2563eb' },
-  { id: 'bofa', name: 'Bank of America', bg: '#dc2626' },
-  { id: 'wells', name: 'Wells Fargo', bg: '#eab308', text: '#ca8a04' },
-  { id: 'citi', name: 'Citibank', bg: '#3b82f6' },
-  { id: 'usbank', name: 'US Bank', bg: '#4f46e5' },
-  { id: 'capital', name: 'Capital One', bg: '#ef4444' },
-  { id: 'pnc', name: 'PNC Bank', bg: '#f97316' },
-  { id: 'td', name: 'TD Bank', bg: '#16a34a' },
+  // { id: 'bofa', name: 'Bank of America', bg: '#dc2626' },
+  // { id: 'wells', name: 'Wells Fargo', bg: '#eab308', text: '#ca8a04' },
+  // { id: 'citi', name: 'Citibank', bg: '#3b82f6' },
+  // { id: 'usbank', name: 'US Bank', bg: '#4f46e5' },
+  // { id: 'capital', name: 'Capital One', bg: '#ef4444' },
+  // { id: 'pnc', name: 'PNC Bank', bg: '#f97316' },
+  // { id: 'td', name: 'TD Bank', bg: '#16a34a' },
 ];
 
 const BOP_ICONS = {
@@ -50,20 +50,18 @@ class BisonOperatorPayments extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
-    this._step = 'select-bank';
+    this._step = this._isSingleBank ? 'loading' : 'select-bank';
     this._direction = 1;
     this._searchQuery = '';
-    this._selectedBank = null;
-    this._username = '';
-    this._password = '';
-    this._showPassword = false;
+    this._selectedBank = this._isSingleBank ? BOP_BANKS[0] : null;
     this._isLoading = false;
-    this._loginError = false;
     this._mockAccounts = [];
     this._selectedAccounts = new Set();
     this._linkedAccount = null;
     this._isClosing = false;
   }
+
+  get _isSingleBank() { return BOP_BANKS.length === 1; }
 
   static get observedAttributes() { return ['open']; }
 
@@ -82,10 +80,17 @@ class BisonOperatorPayments extends HTMLElement {
 
   get isOpen() { return this.hasAttribute('open'); }
 
+  _generateMockAccounts() {
+    return [
+      { id: '1', type: 'Checking', lastFour: String(Math.floor(1000 + Math.random() * 9000)), balance: Math.floor(5000 + Math.random() * 20000) },
+      { id: '2', type: 'Savings', lastFour: String(Math.floor(1000 + Math.random() * 9000)), balance: Math.floor(10000 + Math.random() * 50000) },
+    ];
+  }
+
   _resetState() {
-    this._step = 'select-bank'; this._direction = 1; this._searchQuery = '';
-    this._selectedBank = null; this._username = ''; this._password = '';
-    this._showPassword = false; this._isLoading = false; this._loginError = false;
+    this._step = this._isSingleBank ? 'loading' : 'select-bank'; this._direction = 1; this._searchQuery = '';
+    this._selectedBank = this._isSingleBank ? BOP_BANKS[0] : null;
+    this._isLoading = false;
     this._mockAccounts = []; this._selectedAccounts = new Set(); this._linkedAccount = null;
   }
 
@@ -122,22 +127,9 @@ class BisonOperatorPayments extends HTMLElement {
     }
   }
 
-  _handleBankSelect(bank) { this._selectedBank = bank; this._navigateStep('login', 1); }
-
-  async _handleLogin() {
-    if (!this._username || !this._password) return;
-    this._loginError = false; this._isLoading = true; this._renderLoginButton();
-    await new Promise(r => setTimeout(r, 1500));
-    if (this._username.toLowerCase() === 'error') {
-      this._loginError = true; this._isLoading = false; this._renderLoginForm(); return;
-    }
-    const accounts = [
-      { id: '1', type: 'Checking', lastFour: String(Math.floor(1000 + Math.random() * 9000)), balance: Math.floor(5000 + Math.random() * 20000) },
-      { id: '2', type: 'Savings', lastFour: String(Math.floor(1000 + Math.random() * 9000)), balance: Math.floor(10000 + Math.random() * 50000) },
-    ];
-    this._mockAccounts = accounts;
-    this._selectedAccounts = new Set([accounts[0].id]);
-    this._isLoading = false; this._navigateStep('select-accounts', 1);
+  _handleBankSelect(bank) {
+    this._selectedBank = bank;
+    this._navigateStep('loading', 1);
   }
 
   _handleAccountToggle(id) {
@@ -167,19 +159,17 @@ class BisonOperatorPayments extends HTMLElement {
   }
 
   _handleBack() {
-    if (this._step === 'login') {
-      this._username = ''; this._password = ''; this._loginError = false;
-      this._navigateStep('select-bank', -1);
-    } else if (this._step === 'select-accounts') {
+    if (this._step === 'select-accounts') {
+      if (this._isSingleBank) { this._handleClose(); return; }
       this._mockAccounts = []; this._selectedAccounts = new Set();
-      this._navigateStep('login', -1);
+      this._navigateStep('select-bank', -1);
     }
   }
 
   _getHeaderTitle() {
     switch (this._step) {
       case 'select-bank': return 'Link Bank Account';
-      case 'login': return this._selectedBank?.name || 'Login';
+      case 'loading': return this._selectedBank?.name || 'Connecting';
       case 'select-accounts': return 'Select Accounts';
       case 'success': return 'Account Linked';
       default: return '';
@@ -231,7 +221,8 @@ class BisonOperatorPayments extends HTMLElement {
 .bop-overlay[data-state="closed"]{pointer-events:none}
 .bop-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.4);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);animation:bopBackdropIn .3s var(--bop-ease) forwards}
 .bop-overlay[data-state="closing"] .bop-backdrop{animation:bopBackdropOut .3s var(--bop-ease) forwards}
-.bop-modal{position:relative;width:100%;max-width:28rem;background:#fff;border:1px solid var(--bop-border);box-shadow:var(--bop-shadow-2xl);border-radius:var(--bop-radius-xl);overflow:hidden;display:flex;flex-direction:column;max-height:90vh;animation:bopModalIn .3s var(--bop-ease-spring) forwards}
+.bop-modal{position:relative;width:100%;max-width:28rem;height:520px;background:#fff;border:1px solid var(--bop-border);box-shadow:var(--bop-shadow-2xl);border-radius:var(--bop-radius-xl);overflow:hidden;display:flex;flex-direction:column;max-height:90vh;animation:bopModalIn .3s var(--bop-ease-spring) forwards;transition:max-width .4s var(--bop-ease-spring),height .4s var(--bop-ease-spring)}
+.bop-modal.bop-modal-wide{max-width:34rem;height:720px}
 .bop-overlay[data-state="closing"] .bop-modal{animation:bopModalOut .3s var(--bop-ease-spring) forwards}
 
 .bop-header{display:flex;align-items:center;justify-content:space-between;padding:1rem 1.5rem;border-bottom:1px solid rgba(250,250,250,.5);background:rgba(255,255,255,.5);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:10;flex-shrink:0}
@@ -242,7 +233,8 @@ class BisonOperatorPayments extends HTMLElement {
 .bop-close-btn{padding:.375rem;margin-right:-.375rem;color:var(--bop-secondary);background:transparent;border:none;border-radius:var(--bop-radius-md);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:color var(--bop-dur-norm) var(--bop-ease),background var(--bop-dur-norm) var(--bop-ease)}
 .bop-close-btn:hover{color:var(--bop-headline);background:var(--bop-sidebar)}
 
-.bop-content{position:relative;flex:1;overflow:hidden;min-height:460px;background:rgba(248,250,252,.3)}
+.bop-content{position:relative;flex:1;overflow:hidden;min-height:460px;background:rgba(248,250,252,.3);transition:opacity .2s var(--bop-ease)}
+.bop-content.bop-content-fading{opacity:0}
 .bop-step{position:absolute;inset:0;display:flex;flex-direction:column}
 .bop-step[data-direction="forward"]{animation:bopSlideInFwd .4s var(--bop-ease-spring) forwards}
 .bop-step[data-direction="backward"]{animation:bopSlideInBwd .4s var(--bop-ease-spring) forwards}
@@ -343,6 +335,17 @@ class BisonOperatorPayments extends HTMLElement {
 .bop-btn-loading{display:flex;align-items:center;justify-content:center;gap:.5rem;position:absolute;inset:0;animation:bopFadeIn .2s var(--bop-ease) forwards}
 .bop-spinner{animation:bopSpin 1s linear infinite}
 .bop-hidden{display:none!important}
+.bop-loading-view{padding:2rem;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:#fff;gap:1.5rem}
+.bop-loading-logo{width:4.5rem;height:4.5rem;border-radius:1.25rem;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:var(--bop-shadow-md);outline:1px solid rgba(0,0,0,.05);animation:bopFadeInUp .5s var(--bop-ease-spring) forwards,bopBreath 2s ease-in-out .5s infinite}
+.bop-loading-body{display:flex;flex-direction:column;align-items:center;gap:.375rem;opacity:0;animation:bopFadeInUp .4s var(--bop-ease) .15s forwards}
+.bop-loading-title{font-size:var(--bop-base);font-weight:600;color:var(--bop-headline)}
+.bop-loading-text{font-size:var(--bop-sm);color:var(--bop-secondary);line-height:1.5}
+.bop-loading-bar-wrap{width:11rem;height:3px;background:var(--bop-sidebar);border-radius:var(--bop-radius-full);overflow:hidden;opacity:0;animation:bopFadeIn .3s var(--bop-ease) .3s forwards}
+.bop-loading-bar{height:100%;width:0;background:var(--bop-primary);border-radius:var(--bop-radius-full);animation:bopBarFill 1s cubic-bezier(.4,0,.2,1) .15s forwards}
+.bop-loading-secure{display:flex;align-items:center;gap:.375rem;font-size:var(--bop-xs);color:var(--bop-secondary);opacity:0;animation:bopFadeIn .3s var(--bop-ease) .45s forwards}
+.bop-loading-secure svg{color:#10b981}
+@keyframes bopBreath{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}
+@keyframes bopBarFill{0%{width:0}50%{width:65%}100%{width:95%}}
 `;
   }
 
@@ -397,7 +400,8 @@ class BisonOperatorPayments extends HTMLElement {
     this._headerEl.innerHTML = '';
     const left = document.createElement('div');
     left.className = 'bop-header-left';
-    if (this._step === 'login' || this._step === 'select-accounts') {
+    const showBack = this._step === 'select-accounts' && !this._isSingleBank;
+    if (showBack) {
       const back = document.createElement('button');
       back.className = 'bop-back-btn';
       back.innerHTML = BOP_ICONS.arrowLeft;
@@ -419,9 +423,14 @@ class BisonOperatorPayments extends HTMLElement {
   _renderContent() {
     if (!this._contentEl) return;
     this._contentEl.innerHTML = '';
+    const modal = this.shadowRoot.querySelector('.bop-modal');
+    if (modal) {
+      if (this._step === 'select-accounts') modal.classList.add('bop-modal-wide');
+      else modal.classList.remove('bop-modal-wide');
+    }
     switch (this._step) {
       case 'select-bank': this._renderSelectBank(); break;
-      case 'login': this._renderLogin(); break;
+      case 'loading': this._renderLoading(); break;
       case 'select-accounts': this._renderSelectAccounts(); break;
       case 'success': this._renderSuccess(); break;
     }
@@ -484,78 +493,50 @@ class BisonOperatorPayments extends HTMLElement {
     });
   }
 
-  _renderLogin() {
+  _renderLoading() {
     const step = document.createElement('div');
-    step.className = 'bop-step bop-login';
+    step.className = 'bop-step bop-loading-view';
     step.setAttribute('data-direction', this._direction > 0 ? 'forward' : 'backward');
-    const inner = document.createElement('div');
-    inner.className = 'bop-login-inner';
-    const hd = document.createElement('div');
-    hd.className = 'bop-login-header';
-    hd.innerHTML = `<div class="bop-login-logo" style="background:${this._selectedBank?.bg || '#2563eb'}">${BOP_ICONS.buildingLg}</div><p class="bop-login-desc">Enter your credentials to securely connect your <strong>${this._selectedBank?.name || ''}</strong> account.</p>`;
-    inner.appendChild(hd);
-    this._formEl = document.createElement('div');
-    this._formEl.className = 'bop-form';
-    inner.appendChild(this._formEl);
-    this._renderLoginForm();
-    this._loginActionsEl = document.createElement('div');
-    this._loginActionsEl.className = 'bop-login-actions';
-    inner.appendChild(this._loginActionsEl);
-    this._renderLoginButton();
-    const note = document.createElement('div');
-    note.className = 'bop-encrypt';
-    note.innerHTML = `${BOP_ICONS.lock} Your connection is encrypted`;
-    this._loginActionsEl.appendChild(note);
-    step.appendChild(inner);
+    step.innerHTML = `
+      <div class="bop-loading-logo" style="background:${this._selectedBank?.bg || '#2563eb'}">${BOP_ICONS.buildingLg}</div>
+      <div class="bop-loading-body">
+        <p class="bop-loading-title">${this._selectedBank?.name || ''}</p>
+        <p class="bop-loading-text">Securely retrieving your accounts</p>
+      </div>
+      <div class="bop-loading-bar-wrap"><div class="bop-loading-bar"></div></div>
+      <div class="bop-loading-secure">${BOP_ICONS.shield} 256-bit encrypted connection</div>
+    `;
     this._contentEl.appendChild(step);
-    requestAnimationFrame(() => { const f = this._formEl.querySelector('input'); if (f) f.focus(); });
+    setTimeout(() => {
+      if (this._step !== 'loading') return;
+      this._mockAccounts = this._generateMockAccounts();
+      this._selectedAccounts = new Set([this._mockAccounts[0].id]);
+      const modal = this.shadowRoot.querySelector('.bop-modal');
+      // Phase 1: fade out content
+      this._contentEl.classList.add('bop-content-fading');
+      setTimeout(() => {
+        // Phase 2: lock current height, clear content, then transition to target
+        this._contentEl.innerHTML = '';
+        if (modal) {
+          const currentH = modal.getBoundingClientRect().height;
+          modal.style.height = currentH + 'px';
+          modal.classList.add('bop-modal-wide');
+          // Force reflow then set target height
+          modal.offsetHeight;
+          modal.style.height = '720px';
+        }
+        this._step = 'select-accounts';
+        this._renderHeader();
+        // Phase 3: after resize settles, render content & fade in
+        setTimeout(() => {
+          this._renderSelectAccounts();
+          requestAnimationFrame(() => {
+            this._contentEl.classList.remove('bop-content-fading');
+          });
+        }, 400);
+      }, 200);
+    }, 1000);
   }
-
-  _renderLoginForm() {
-    if (!this._formEl) return;
-    this._formEl.innerHTML = '';
-    const f1 = document.createElement('div'); f1.className = 'bop-field';
-    const l1 = document.createElement('label'); l1.className = 'bop-label'; l1.textContent = 'User ID';
-    const i1 = document.createElement('input'); i1.className = 'bop-input'; i1.type = 'text';
-    i1.placeholder = 'Enter your user ID'; i1.value = this._username;
-    if (this._loginError) i1.setAttribute('data-error', 'true');
-    i1.addEventListener('input', (e) => { this._username = e.target.value; this._loginError = false; i1.removeAttribute('data-error'); const pw = this._formEl.querySelector('.bop-pw-wrap input'); if (pw) pw.removeAttribute('data-error'); this._removeError(); this._updateLoginDisabled(); });
-    f1.appendChild(l1); f1.appendChild(i1); this._formEl.appendChild(f1);
-
-    const f2 = document.createElement('div'); f2.className = 'bop-field';
-    const l2 = document.createElement('label'); l2.className = 'bop-label'; l2.textContent = 'Password';
-    const pw = document.createElement('div'); pw.className = 'bop-pw-wrap';
-    const i2 = document.createElement('input'); i2.className = 'bop-input';
-    i2.type = this._showPassword ? 'text' : 'password';
-    i2.placeholder = 'Enter your password'; i2.value = this._password;
-    if (this._loginError) i2.setAttribute('data-error', 'true');
-    i2.addEventListener('input', (e) => { this._password = e.target.value; this._loginError = false; i1.removeAttribute('data-error'); i2.removeAttribute('data-error'); this._removeError(); this._updateLoginDisabled(); });
-    i2.addEventListener('keydown', (e) => { if (e.key === 'Enter') this._handleLogin(); });
-    const tog = document.createElement('button'); tog.className = 'bop-pw-toggle'; tog.type = 'button';
-    tog.innerHTML = this._showPassword ? BOP_ICONS.eyeOff : BOP_ICONS.eye;
-    tog.addEventListener('click', () => { this._showPassword = !this._showPassword; i2.type = this._showPassword ? 'text' : 'password'; tog.innerHTML = this._showPassword ? BOP_ICONS.eyeOff : BOP_ICONS.eye; });
-    pw.appendChild(i2); pw.appendChild(tog); f2.appendChild(l2); f2.appendChild(pw); this._formEl.appendChild(f2);
-
-    if (this._loginError) {
-      const err = document.createElement('div'); err.className = 'bop-error';
-      err.innerHTML = `${BOP_ICONS.alert} Invalid credentials. Please try again.`;
-      this._formEl.appendChild(err);
-    }
-  }
-
-  _removeError() { const e = this._formEl?.querySelector('.bop-error'); if (e) e.remove(); }
-
-  _renderLoginButton() {
-    if (!this._loginActionsEl) return;
-    const old = this._loginActionsEl.querySelector('.bop-btn'); if (old) old.remove();
-    const btn = document.createElement('button'); btn.className = 'bop-btn';
-    btn.disabled = !this._username || !this._password || this._isLoading;
-    btn.innerHTML = this._isLoading ? `<span class="bop-btn-loading">${BOP_ICONS.loader.replace('width="20"','width="20" class="bop-spinner"')}<span>Authenticating...</span></span>` : '<span class="bop-btn-label">Connect Account</span>';
-    btn.addEventListener('click', () => this._handleLogin());
-    this._loginActionsEl.insertBefore(btn, this._loginActionsEl.firstChild);
-  }
-
-  _updateLoginDisabled() { const b = this._loginActionsEl?.querySelector('.bop-btn'); if (b) b.disabled = !this._username || !this._password || this._isLoading; }
 
   _renderSelectAccounts() {
     const step = document.createElement('div');
