@@ -1,14 +1,21 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Bison Operator Payments - Demo</title>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+    />
     <style>
-      * { margin: 0; padding: 0; box-sizing: border-box; }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
       body {
-        font-family: 'Inter', system-ui, sans-serif;
+        font-family: "Inter", system-ui, sans-serif;
         background: #f0f2f5;
         min-height: 100vh;
         display: flex;
@@ -22,7 +29,7 @@
         background: #fff;
         border-radius: 12px;
         padding: 24px 32px;
-        box-shadow: 0 2px 8px rgba(0,0,0,.08);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
         text-align: center;
         max-width: 420px;
         width: 100%;
@@ -34,13 +41,13 @@
         margin-bottom: 4px;
       }
       .demo-card p {
-        font-size: .875rem;
+        font-size: 0.875rem;
         color: #5f6e78;
         margin-bottom: 20px;
         line-height: 1.5;
       }
       .demo-card .hint {
-        font-size: .75rem;
+        font-size: 0.75rem;
         color: #9ca3af;
         margin-top: 12px;
       }
@@ -51,28 +58,36 @@
         color: #cdd6f4;
         border-radius: 12px;
         padding: 16px 20px;
-        font-family: ui-monospace, 'SF Mono', Menlo, monospace;
-        font-size: .75rem;
+        font-family: ui-monospace, "SF Mono", Menlo, monospace;
+        font-size: 0.75rem;
         line-height: 1.8;
         max-height: 180px;
         overflow-y: auto;
       }
       .event-log h3 {
         color: #a6e3a1;
-        font-size: .8rem;
+        font-size: 0.8rem;
         margin-bottom: 8px;
       }
-      .event-log .entry { opacity: .85; }
-      .event-log .entry.success { color: #a6e3a1; }
-      .event-log .entry.close { color: #f9e2af; }
+      .event-log .entry {
+        opacity: 0.85;
+      }
+      .event-log .entry.success {
+        color: #a6e3a1;
+      }
+      .event-log .entry.close {
+        color: #f9e2af;
+      }
     </style>
   </head>
   <body>
     <div class="demo-card">
       <h1>Bison Operator Payments</h1>
-      <p>Click the button below to open the payment modal. With a single bank configured, it opens directly to the auth screen.</p>
+      <p>
+        Click the button below to open the payment modal. With a single bank
+        configured, it opens directly to the auth screen.
+      </p>
       <bison-operator-payments></bison-operator-payments>
-      <p class="hint">Hint: type <code>error</code> as user ID to test the error state.</p>
     </div>
 
     <div class="event-log" id="log">
@@ -81,23 +96,28 @@
 
     <script src="bison-operator-payments.js"></script>
     <script>
-      const comp = document.querySelector('bison-operator-payments');
-      const log = document.getElementById('log');
+      const comp = document.querySelector("bison-operator-payments");
+      const log = document.getElementById("log");
 
       function addLog(text, cls) {
-        const el = document.createElement('div');
-        el.className = 'entry ' + (cls || '');
+        const el = document.createElement("div");
+        el.className = "entry " + (cls || "");
         el.textContent = `[${new Date().toLocaleTimeString()}] ${text}`;
         log.appendChild(el);
         log.scrollTop = log.scrollHeight;
       }
 
-      comp.addEventListener('bop-close', () => addLog('bop-close fired', 'close'));
-      comp.addEventListener('bop-success', (e) => {
-        addLog(`bop-success → ${e.detail.bankName} · ${e.detail.accountType} · ••••${e.detail.lastFour}`, 'success');
+      comp.addEventListener("bop-close", () =>
+        addLog("bop-close fired", "close"),
+      );
+      comp.addEventListener("bop-success", (e) => {
+        addLog(
+          `bop-success → ${e.detail.bankName} · ${e.detail.accountType} · ••••${e.detail.lastFour}`,
+          "success",
+        );
       });
 
-      addLog('Component ready. Waiting for interaction…');
+      addLog("Component ready. Waiting for interaction…");
     </script>
   </body>
 </html>
