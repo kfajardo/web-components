@@ -18,13 +18,7 @@
 
 const BOP_BANKS = [
   { id: 'column', name: 'Column', bg: '#2563eb', logo: 'data:image/webp;base64,UklGRo4EAABXRUJQVlA4IIIEAADQJQCdASrIAMgAPjEYikOiIaESynxIIAMEs7dwuZ1mfbbyf9bv6EjLhT0o7frzAecmThWHxnmv7wDLZTwKhEWVszsp4FQiLK2Z2U8CoAYHdb1FyfKwcyAvtZKhmzMQSUkX1hDNlWUo1xG/MvAqAIUPlSz0acNJIcHJAJy+ivRfBtU1Z/w1jgLBTwSdeUz0KuNFIqihDq1U5wtIROb4RbrcGstLGqG09CNfPZoMGyc5Dc7oG+M8RLHjBiYg8ocJqFnBhqVz91eATvib57qJwO6aGJ/AdhZ0/PG8/9TzH0Y7DCyd0tEtIFWk1lbMvf31T5Q3ujiIRXKWQA3SSIbeEynin4eoY3lWd3wVBM1AVCIFIjLNJ06OE0VEmg/6iTHTjsgj1UlPArNNhAqERZWzOyngVCIsrZnY0AD+/zpn//+2h/+tD/9aH+Ln//5Bjxu8bprgAANIFMnvK97f+Ocf625lz4qecTpAln1+EgNH0XafLP9v+4Q0Z+d5bHqp3j4UKo1Do0ogL+UyH6v8TZ0FT+NuXrzP/pkDZnqpixf0hQnUExChC0Q5ZGH5jxarFFhlhN2xMWzddI4im3tOtbqWkSiX34Sk5Cn/oa/pzlAj+1Z7+D+aVTl18MYs6vw+SbmUMQ4H9EfJ6vFVOs6Rn+y5RD8dAYB2mN2UKdmxuxqQLFOuFoH9zGCozB9SjacV4gUX0j5Z5PsHlRZoCth7KSpyRs+xp5tDMMfe3zOPea03PuJE1BJDZi2icCrlz9e9UkEYCgXM1XDAbEHNKN38CS4kHgLEqKjd4CZ6h7Tsg8v/ZaDGaODkm+/57hPvrZJBf+rA/uxNslwmOLriu3OK5TKwuT7ynS/h+vlmNYEST8KgNeuEByWjTdunfORavneYy5lhI9akGBlGgkh7YEHOlDaL19CFHOri3pO8K+pv+5LFYo8C5eVVXQo9n2UavnkEkk8Nf7b0669sSzL+7bnehT/pH5Jn/x/53dtME2+2ijNgFmL26ibzskf52xaK1VjIiDSVOXWh6Zsf444o2Qy0n38LXhFGhf78GtA/KwPGuF0moTkcsJZkGxFv8z9rAmJKS+PLPfDvJeyegzkfrI4YCdcCGnvXT9RBwBskcY3ZtNJGx41DVGUCr2tIZvKmXXWPR7vvyfmbS0EqJcD0IrGd4gLXPkZJA/BeAw3Q7sSR/Jiy+L6vD3m5/wete8XXQitH3savoIxtgpoHEGWQNZiDyxNWhG7YTvED/PtDzJeifaxt3MDdtHBs7bXdX8EC1vKxZ1l9vtXI6LZcd7kQONBYygMp+/B7+9PGNlIkPgCZ7/JNAKirsm1rKscJThY3hIdFwfMDh0ERh9fHV0U5/cyO5G4hexQ58X47WQhq+XuJNssRAgiTTDS+s8gU4hArLi6ZogddiwDtcGz8SAJV+CRF7cVAgoYM3U5jfY7v8W4TAax6VVCElRPdbNIodskBfgzlsm0nF6n6Nr0ntcFlVrKAOxLcyNOHIyqd+rXAa6BWTYcjIwsP4yT6kieJqzk4W0rH+egAAAAAAA==' },
-  // { id: 'bofa', name: 'Bank of America', bg: '#dc2626' },
-  // { id: 'wells', name: 'Wells Fargo', bg: '#eab308', text: '#ca8a04' },
-  // { id: 'citi', name: 'Citibank', bg: '#3b82f6' },
-  // { id: 'usbank', name: 'US Bank', bg: '#4f46e5' },
-  // { id: 'capital', name: 'Capital One', bg: '#ef4444' },
-  // { id: 'pnc', name: 'PNC Bank', bg: '#f97316' },
-  // { id: 'td', name: 'TD Bank', bg: '#16a34a' },
+  { id: 'moov', name: 'Moov', bg: '#76d657', logo: 'data:image/webp;base64,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' },
 ];
 
 const BOP_ICONS = {
@@ -45,6 +39,7 @@ const BOP_ICONS = {
   wallet: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/></svg>',
   checkSm: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>',
   unlink: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18.84 12.25 1.72-1.71h-.02a5.004 5.004 0 0 0-.12-7.07 5.006 5.006 0 0 0-6.95 0l-1.72 1.71"/><path d="m5.17 11.75-1.71 1.71a5.004 5.004 0 0 0 .12 7.07 5.006 5.006 0 0 0 6.95 0l1.71-1.71"/><line x1="8" y1="2" x2="8" y2="5"/><line x1="2" y1="8" x2="5" y2="8"/><line x1="16" y1="19" x2="16" y2="22"/><line x1="19" y1="16" x2="22" y2="16"/></svg>',
+  plus: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>',
 };
 
 class BisonOperatorPayments extends HTMLElement {
@@ -61,6 +56,19 @@ class BisonOperatorPayments extends HTMLElement {
     this._linkedAccount = null;
     this._isClosing = false;
     this._unlinkTarget = null;
+    this._unlinkResult = null; // { succeeded: [], failed: [] }
+    // Link Account modal state
+    this._linkModalOpen = false;
+    this._linkModalSubmitting = false;
+    this._linkModalResult = null; // null | 'success' | 'error'
+    this._linkModalFieldErrors = {}; // { accountName, accountNumber, routingNumber }
+    this._linkModalValues = { accountName: '', accountNumber: '', routingNumber: '' };
+    this._linkModalDirty = false;
+    this._linkModalBeforeUnload = null;
+    this._linkModalPopState = null;
+    // Accounts list fetch state
+    this._isFetchingAccounts = false;
+    this._pendingLinkedAccount = null; // Holds new account data post-link until refetch completes
   }
 
   get _isSingleBank() { return BOP_BANKS.length === 1; }
@@ -83,14 +91,25 @@ class BisonOperatorPayments extends HTMLElement {
   get isOpen() { return this.hasAttribute('open'); }
 
   _generateMockAccounts() {
-    return [
-      { id: '1', type: 'Checking', lastFour: String(Math.floor(1000 + Math.random() * 9000)), balance: 0 },
-      { id: '2', type: 'Savings', lastFour: String(Math.floor(1000 + Math.random() * 9000)), balance: 0 },
-      { id: '3', type: 'Business Checking', lastFour: '9154', balance: 0 },
-      { id: '4', type: 'Money Market', lastFour: '7703', balance: 0 },
-      { id: '5', type: 'CD Account', lastFour: '6012', balance: 0 },
-      { id: '6', type: 'Business Savings', lastFour: '2289', balance: 0 },
-    ];
+    const bankId = this._selectedBank?.id;
+    const accountsByProvider = {
+      column: [
+        { id: 'col-1', type: 'Checking',         bankName: 'Chase',           lastFour: '4821', balance: 0 },
+        { id: 'col-2', type: 'Savings',           bankName: 'Bank of America', lastFour: '3390', balance: 0, cannotUnlink: true },
+        { id: 'col-3', type: 'Business Checking', bankName: 'Wells Fargo',     lastFour: '9154', balance: 0 },
+        { id: 'col-4', type: 'Business Savings',  bankName: 'Citibank',        lastFour: '2289', balance: 0 },
+      ],
+      moov: [
+        { id: 'moov-1', type: 'Checking',         bankName: 'US Bank',         lastFour: '1107', balance: 0 },
+        { id: 'moov-2', type: 'Savings',           bankName: 'PNC Bank',        lastFour: '5534', balance: 0 },
+        { id: 'moov-3', type: 'Business Checking', bankName: 'TD Bank',         lastFour: '8862', balance: 0, cannotUnlink: true },
+        { id: 'moov-4', type: 'Business Savings',  bankName: 'Truist',          lastFour: '2275', balance: 0 },
+      ],
+    };
+    return (accountsByProvider[bankId] ?? [
+      { id: `${bankId}-1`, type: 'Checking', bankName: 'Chase',           lastFour: String(Math.floor(1000 + Math.random() * 9000)), balance: 0 },
+      { id: `${bankId}-2`, type: 'Savings',  bankName: 'Bank of America', lastFour: String(Math.floor(1000 + Math.random() * 9000)), balance: 0 },
+    ]);
   }
 
   _resetState() {
@@ -99,6 +118,49 @@ class BisonOperatorPayments extends HTMLElement {
     this._isLoading = false;
     this._mockAccounts = []; this._selectedAccounts = new Set(); this._linkedAccount = null;
     this._unlinkTarget = null;
+    this._unlinkResult = null;
+    this._isFetchingAccounts = false;
+    this._pendingLinkedAccount = null;
+    this._resetLinkModal();
+  }
+
+  _resetLinkModal() {
+    this._linkModalOpen = false;
+    this._linkModalSubmitting = false;
+    this._linkModalResult = null;
+    this._linkModalFieldErrors = {};
+    this._linkModalValues = { accountName: '', accountNumber: '', routingNumber: '' };
+    this._linkModalDirty = false;
+    this._removeLinkModalGuards();
+  }
+
+  _installLinkModalGuards() {
+    this._linkModalBeforeUnload = (e) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    this._linkModalPopState = (e) => {
+      if (this._linkModalSubmitting) {
+        // Push state back so the navigation doesn't actually go back
+        history.pushState(null, '', window.location.href);
+        window.alert('Please wait — your account is being linked. You cannot navigate away right now.');
+      }
+    };
+    window.addEventListener('beforeunload', this._linkModalBeforeUnload);
+    window.addEventListener('popstate', this._linkModalPopState);
+    // Push a dummy state so we can intercept the back button
+    history.pushState(null, '', window.location.href);
+  }
+
+  _removeLinkModalGuards() {
+    if (this._linkModalBeforeUnload) {
+      window.removeEventListener('beforeunload', this._linkModalBeforeUnload);
+      this._linkModalBeforeUnload = null;
+    }
+    if (this._linkModalPopState) {
+      window.removeEventListener('popstate', this._linkModalPopState);
+      this._linkModalPopState = null;
+    }
   }
 
   _navigateStep(newStep, dir) {
@@ -114,7 +176,22 @@ class BisonOperatorPayments extends HTMLElement {
     }
   }
 
-  _handleClose() { this._animateClose(); }
+  _handleClose() {
+    if (this._linkModalOpen && this._linkModalSubmitting) {
+      // Submitting — cannot close (keep native alert for this blocking case)
+      window.alert('Please wait — your account is being linked. You cannot close this window right now.');
+      return;
+    }
+    if (this._linkModalOpen && this._linkModalDirty && !this._linkModalResult) {
+      this._showLinkConfirmDialog(
+        'You have unsaved changes. If you close now, your progress will be lost.',
+        () => { this._forceLinkModalClose(); this._animateClose(); }
+      );
+      return;
+    }
+    if (this._linkModalOpen) this._forceLinkModalClose();
+    this._animateClose();
+  }
 
   _animateClose() {
     const overlay = this.shadowRoot.querySelector('.bop-overlay');
@@ -199,6 +276,9 @@ class BisonOperatorPayments extends HTMLElement {
     if (this._step === 'confirm-unlink') {
       this._unlinkTarget = null;
       this._navigateStep('select-accounts', -1);
+    } else if (this._step === 'unlink-result') {
+      this._unlinkResult = null;
+      this._navigateStep('select-accounts', -1);
     } else if (this._step === 'select-accounts') {
       if (this._isSingleBank) { this._handleClose(); return; }
       this._mockAccounts = []; this._selectedAccounts = new Set();
@@ -215,19 +295,43 @@ class BisonOperatorPayments extends HTMLElement {
     if (!this._unlinkTarget || this._unlinkTarget.length === 0) return;
     this._isLoading = true;
     this._renderContent();
-    await new Promise(r => setTimeout(r, 1200));
-    // Remove unlinked accounts from mock data
-    const unlinkIds = new Set(this._unlinkTarget.map(a => a.id));
-    this._mockAccounts = this._mockAccounts.filter(a => !unlinkIds.has(a.id));
+    await new Promise(r => setTimeout(r, 1400));
+
+    // Process each account individually — flag cannotUnlink ones as failures
+    const succeeded = [];
+    const failed = [];
+    this._unlinkTarget.forEach(acct => {
+      if (acct.cannotUnlink) {
+        failed.push({ ...acct, reason: 'This bank account may not be unlinked at this time.' });
+      } else {
+        succeeded.push(acct);
+      }
+    });
+
+    // Remove successfully unlinked accounts from the list
+    const succeededIds = new Set(succeeded.map(a => a.id));
+    this._mockAccounts = this._mockAccounts.filter(a => !succeededIds.has(a.id));
     this._selectedAccounts = new Set();
     this._isLoading = false;
     this._unlinkTarget = null;
-    this._navigateStep('select-accounts', -1);
+
+    if (failed.length === 0) {
+      // All succeeded — go straight back to list
+      this._navigateStep('select-accounts', -1);
+    } else {
+      // Partial or full failure — show result screen
+      this._unlinkResult = { succeeded, failed };
+      this._navigateStep('unlink-result', 1);
+    }
   }
 
   _handleCancelUnlink() {
     this._unlinkTarget = null;
     this._navigateStep('select-accounts', -1);
+  }
+
+  _handleLinkAccountClick() {
+    this._openLinkModal();
   }
 
   _getHeaderTitle() {
@@ -236,9 +340,346 @@ class BisonOperatorPayments extends HTMLElement {
       case 'loading': return this._selectedBank?.name || 'Connecting';
       case 'select-accounts': return 'Manage Accounts';
       case 'confirm-unlink': return 'Unlink Account';
+      case 'unlink-result': return this._unlinkResult?.succeeded.length > 0 ? 'Partial Unlink' : 'Unable to Unlink';
       case 'success': return 'Account Linked';
       default: return '';
     }
+  }
+
+  // ==================== LINK ACCOUNT MODAL ====================
+
+  _openLinkModal() {
+    this._linkModalOpen = true;
+    this._linkModalResult = null;
+    this._linkModalFieldErrors = {};
+    this._linkModalValues = { accountName: '', accountNumber: '', routingNumber: '' };
+    this._linkModalDirty = false;
+    this._linkModalSubmitting = false;
+    this._renderLinkModal();
+  }
+
+  _closeLinkModal(force = false) {
+    if (!force && this._linkModalSubmitting) {
+      window.alert('Please wait — your account is being linked. You cannot close this window right now.');
+      return;
+    }
+    if (!force && this._linkModalDirty && !this._linkModalResult) {
+      this._showLinkConfirmDialog(
+        'You have unsaved changes. If you go back now, your progress will be lost.',
+        () => this._forceLinkModalClose()
+      );
+      return;
+    }
+    this._forceLinkModalClose();
+  }
+
+  // Closes the link modal unconditionally — bypasses dirty/submitting guards.
+  _forceLinkModalClose() {
+    const wasSuccess = this._linkModalResult === 'success';
+    this._removeLinkModalGuards();
+    this._linkModalOpen = false;
+    this._linkModalSubmitting = false;
+    this._linkModalResult = null;
+    this._linkModalFieldErrors = {};
+    this._linkModalValues = { accountName: '', accountNumber: '', routingNumber: '' };
+    this._linkModalDirty = false;
+    const existing = this.shadowRoot.querySelector('.bla-overlay');
+    if (existing) {
+      existing.setAttribute('data-state', 'closing');
+      const blaModal = existing.querySelector('.bla-modal');
+      const doRemove = () => {
+        existing.remove();
+        // After a successful link, trigger a refetch of the accounts list.
+        if (wasSuccess) this._refetchAccounts();
+      };
+      if (blaModal) {
+        blaModal.addEventListener('animationend', doRemove, { once: true });
+      }
+      // Safety fallback
+      setTimeout(doRemove, 350);
+    }
+  }
+
+  // Simulates a post-link accounts refetch with a trailing loader in the list.
+  // TODO: When integrating with the real API, replace the mock delay and
+  //       _pendingLinkedAccount push below with an actual accounts list API
+  //       call (e.g. GET /accounts). On response, replace this._mockAccounts
+  //       with the fresh server data and call this._renderAccountCards().
+  async _refetchAccounts() {
+    if (!this._accountListEl) return;
+    // Snapshot the IDs already visible before the refetch starts —
+    // these accounts will NOT re-animate on either render pass.
+    const existingIds = new Set(this._mockAccounts.map(a => a.id));
+    this._isFetchingAccounts = true;
+    this._renderAccountCards(existingIds); // Shows loader; existing cards rendered without animation
+    await new Promise(r => setTimeout(r, 1200)); // Mocked network delay
+    if (this._pendingLinkedAccount) {
+      this._mockAccounts.push(this._pendingLinkedAccount);
+      this._pendingLinkedAccount = null;
+    }
+    this._isFetchingAccounts = false;
+    this._renderAccountCards(existingIds); // Only the new card fades in
+  }
+
+  // Shows a custom confirmation dialog layered inside the link account modal.
+  _showLinkConfirmDialog(message, onConfirm) {
+    // Remove any existing confirm dialog first
+    const existingDialog = this.shadowRoot.querySelector('.bla-confirm-dialog');
+    if (existingDialog) existingDialog.remove();
+
+    const blaModal = this.shadowRoot.querySelector('.bla-modal');
+    if (!blaModal) return;
+
+    const dialog = document.createElement('div');
+    dialog.className = 'bla-confirm-dialog';
+    dialog.innerHTML = `
+      <div class="bla-confirm-box">
+        <p class="bla-confirm-msg">${message}</p>
+        <div class="bla-confirm-actions">
+          <button class="bla-confirm-btn bla-confirm-btn--danger" id="bla-confirm-yes">Discard & Leave</button>
+          <button class="bla-confirm-btn bla-confirm-btn--ghost" id="bla-confirm-no">Keep Editing</button>
+        </div>
+      </div>
+    `;
+
+    dialog.querySelector('#bla-confirm-yes').addEventListener('click', () => {
+      dialog.remove();
+      onConfirm();
+    });
+    dialog.querySelector('#bla-confirm-no').addEventListener('click', () => {
+      dialog.remove();
+    });
+
+    blaModal.appendChild(dialog);
+  }
+
+  async _handleLinkAccountSubmit() {
+    const { accountName, accountNumber, routingNumber } = this._linkModalValues;
+    const errors = {};
+    if (!accountName.trim()) errors.accountName = 'Account name is required.';
+    if (!accountNumber.trim()) errors.accountNumber = 'Account number is required.';
+    else if (!/^\d{4,17}$/.test(accountNumber.trim())) errors.accountNumber = 'Enter a valid account number (4–17 digits).';
+    if (!routingNumber.trim()) errors.routingNumber = 'Routing number is required.';
+    else if (!/^\d{9}$/.test(routingNumber.trim())) errors.routingNumber = 'Routing number must be exactly 9 digits.';
+
+    if (Object.keys(errors).length > 0) {
+      this._linkModalFieldErrors = errors;
+      this._renderLinkModal();
+      return;
+    }
+
+    this._linkModalSubmitting = true;
+    this._linkModalFieldErrors = {};
+    this._installLinkModalGuards();
+    this._renderLinkModal();
+
+    try {
+      // Simulate API call
+      await new Promise(r => setTimeout(r, 1800));
+
+      // TODO: Integrate with backend API.
+      // On success, proceed to success screen.
+      // On failure (e.g. HTTP 422 / validation error), handle like this:
+      //   const apiErrors = response.errors; // e.g. { accountNumber: 'Account number already linked.' }
+      //   this._linkModalSubmitting = false;
+      //   this._linkModalFieldErrors = apiErrors; // Maps API field keys to error messages
+      //   this._removeLinkModalGuards();
+      //   this._linkModalResult = null;
+      //   this._renderLinkModal(); // Re-render form with field-level errors highlighted in red
+      //   return;                  // Fields will clear errors as the user edits them (onChange)
+
+      this._linkModalSubmitting = false;
+      this._removeLinkModalGuards();
+
+      // Store the new account as pending — it will be added to the list after
+      // the modal closes and the refetch completes (see _refetchAccounts).
+      const submittedNum = this._linkModalValues.accountNumber.trim();
+      const lastFour = submittedNum.length >= 4 ? submittedNum.slice(-4) : submittedNum.padStart(4, '0');
+      this._pendingLinkedAccount = {
+        id: `linked-${Date.now()}`,
+        type: this._linkModalValues.accountName.trim() || 'Linked Account',
+        lastFour,
+        balance: 0,
+      };
+
+      this._linkModalResult = 'success';
+      this._renderLinkModal();
+    } catch (err) {
+      this._linkModalSubmitting = false;
+      this._removeLinkModalGuards();
+      this._linkModalResult = 'error';
+      this._renderLinkModal();
+    }
+  }
+
+  _renderLinkModal() {
+    const existing = this.shadowRoot.querySelector('.bla-overlay');
+    if (existing) existing.remove();
+    if (!this._linkModalOpen) return;
+
+    const overlay = document.createElement('div');
+    overlay.className = 'bla-overlay';
+    overlay.setAttribute('data-state', 'open');
+
+    // Clicking the backdrop only closes if not submitting
+    const backdrop = document.createElement('div');
+    backdrop.className = 'bla-backdrop';
+    backdrop.addEventListener('click', () => this._closeLinkModal());
+    overlay.appendChild(backdrop);
+
+    const modal = document.createElement('div');
+    modal.className = 'bla-modal';
+    overlay.appendChild(modal);
+
+    // Header
+    const header = document.createElement('div');
+    header.className = 'bla-header';
+    let headerTitle = 'Link Account';
+    if (this._linkModalResult === 'success') headerTitle = 'Account Linked';
+    if (this._linkModalResult === 'error') headerTitle = 'Something Went Wrong';
+    header.innerHTML = `<div class="bla-header-left"><h2 class="bla-header-title">${headerTitle}</h2></div>`;
+
+    if (!this._linkModalSubmitting) {
+      const closeBtn = document.createElement('button');
+      closeBtn.className = 'bla-close-btn';
+      closeBtn.innerHTML = BOP_ICONS.x;
+      closeBtn.setAttribute('aria-label', 'Close');
+      closeBtn.addEventListener('click', () => this._closeLinkModal());
+      header.appendChild(closeBtn);
+    }
+    modal.appendChild(header);
+
+    // Body
+    const body = document.createElement('div');
+    body.className = 'bla-body';
+
+    if (this._linkModalResult === 'success') {
+      body.innerHTML = `
+        <div class="bla-result bla-result-success">
+          <div class="bla-result-icon-wrap bla-result-icon-wrap--success">
+            <svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>
+          </div>
+          <h3 class="bla-result-title">Account Linked!</h3>
+          <p class="bla-result-desc">Your bank account has been successfully connected. You can now use it for deposits and payments.</p>
+        </div>
+      `;
+      const doneBtn = document.createElement('button');
+      doneBtn.className = 'bla-btn';
+      doneBtn.textContent = 'Done';
+      doneBtn.addEventListener('click', () => this._closeLinkModal(true));
+      body.appendChild(doneBtn);
+    } else if (this._linkModalResult === 'error') {
+      body.innerHTML = `
+        <div class="bla-result bla-result-error">
+          <div class="bla-result-icon-wrap bla-result-icon-wrap--error">
+            <svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+          </div>
+          <h3 class="bla-result-title">Unable to Link Account</h3>
+          <p class="bla-result-desc">We couldn't connect your account at this time. Please check your details and try again, or contact support if the issue persists.</p>
+        </div>
+      `;
+      const retryBtn = document.createElement('button');
+      retryBtn.className = 'bla-btn';
+      retryBtn.textContent = 'Try Again';
+      retryBtn.addEventListener('click', () => {
+        this._linkModalResult = null;
+        this._linkModalFieldErrors = {};
+        this._renderLinkModal();
+      });
+      body.appendChild(retryBtn);
+      const cancelBtn = document.createElement('button');
+      cancelBtn.className = 'bla-btn bla-btn-ghost';
+      cancelBtn.textContent = 'Cancel';
+      cancelBtn.addEventListener('click', () => this._closeLinkModal(true));
+      body.appendChild(cancelBtn);
+    } else {
+      // Form view
+      const desc = document.createElement('p');
+      desc.className = 'bla-form-desc';
+      desc.textContent = 'Enter your bank account details below to connect it to your account.';
+      body.appendChild(desc);
+
+      const form = document.createElement('form');
+      form.className = 'bla-form';
+      form.addEventListener('submit', (e) => { e.preventDefault(); this._handleLinkAccountSubmit(); });
+
+      const fields = [
+        { key: 'accountName', label: 'Account Name', type: 'text', placeholder: 'e.g. My Business Checking' },
+        { key: 'accountNumber', label: 'Account Number', type: 'text', inputmode: 'numeric', placeholder: 'Enter account number' },
+        { key: 'routingNumber', label: 'Routing Number', type: 'text', inputmode: 'numeric', placeholder: '9-digit routing number' },
+      ];
+
+      fields.forEach(({ key, label, type, inputmode, placeholder }) => {
+        const fieldWrap = document.createElement('div');
+        fieldWrap.className = 'bla-field';
+
+        const lbl = document.createElement('label');
+        lbl.className = 'bla-label';
+        lbl.textContent = label;
+        lbl.setAttribute('for', `bla-${key}`);
+        fieldWrap.appendChild(lbl);
+
+        const err = this._linkModalFieldErrors[key];
+        const inp = document.createElement('input');
+        inp.className = 'bla-input' + (err ? ' bla-input--error' : '');
+        inp.type = type;
+        if (inputmode) inp.setAttribute('inputmode', inputmode);
+        inp.id = `bla-${key}`;
+        inp.placeholder = placeholder;
+        inp.value = this._linkModalValues[key];
+        inp.disabled = this._linkModalSubmitting;
+        inp.autocomplete = 'off';
+        inp.addEventListener('input', (e) => {
+          this._linkModalValues[key] = e.target.value;
+          this._linkModalDirty = true;
+          // Clear field error on change
+          if (this._linkModalFieldErrors[key]) {
+            delete this._linkModalFieldErrors[key];
+            inp.classList.remove('bla-input--error');
+            const errEl = fieldWrap.querySelector('.bla-field-error');
+            if (errEl) errEl.remove();
+          }
+        });
+        fieldWrap.appendChild(inp);
+
+        if (err) {
+          const errEl = document.createElement('p');
+          errEl.className = 'bla-field-error';
+          errEl.textContent = err;
+          fieldWrap.appendChild(errEl);
+        }
+
+        form.appendChild(fieldWrap);
+      });
+
+      const actions = document.createElement('div');
+      actions.className = 'bla-actions';
+
+      const submitBtn = document.createElement('button');
+      submitBtn.type = 'submit';
+      submitBtn.className = 'bla-btn';
+      submitBtn.disabled = this._linkModalSubmitting;
+      if (this._linkModalSubmitting) {
+        submitBtn.innerHTML = `<span class="bla-spinner">${BOP_ICONS.loader}</span><span>Linking Account…</span>`;
+      } else {
+        submitBtn.textContent = 'Submit';
+      }
+      actions.appendChild(submitBtn);
+
+      const cancelBtn = document.createElement('button');
+      cancelBtn.type = 'button';
+      cancelBtn.className = 'bla-btn bla-btn-ghost';
+      cancelBtn.textContent = 'Cancel';
+      cancelBtn.disabled = this._linkModalSubmitting;
+      cancelBtn.addEventListener('click', () => this._closeLinkModal());
+      actions.appendChild(cancelBtn);
+
+      form.appendChild(actions);
+      body.appendChild(form);
+    }
+
+    modal.appendChild(body);
+    this.shadowRoot.querySelector('.bop-overlay').appendChild(overlay);
   }
 
   // ==================== STYLES ====================
@@ -358,13 +799,15 @@ class BisonOperatorPayments extends HTMLElement {
 .bop-encrypt{display:flex;align-items:center;justify-content:center;gap:.5rem;font-size:var(--bop-xs);color:var(--bop-secondary)}
 
 .bop-accounts{padding:1.5rem; padding-top: 0;}
-.bop-accounts-header{flex-shrink:0;margin-bottom:1.5rem}
 .bop-accounts-bank{display:flex;align-items:center;gap:.75rem;margin-bottom:.5rem}
 .bop-accounts-bank-logo{width:3rem;height:3rem;border-radius:var(--bop-radius-md);display:flex;align-items:center;justify-content:center;color:#fff;outline:1px solid rgba(0,0,0,.05);overflow:hidden}
 .bop-accounts-bank-name{font-weight:500;color:var(--bop-headline)}
 .bop-accounts-desc{font-size:var(--bop-sm);color:var(--bop-secondary);line-height:1.5;text-align:left}
 .bop-account-list{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:.75rem;padding:0 .25rem 1rem;scrollbar-width:none}
 .bop-account-list::-webkit-scrollbar{display:none}
+.bop-accounts-fetch-loader{display:flex;align-items:center;gap:.625rem;padding:.75rem 1rem;background:var(--bop-primary-light);border:1px solid rgba(76,123,99,.18);border-radius:var(--bop-radius-xl);animation:bopFadeInUp .3s var(--bop-ease) forwards}
+.bop-accounts-fetch-spinner{display:flex;color:var(--bop-primary);animation:bopSpin 1s linear infinite;flex-shrink:0}
+.bop-accounts-fetch-text{font-size:var(--bop-xs);font-weight:500;color:var(--bop-primary)}
 .bop-account-card{width:100%;display:flex;align-items:center;padding:1rem;border-radius:var(--bop-radius-xl);border:2px solid transparent;background:#fff;box-shadow:var(--bop-shadow-sm);cursor:pointer;transition:all var(--bop-dur-norm) var(--bop-ease);font-family:var(--bop-font);text-align:left;animation:bopItemFade .3s var(--bop-ease) forwards;opacity:0}
 .bop-account-card:hover{border-color:rgba(76,123,99,.2);box-shadow:var(--bop-shadow-md)}
 .bop-account-card[data-selected="true"]{border-color:var(--bop-primary);background:rgba(76,123,99,.05)}
@@ -377,8 +820,34 @@ class BisonOperatorPayments extends HTMLElement {
 .bop-account-details{flex:1}
 .bop-account-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:.25rem}
 .bop-account-type{font-size:var(--bop-sm);font-weight:600;color:var(--bop-headline);display:flex;align-items:center;gap:.5rem}
+.bop-account-bank{font-size:var(--bop-xs);color:var(--bop-secondary);margin-bottom:.2rem;line-height:1.4}
 .bop-account-number{font-size:var(--bop-xs);color:var(--bop-secondary);font-family:var(--bop-mono);background:var(--bop-sidebar);padding:.125rem .5rem;border-radius:.375rem;display:inline-block}
 .bop-confirm-unlink{padding:2rem;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:#fff}
+
+/* ===== UNLINK RESULT ===== */
+.bop-ur{display:flex;flex-direction:column;align-items:stretch;background:#fff;overflow:hidden}
+.bop-ur-top{flex-shrink:0;display:flex;flex-direction:column;align-items:center;text-align:center;padding:1.25rem 1.5rem 1rem}
+.bop-ur-scroll{flex:1;overflow-y:auto;scrollbar-width:none;padding:0 1.5rem}
+.bop-ur-icon{width:3.25rem;height:3.25rem;flex-shrink:0;border-radius:var(--bop-radius-full);display:flex;align-items:center;justify-content:center;margin-bottom:1rem;animation:bopSuccessPop .4s var(--bop-ease-spring) forwards}
+.bop-ur-icon--err{background:#fef2f2;color:#dd524b}
+.bop-ur-icon--warn{background:#fffbeb;color:#d97706}
+.bop-ur-title{font-size:var(--bop-lg);font-weight:700;color:var(--bop-headline);margin-bottom:.375rem}
+.bop-ur-desc{font-size:var(--bop-sm);color:var(--bop-secondary);line-height:1.5;margin-bottom:1.25rem;max-width:280px}
+.bop-ur-scroll::-webkit-scrollbar{display:none}
+.bop-ur-list{display:flex;flex-direction:column;gap:.625rem;margin-bottom:1rem}
+.bop-ur-footer{flex-shrink:0;padding:.75rem 1.5rem 1.25rem;background:rgba(255,255,255,.9);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-top:1px solid var(--bop-border)}
+.bop-ur-card{display:flex;align-items:center;gap:.75rem;padding:.75rem;border-radius:var(--bop-radius-xl);border:1px solid var(--bop-border);background:var(--bop-sidebar);animation:bopFadeInUp .3s var(--bop-ease) forwards;opacity:0}
+.bop-ur-card--fail{border-color:rgba(221,82,75,.25);background:rgba(254,242,242,.5)}
+.bop-ur-card--ok{border-color:rgba(34,197,94,.25);background:rgba(240,253,244,.5)}
+.bop-ur-card-icon{width:2.25rem;height:2.25rem;border-radius:var(--bop-radius-md);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden}
+.bop-ur-card-details{flex:1;min-width:0}
+.bop-ur-card-type{font-size:var(--bop-sm);font-weight:600;color:var(--bop-headline);line-height:1.3}
+.bop-ur-card-num{font-size:var(--bop-xs);color:var(--bop-secondary);font-family:var(--bop-mono)}
+.bop-ur-card-reason{font-size:var(--bop-xs);color:#dd524b;margin-top:.2rem;line-height:1.4}
+.bop-ur-badge{width:1.5rem;height:1.5rem;border-radius:var(--bop-radius-full);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.bop-ur-badge--ok{background:#dcfce7;color:#16a34a}
+.bop-ur-badge--fail{background:#fef2f2;color:#dd524b}
+.bop-ur-actions{display:flex;flex-direction:column;gap:.625rem}
 .bop-unlink-icon{width:3.5rem;height:3.5rem;aspect-ratio:1;flex-shrink:0;background:#fef2f2;border-radius:var(--bop-radius-full);display:flex;align-items:center;justify-content:center;margin-bottom:1.25rem;color:#dd524b;animation:bopSuccessPop .4s var(--bop-ease-spring) forwards}
 .bop-unlink-title{font-size:var(--bop-lg);font-weight:700;color:var(--bop-headline);margin-bottom:.25rem}
 .bop-unlink-desc{font-size:var(--bop-sm);color:var(--bop-secondary);margin-bottom:1.5rem;line-height:1.5;max-width:280px}
@@ -398,6 +867,11 @@ class BisonOperatorPayments extends HTMLElement {
 .bop-accounts-footer{overflow:hidden;max-height:0;padding:0 .25rem;background:rgba(255,255,255,.5);backdrop-filter:blur(8px);border-top:0px solid rgba(232,232,232,.5);transition:max-height .15s var(--bop-ease),padding .15s var(--bop-ease),border-top-width 0s linear .15s}
 .bop-accounts-footer--open{max-height:80px;padding:1rem .25rem .5rem;border-top-width:1px;overflow:visible;transition:max-height .15s var(--bop-ease),padding .15s var(--bop-ease),border-top-width 0s linear 0s}
 .bop-btn-animate-in{animation:bopFadeIn .2s var(--bop-ease) forwards}
+.bop-accounts-header{display:flex;align-items:flex-start;justify-content:space-between;gap:.75rem;flex-shrink:0;margin-bottom:1rem}
+.bop-accounts-header-text{flex:1;min-width:0}
+.bop-link-account-btn{display:inline-flex;align-items:center;gap:.375rem;padding:.5rem .875rem;font-size:var(--bop-xs);font-weight:600;font-family:var(--bop-font);color:var(--bop-primary);background:var(--bop-primary-light);border:1px solid rgba(76,123,99,.25);border-radius:var(--bop-radius-xl);cursor:pointer;white-space:nowrap;flex-shrink:0;transition:all var(--bop-dur-norm) var(--bop-ease);margin-top:.125rem}
+.bop-link-account-btn:hover{background:rgba(76,123,99,.18);border-color:rgba(76,123,99,.4)}
+.bop-link-account-btn:active{transform:scale(.97)}
 
 .bop-success-view{padding:1.5rem 2rem;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:#fff}
 .bop-success-icon{width:4.5rem;height:4.5rem;aspect-ratio:1;flex-shrink:0;display:flex;align-items:center;justify-content:center;margin-bottom:1.25rem;position:relative;animation:bopSuccessPop .6s var(--bop-ease-spring) forwards}
@@ -435,6 +909,63 @@ class BisonOperatorPayments extends HTMLElement {
 .bop-loading-secure svg{color:#10b981}
 @keyframes bopBreath{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}
 @keyframes bopBarFill{0%{width:0}50%{width:65%}100%{width:95%}}
+
+/* ==================== LINK ACCOUNT MODAL ==================== */
+@keyframes blaBackdropIn{from{opacity:0}to{opacity:1}}
+@keyframes blaBackdropOut{from{opacity:1}to{opacity:0}}
+@keyframes blaModalIn{from{opacity:0;transform:scale(.96) translateY(16px)}to{opacity:1;transform:scale(1) translateY(0)}}
+@keyframes blaModalOut{from{opacity:1;transform:scale(1) translateY(0)}to{opacity:0;transform:scale(.96) translateY(16px)}}
+@keyframes blaResultPop{0%{transform:scale(0)}55%{transform:scale(1.12)}75%{transform:scale(.96)}100%{transform:scale(1)}}
+
+.bla-overlay{position:absolute;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;padding:1rem;border-radius:var(--bop-radius-xl)}
+.bla-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.45);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border-radius:var(--bop-radius-xl);animation:blaBackdropIn .25s var(--bop-ease) forwards}
+.bla-overlay[data-state="closing"] .bla-backdrop{animation:blaBackdropOut .25s var(--bop-ease) forwards}
+.bla-modal{position:relative;width:100%;max-width:400px;background:#fff;border:1px solid var(--bop-border);border-radius:var(--bop-radius-xl);box-shadow:0 20px 60px rgba(0,0,0,.25);display:flex;flex-direction:column;overflow:hidden;animation:blaModalIn .3s var(--bop-ease-spring) forwards}
+.bla-overlay[data-state="closing"] .bla-modal{animation:blaModalOut .25s var(--bop-ease) forwards}
+
+.bla-header{display:flex;align-items:center;justify-content:space-between;padding:.875rem 1.25rem;border-bottom:1px solid var(--bop-border);flex-shrink:0}
+.bla-header-left{display:flex;align-items:center;gap:.75rem}
+.bla-header-title{font-size:var(--bop-base);font-weight:700;color:var(--bop-headline)}
+.bla-close-btn{padding:.375rem;margin-right:-.375rem;color:var(--bop-secondary);background:transparent;border:none;border-radius:var(--bop-radius-md);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:color var(--bop-dur-norm) var(--bop-ease),background var(--bop-dur-norm) var(--bop-ease)}
+.bla-close-btn:hover{color:var(--bop-headline);background:var(--bop-sidebar)}
+
+.bla-body{padding:1.25rem;display:flex;flex-direction:column;gap:.875rem}
+.bla-form-desc{font-size:var(--bop-sm);color:var(--bop-secondary);line-height:1.55;margin-bottom:.125rem}
+.bla-form{display:flex;flex-direction:column;gap:.875rem}
+.bla-field{display:flex;flex-direction:column;gap:.375rem}
+.bla-label{font-size:var(--bop-xs);font-weight:600;color:var(--bop-secondary);text-transform:uppercase;letter-spacing:.05em;text-align:left}
+.bla-confirm-dialog{position:absolute;inset:0;background:rgba(255,255,255,.92);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:1.25rem;border-radius:var(--bop-radius-xl);z-index:10;animation:bopFadeIn .18s var(--bop-ease) forwards}
+.bla-confirm-box{width:100%;display:flex;flex-direction:column;gap:1rem;text-align:center}
+.bla-confirm-msg{font-size:var(--bop-sm);color:var(--bop-headline);line-height:1.6;font-weight:500}
+.bla-confirm-actions{display:flex;flex-direction:column;gap:.5rem}
+.bla-confirm-btn{width:100%;padding:.75rem 1rem;font-size:var(--bop-sm);font-weight:600;font-family:var(--bop-font);border:none;border-radius:var(--bop-radius-xl);cursor:pointer;transition:all var(--bop-dur-norm) var(--bop-ease)}
+.bla-confirm-btn--danger{background:#dd524b;color:#fff}
+.bla-confirm-btn--danger:hover{background:#c9403a}
+.bla-confirm-btn--ghost{background:transparent;color:var(--bop-secondary);border:1.5px solid var(--bop-border)}
+.bla-confirm-btn--ghost:hover{background:var(--bop-sidebar);color:var(--bop-headline)}
+.bla-input{width:100%;padding:.8rem 1rem;background:#fff;border:1.5px solid var(--bop-border);border-radius:var(--bop-radius-xl);font-size:var(--bop-sm);font-family:var(--bop-font);color:var(--bop-headline);outline:none;transition:border-color var(--bop-dur-norm) var(--bop-ease),box-shadow var(--bop-dur-norm) var(--bop-ease)}
+.bla-input::placeholder{color:rgba(95,110,120,.45)}
+.bla-input:focus{border-color:var(--bop-primary);box-shadow:0 0 0 3px rgba(76,123,99,.18)}
+.bla-input:disabled{opacity:.55;cursor:not-allowed;background:var(--bop-sidebar)}
+.bla-input--error{border-color:#ef4444!important;background:rgba(254,242,242,.4)}
+.bla-input--error:focus{box-shadow:0 0 0 3px rgba(239,68,68,.18)!important}
+.bla-field-error{font-size:var(--bop-xs);color:#ef4444;font-weight:500;animation:bopFadeInUp .2s var(--bop-ease) forwards}
+
+.bla-actions{display:flex;flex-direction:column;gap:.625rem;margin-top:.25rem}
+.bla-btn{width:100%;display:flex;align-items:center;justify-content:center;gap:.5rem;padding:.875rem 1.25rem;font-size:var(--bop-sm);font-weight:600;font-family:var(--bop-font);color:#fff;background:var(--bop-primary);border:none;border-radius:var(--bop-radius-xl);cursor:pointer;transition:all var(--bop-dur-norm) var(--bop-ease);min-height:3rem}
+.bla-btn:hover:not(:disabled){background:rgba(76,123,99,.9)}
+.bla-btn:active:not(:disabled){transform:scale(.98)}
+.bla-btn:disabled{opacity:.55;cursor:not-allowed}
+.bla-btn-ghost{background:transparent;color:var(--bop-secondary);border:1.5px solid var(--bop-border)}
+.bla-btn-ghost:hover:not(:disabled){background:var(--bop-sidebar);color:var(--bop-headline)}
+.bla-spinner{display:flex;animation:bopSpin 1s linear infinite}
+
+.bla-result{display:flex;flex-direction:column;align-items:center;text-align:center;padding:.5rem 0 .75rem}
+.bla-result-icon-wrap{width:4rem;height:4rem;border-radius:var(--bop-radius-full);display:flex;align-items:center;justify-content:center;margin-bottom:1rem;animation:blaResultPop .5s var(--bop-ease-spring) forwards}
+.bla-result-icon-wrap--success{background:rgba(34,197,94,.12);color:#16a34a}
+.bla-result-icon-wrap--error{background:rgba(239,68,68,.1);color:#dc2626}
+.bla-result-title{font-size:var(--bop-lg);font-weight:700;color:var(--bop-headline);margin-bottom:.375rem}
+.bla-result-desc{font-size:var(--bop-sm);color:var(--bop-secondary);line-height:1.6;max-width:280px}
 `;
   }
 
@@ -489,7 +1020,7 @@ class BisonOperatorPayments extends HTMLElement {
     this._headerEl.innerHTML = '';
     const left = document.createElement('div');
     left.className = 'bop-header-left';
-    const showBack = (this._step === 'select-accounts' && !this._isSingleBank) || this._step === 'confirm-unlink';
+    const showBack = (this._step === 'select-accounts' && !this._isSingleBank) || this._step === 'confirm-unlink' || this._step === 'unlink-result';
     if (showBack) {
       const back = document.createElement('button');
       back.className = 'bop-back-btn';
@@ -523,6 +1054,7 @@ class BisonOperatorPayments extends HTMLElement {
       case 'loading': this._renderLoading(); break;
       case 'select-accounts': this._renderSelectAccounts(); break;
       case 'confirm-unlink': this._renderConfirmUnlink(); break;
+      case 'unlink-result': this._renderUnlinkResult(); break;
       case 'success': this._renderSuccess(); break;
     }
   }
@@ -637,7 +1169,14 @@ class BisonOperatorPayments extends HTMLElement {
     const inner = document.createElement('div');
     inner.style.cssText = 'flex:1;display:flex;flex-direction:column;min-height:0;';
     const hd = document.createElement('div'); hd.className = 'bop-accounts-header';
-    hd.innerHTML = `<div class="bop-accounts-bank"><div class="bop-accounts-bank-logo" style="background:${this._selectedBank?.bg || ''}">${this._selectedBank?.logo ? `<img class="bop-logo-img" src="${this._selectedBank.logo}" alt="${this._selectedBank.name}">` : BOP_ICONS.buildingSm}</div><span class="bop-accounts-bank-name">${this._selectedBank?.name || ''}</span></div><p class="bop-accounts-desc">Add, edit, or remove accounts available in ${this._selectedBank?.name || 'your bank'}</p>`;
+    const hdText = document.createElement('div'); hdText.className = 'bop-accounts-header-text';
+    hdText.innerHTML = `<div class="bop-accounts-bank"><div class="bop-accounts-bank-logo" style="background:${this._selectedBank?.bg || ''}">${this._selectedBank?.logo ? `<img class="bop-logo-img" src="${this._selectedBank.logo}" alt="${this._selectedBank.name}">` : BOP_ICONS.buildingSm}</div><span class="bop-accounts-bank-name">${this._selectedBank?.name || ''}</span></div><p class="bop-accounts-desc">Add, edit, or remove accounts available in ${this._selectedBank?.name || 'your bank'}</p>`;
+    hd.appendChild(hdText);
+    const linkAccountBtn = document.createElement('button');
+    linkAccountBtn.className = 'bop-link-account-btn';
+    linkAccountBtn.innerHTML = `${BOP_ICONS.plus} Link Account`;
+    linkAccountBtn.addEventListener('click', () => this._handleLinkAccountClick());
+    hd.appendChild(linkAccountBtn);
     inner.appendChild(hd);
     this._accountListEl = document.createElement('div');
     this._accountListEl.className = 'bop-account-list';
@@ -651,16 +1190,34 @@ class BisonOperatorPayments extends HTMLElement {
     this._contentEl.appendChild(step);
   }
 
-  _renderAccountCards() {
+  _renderAccountCards(skipAnimationIds = null) {
     if (!this._accountListEl) return;
     this._accountListEl.innerHTML = '';
+
+    // Trailing loader row shown at the top while refetching accounts after a successful link
+    if (this._isFetchingAccounts) {
+      const loader = document.createElement('div');
+      loader.className = 'bop-accounts-fetch-loader';
+      loader.innerHTML = `
+        <span class="bop-accounts-fetch-spinner">${BOP_ICONS.loader}</span>
+        <span class="bop-accounts-fetch-text">Fetching your accounts…</span>
+      `;
+      this._accountListEl.appendChild(loader);
+    }
+
     this._mockAccounts.forEach((acct, i) => {
       const sel = this._selectedAccounts.has(acct.id);
       const card = document.createElement('button'); card.className = 'bop-account-card';
       card.dataset.accountId = acct.id;
-      card.style.animationDelay = `${i * 100}ms`;
+      // Skip the fade-in animation for accounts that were already visible before this render
+      if (skipAnimationIds && skipAnimationIds.has(acct.id)) {
+        card.style.animation = 'none';
+        card.style.opacity = '1';
+      } else {
+        card.style.animationDelay = `${i * 100}ms`;
+      }
       card.setAttribute('data-selected', String(sel));
-      card.innerHTML = `<div class="bop-card-inner"><div class="bop-check-circle"><span class="bop-check-icon">${BOP_ICONS.checkSm}</span></div><div class="bop-account-details"><div class="bop-account-top"><p class="bop-account-type">${BOP_ICONS.wallet} ${acct.type}</p></div><p class="bop-account-number">•••• ${acct.lastFour}</p></div></div>`;
+      card.innerHTML = `<div class="bop-card-inner"><div class="bop-check-circle"><span class="bop-check-icon">${BOP_ICONS.checkSm}</span></div><div class="bop-account-details"><div class="bop-account-top"><p class="bop-account-type">${BOP_ICONS.wallet} ${acct.type}</p></div>${acct.bankName ? `<p class="bop-account-bank">${acct.bankName}</p>` : ''}<p class="bop-account-number">•••• ${acct.lastFour}</p></div></div>`;
       card.addEventListener('click', () => this._handleAccountToggle(acct.id));
       this._accountListEl.appendChild(card);
     });
@@ -725,6 +1282,7 @@ class BisonOperatorPayments extends HTMLElement {
     const plural = count !== 1;
 
     if (this._isLoading) {
+      step.classList.add('bop-loading-view');
       step.innerHTML = `
         <div class="bop-loading-logo" style="background:${this._selectedBank?.bg || '#2563eb'}">${this._selectedBank?.logo ? `<img class="bop-logo-img" src="${this._selectedBank.logo}" alt="${this._selectedBank.name}">` : BOP_ICONS.buildingLg}</div>
         <div class="bop-loading-body">
@@ -773,6 +1331,76 @@ class BisonOperatorPayments extends HTMLElement {
     cancelBtn.innerHTML = '<span class="bop-btn-label">Cancel</span>';
     cancelBtn.addEventListener('click', () => this._handleCancelUnlink());
     actions.appendChild(cancelBtn);
+
+    this._contentEl.appendChild(step);
+  }
+
+  _renderUnlinkResult() {
+    const { succeeded, failed } = this._unlinkResult || { succeeded: [], failed: [] };
+    const bankLogo = this._selectedBank?.logo
+      ? `<img class="bop-logo-img" src="${this._selectedBank.logo}" alt="${this._selectedBank.name}">`
+      : BOP_ICONS.buildingSm;
+    const bankBg = this._selectedBank?.bg || '#2563eb';
+
+    const makeCard = (acct, status) => `
+      <div class="bop-ur-card bop-ur-card--${status}">
+        <div class="bop-ur-card-icon" style="background:${bankBg}">${bankLogo}</div>
+        <div class="bop-ur-card-details">
+          <p class="bop-ur-card-type">${acct.type}${acct.bankName ? ` · ${acct.bankName}` : ''}</p>
+          <p class="bop-ur-card-num">•••• ${acct.lastFour}</p>
+          ${status === 'fail' && acct.reason ? `<p class="bop-ur-card-reason">${acct.reason}</p>` : ''}
+        </div>
+        <div class="bop-ur-badge bop-ur-badge--${status}">${status === 'ok' ? BOP_ICONS.checkSm : BOP_ICONS.alert}</div>
+      </div>
+    `;
+
+    const step = document.createElement('div');
+    step.className = 'bop-step bop-ur';
+    step.setAttribute('data-direction', this._direction > 0 ? 'forward' : 'backward');
+
+    const isFullFail = succeeded.length === 0;
+    const icon = isFullFail
+      ? `<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>`
+      : `<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`;
+
+    const headline = isFullFail ? 'Unable to Unlink' : 'Partially Unlinked';
+    const desc = isFullFail
+      ? `${failed.length === 1 ? 'This account' : 'These accounts'} could not be unlinked at this time.`
+      : `${succeeded.length} account${succeeded.length !== 1 ? 's' : ''} unlinked successfully. ${failed.length} could not be removed.`;
+
+    // Pinned top: icon + title + description
+    const top = document.createElement('div');
+    top.className = 'bop-ur-top';
+    top.innerHTML = `
+      <div class="bop-ur-icon bop-ur-icon--${isFullFail ? 'err' : 'warn'}">${icon}</div>
+      <h3 class="bop-ur-title">${headline}</h3>
+      <p class="bop-ur-desc">${desc}</p>
+    `;
+    step.appendChild(top);
+
+    // Scrollable middle: card list only
+    const scroll = document.createElement('div');
+    scroll.className = 'bop-ur-scroll';
+    scroll.innerHTML = `
+      <div class="bop-ur-list">
+        ${failed.map(a => makeCard(a, 'fail')).join('')}
+        ${succeeded.map(a => makeCard(a, 'ok')).join('')}
+      </div>
+    `;
+    step.appendChild(scroll);
+
+    // Pinned bottom: Done button
+    const footer = document.createElement('div');
+    footer.className = 'bop-ur-footer';
+    const doneBtn = document.createElement('button');
+    doneBtn.className = 'bop-btn';
+    doneBtn.innerHTML = '<span class="bop-btn-label">Done</span>';
+    doneBtn.addEventListener('click', () => {
+      this._unlinkResult = null;
+      this._navigateStep('select-accounts', -1);
+    });
+    footer.appendChild(doneBtn);
+    step.appendChild(footer);
 
     this._contentEl.appendChild(step);
   }
