@@ -976,7 +976,7 @@ class BisonOperatorPayments extends HTMLElement {
     if (existing) return;
     const btn = document.createElement('button');
     btn.className = 'bop-trigger-btn';
-    btn.innerHTML = `<img src="${BOP_BISON_LOGO}" alt="Bison" class="bop-trigger-logo"> Link Bank Account`;
+    btn.innerHTML = `<img src="${BOP_BISON_LOGO}" alt="Bison" class="bop-trigger-logo"> Manage Bank Accounts`;
     btn.addEventListener('click', () => this.setAttribute('open', ''));
     this.shadowRoot.appendChild(btn);
   }
