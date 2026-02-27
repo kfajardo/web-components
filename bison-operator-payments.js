@@ -22,6 +22,14 @@ const BOP_BANKS = [
   { id: 'moov', name: 'Moov', bg: '#76d657', logo: 'data:image/webp;base64,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' },
 ];
 
+const BOP_BRAND_BANK = {
+  id: 'bison',
+  name: 'Bison',
+  bg: 'linear-gradient(135deg,#4c7b63 0%,#3f6c56 48%,#5a8c72 100%)',
+  text: '#4c7b63',
+  logo: BOP_BISON_LOGO,
+};
+
 const BOP_ICONS = {
   x: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>',
   arrowLeft: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>',
@@ -47,10 +55,10 @@ class BisonOperatorPayments extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
-    this._step = this._isSingleBank ? 'loading' : 'select-bank';
+    this._step = 'select-accounts';
     this._direction = 1;
     this._searchQuery = '';
-    this._selectedBank = this._isSingleBank ? BOP_BANKS[0] : null;
+    this._selectedBank = BOP_BRAND_BANK;
     this._isLoading = false;
     this._mockAccounts = [];
     this._selectedAccounts = new Set();
@@ -72,8 +80,6 @@ class BisonOperatorPayments extends HTMLElement {
     this._pendingLinkedAccount = null; // Holds new account data post-link until refetch completes
   }
 
-  get _isSingleBank() { return BOP_BANKS.length === 1; }
-
   static get observedAttributes() { return ['open']; }
 
   connectedCallback() {
@@ -94,6 +100,12 @@ class BisonOperatorPayments extends HTMLElement {
   _generateMockAccounts() {
     const bankId = this._selectedBank?.id;
     const accountsByProvider = {
+      bison: [
+        { id: 'bis-1', type: 'Checking',         bankName: 'Chase',           lastFour: '4821', balance: 0 },
+        { id: 'bis-2', type: 'Savings',          bankName: 'Bank of America', lastFour: '3390', balance: 0, cannotUnlink: true },
+        { id: 'bis-3', type: 'Business Checking', bankName: 'Wells Fargo',    lastFour: '9154', balance: 0 },
+        { id: 'bis-4', type: 'Business Savings', bankName: 'Citibank',        lastFour: '2289', balance: 0 },
+      ],
       column: [
         { id: 'col-1', type: 'Checking',         bankName: 'Chase',           lastFour: '4821', balance: 0 },
         { id: 'col-2', type: 'Savings',           bankName: 'Bank of America', lastFour: '3390', balance: 0, cannotUnlink: true },
@@ -114,8 +126,8 @@ class BisonOperatorPayments extends HTMLElement {
   }
 
   _resetState() {
-    this._step = this._isSingleBank ? 'loading' : 'select-bank'; this._direction = 1; this._searchQuery = '';
-    this._selectedBank = this._isSingleBank ? BOP_BANKS[0] : null;
+    this._step = 'select-accounts'; this._direction = 1; this._searchQuery = '';
+    this._selectedBank = BOP_BRAND_BANK;
     this._isLoading = false;
     this._mockAccounts = []; this._selectedAccounts = new Set(); this._linkedAccount = null;
     this._unlinkTarget = null;
@@ -281,9 +293,7 @@ class BisonOperatorPayments extends HTMLElement {
       this._unlinkResult = null;
       this._navigateStep('select-accounts', -1);
     } else if (this._step === 'select-accounts') {
-      if (this._isSingleBank) { this._handleClose(); return; }
-      this._mockAccounts = []; this._selectedAccounts = new Set();
-      this._navigateStep('select-bank', -1);
+      this._handleClose();
     }
   }
 
@@ -337,7 +347,6 @@ class BisonOperatorPayments extends HTMLElement {
 
   _getHeaderTitle() {
     switch (this._step) {
-      case 'select-bank': return 'Link Bank Account';
       case 'loading': return this._selectedBank?.name || 'Connecting';
       case 'select-accounts': return 'Manage Accounts';
       case 'confirm-unlink': return 'Unlink Account';
@@ -697,7 +706,7 @@ class BisonOperatorPayments extends HTMLElement {
 
   _getStyles() {
     return `
-:host{--bop-primary:#4c7b63;--bop-primary-light:#e8f0eb;--bop-headline:#0f2a39;--bop-secondary:#5f6e78;--bop-success:#22c55e;--bop-error:#dd524b;--bop-sidebar:#fafafa;--bop-border:#e8e8e8;--bop-radius-sm:0.25rem;--bop-radius-md:0.5rem;--bop-radius-lg:0.75rem;--bop-radius-xl:1rem;--bop-radius-full:9999px;--bop-shadow-sm:0 1px 2px 0 rgb(0 0 0/0.05);--bop-shadow-md:0 4px 6px -1px rgb(0 0 0/0.1);--bop-shadow-2xl:0 25px 50px -12px rgb(0 0 0/0.25);--bop-dur-fast:150ms;--bop-dur-norm:200ms;--bop-dur-slow:300ms;--bop-ease:cubic-bezier(0.4,0,0.2,1);--bop-ease-spring:cubic-bezier(0.16,1,0.3,1);--bop-font:var(--font-sans,'Inter',system-ui,sans-serif);--bop-mono:var(--font-mono,ui-monospace,'SF Mono','Menlo',monospace);--bop-xs:0.75rem;--bop-sm:0.875rem;--bop-base:1rem;--bop-lg:1.125rem;--bop-2xl:1.5rem;font-family:var(--bop-font);display:inline-block}
+:host{--bop-primary:#4c7b63;--bop-primary-light:#e8f0eb;--bop-headline:#0f2a39;--bop-secondary:#5f6e78;--bop-success:#22c55e;--bop-error:#dd524b;--bop-sidebar:#fafafa;--bop-border:#e8e8e8;--bop-radius-sm:0.25rem;--bop-radius-md:0.5rem;--bop-radius-lg:0.75rem;--bop-radius-xl:1rem;--bop-radius-full:9999px;--bop-shadow-sm:0 1px 2px 0 rgb(0 0 0/0.05);--bop-shadow-md:0 4px 6px -1px rgb(0 0 0/0.1);--bop-shadow-2xl:0 25px 50px -12px rgb(0 0 0/0.25);--bop-dur-fast:150ms;--bop-dur-norm:200ms;--bop-dur-slow:300ms;--bop-ease:cubic-bezier(0.4,0,0.2,1);--bop-ease-spring:cubic-bezier(0.16,1,0.3,1);--bop-font:var(--font-sans,'Inter',system-ui,sans-serif);--bop-mono:var(--font-mono,ui-monospace,'SF Mono','Menlo',monospace);--bop-xs:0.75rem;--bop-sm:0.875rem;--bop-base:1rem;--bop-lg:1.125rem;--bop-2xl:1.5rem;--bop-logo-scale:72%;font-family:var(--bop-font);display:inline-block}
 .bop-trigger-btn{display:inline-flex;align-items:center;gap:8px;padding:12px 24px;font-size:var(--bop-sm);font-weight:600;font-family:var(--bop-font);color:#fff;background:var(--bop-primary);border:none;border-radius:var(--bop-radius-xl);cursor:pointer;box-shadow:0 4px 12px rgba(76,123,99,.3);transition:all var(--bop-dur-norm) var(--bop-ease);height:40px;line-height:1}
 .bop-trigger-btn:hover{background:rgba(76,123,99,.9);box-shadow:0 6px 16px rgba(76,123,99,.4);transform:translateY(-1px)}
 .bop-trigger-btn:active{transform:scale(.98) translateY(0)}
@@ -766,7 +775,7 @@ class BisonOperatorPayments extends HTMLElement {
 .bop-bank-item:hover{border-color:var(--bop-border);box-shadow:var(--bop-shadow-sm);background:rgba(248,250,252,1)}
 .bop-bank-item-left{display:flex;align-items:center;gap:1rem}
 .bop-bank-logo{width:2.5rem;height:2.5rem;border-radius:var(--bop-radius-md);display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:var(--bop-shadow-sm);outline:1px solid rgba(0,0,0,.05);overflow:hidden}
-.bop-logo-img{width:100%;height:100%;object-fit:cover}
+.bop-logo-img{width:var(--bop-logo-scale);height:var(--bop-logo-scale);object-fit:contain}
 .bop-bank-name{font-size:var(--bop-sm);font-weight:500;color:var(--bop-headline);transition:color var(--bop-dur-norm) var(--bop-ease)}
 .bop-bank-item:hover .bop-bank-name{color:var(--bop-primary)}
 .bop-chevron{color:rgba(95,110,120,.5);transition:color var(--bop-dur-norm) var(--bop-ease);display:flex}
@@ -854,7 +863,7 @@ class BisonOperatorPayments extends HTMLElement {
 .bop-unlink-desc{font-size:var(--bop-sm);color:var(--bop-secondary);margin-bottom:1.5rem;line-height:1.5;max-width:280px}
 .bop-unlink-card{background:var(--bop-sidebar);border:1px solid var(--bop-border);border-radius:var(--bop-radius-xl);padding:.875rem;min-width:82%;flex-shrink:0;display:flex;align-items:center;gap:.75rem;scroll-snap-align:start}
 .bop-unlink-card-icon{width:2.25rem;height:2.25rem;border-radius:var(--bop-radius-md);display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0;overflow:hidden}
-.bop-unlink-card-icon .bop-logo-img{width:100%;height:100%;object-fit:cover}
+.bop-unlink-card-icon .bop-logo-img{width:var(--bop-logo-scale);height:var(--bop-logo-scale);object-fit:contain}
 .bop-unlink-card-details{text-align:left}
 .bop-unlink-card-type{font-size:var(--bop-sm);font-weight:600;color:var(--bop-headline)}
 .bop-unlink-card-num{font-size:var(--bop-xs);color:var(--bop-secondary);font-family:var(--bop-mono)}
@@ -877,7 +886,7 @@ class BisonOperatorPayments extends HTMLElement {
 .bop-success-view{padding:1.5rem 2rem;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:#fff}
 .bop-success-icon{width:4.5rem;height:4.5rem;aspect-ratio:1;flex-shrink:0;display:flex;align-items:center;justify-content:center;margin-bottom:1.25rem;position:relative;animation:bopSuccessPop .6s var(--bop-ease-spring) forwards}
 .bop-success-icon-inner{width:100%;height:100%;border-radius:var(--bop-radius-xl);overflow:hidden;display:flex;align-items:center;justify-content:center;box-shadow:var(--bop-shadow-md);outline:1px solid rgba(0,0,0,.06)}
-.bop-success-icon-inner .bop-logo-img{width:100%;height:100%;object-fit:cover}
+.bop-success-icon-inner .bop-logo-img{width:var(--bop-logo-scale);height:var(--bop-logo-scale);object-fit:contain}
 .bop-success-icon-inner .bop-success-logo-fallback{color:#fff;display:flex;align-items:center;justify-content:center;width:100%;height:100%}
 .bop-success-badge{position:absolute;bottom:-4px;right:-4px;width:1.5rem;height:1.5rem;background:#10b981;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid #fff;animation:bopCheckPop .3s var(--bop-ease-spring) .4s both;z-index:1}
 .bop-success-badge svg{color:#fff;width:12px;height:12px}
@@ -1021,7 +1030,7 @@ class BisonOperatorPayments extends HTMLElement {
     this._headerEl.innerHTML = '';
     const left = document.createElement('div');
     left.className = 'bop-header-left';
-    const showBack = (this._step === 'select-accounts' && !this._isSingleBank) || this._step === 'confirm-unlink' || this._step === 'unlink-result';
+    const showBack = this._step === 'confirm-unlink' || this._step === 'unlink-result';
     if (showBack) {
       const back = document.createElement('button');
       back.className = 'bop-back-btn';
@@ -1051,7 +1060,6 @@ class BisonOperatorPayments extends HTMLElement {
       if (this._step === 'success') modal.classList.add('bop-modal-compact');
     }
     switch (this._step) {
-      case 'select-bank': this._renderSelectBank(); break;
       case 'loading': this._renderLoading(); break;
       case 'select-accounts': this._renderSelectAccounts(); break;
       case 'confirm-unlink': this._renderConfirmUnlink(); break;
@@ -1164,6 +1172,9 @@ class BisonOperatorPayments extends HTMLElement {
   }
 
   _renderSelectAccounts() {
+    if (this._mockAccounts.length === 0) {
+      this._mockAccounts = this._generateMockAccounts();
+    }
     const step = document.createElement('div');
     step.className = 'bop-step bop-accounts';
     step.setAttribute('data-direction', this._direction > 0 ? 'forward' : 'backward');
@@ -1171,7 +1182,7 @@ class BisonOperatorPayments extends HTMLElement {
     inner.style.cssText = 'flex:1;display:flex;flex-direction:column;min-height:0;';
     const hd = document.createElement('div'); hd.className = 'bop-accounts-header';
     const hdText = document.createElement('div'); hdText.className = 'bop-accounts-header-text';
-    hdText.innerHTML = `<div class="bop-accounts-bank"><div class="bop-accounts-bank-logo" style="background:${this._selectedBank?.bg || ''}">${this._selectedBank?.logo ? `<img class="bop-logo-img" src="${this._selectedBank.logo}" alt="${this._selectedBank.name}">` : BOP_ICONS.buildingSm}</div><span class="bop-accounts-bank-name">${this._selectedBank?.name || ''}</span></div><p class="bop-accounts-desc">Add, edit, or remove accounts available in ${this._selectedBank?.name || 'your bank'}</p>`;
+    hdText.innerHTML = `<div class="bop-accounts-bank"><div class="bop-accounts-bank-logo" style="background:${this._selectedBank?.bg || ''}">${this._selectedBank?.logo ? `<img class="bop-logo-img" src="${this._selectedBank.logo}" alt="${this._selectedBank.name}">` : BOP_ICONS.buildingSm}</div><span class="bop-accounts-bank-name">${this._selectedBank?.name || ''}</span></div><p class="bop-accounts-desc">Add, edit, or remove your linked bank accounts.</p>`;
     hd.appendChild(hdText);
     const linkAccountBtn = document.createElement('button');
     linkAccountBtn.className = 'bop-link-account-btn';
