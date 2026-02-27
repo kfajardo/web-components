@@ -78,13 +78,20 @@ class BisonOperatorPayments extends HTMLElement {
     // Accounts list fetch state
     this._isFetchingAccounts = false;
     this._pendingLinkedAccount = null; // Holds new account data post-link until refetch completes
+    // Operator lookup state (Enverus)
+    this._operatorData = null;          // Holds successful Enverus lookup response
+    this._operatorLookupError = null;   // Holds error from failed lookup
+    this._isOperatorLookupPending = false; // True while lookup is in-flight
+    this._componentDisabled = true;     // Disabled until a valid operator is resolved
   }
 
-  static get observedAttributes() { return ['open']; }
+  static get observedAttributes() { return ['open', 'org-number', 'op-org-id']; }
 
   connectedCallback() {
     this._injectStyles();
     this._renderTrigger();
+    // Evaluate initial attribute state on connect
+    this._evaluateOperatorAttributes();
     if (this.isOpen) this._renderModal();
   }
 
@@ -93,9 +100,115 @@ class BisonOperatorPayments extends HTMLElement {
       if (newVal !== null) { this._isClosing = false; this._render(); }
       else { this._animateClose(); }
     }
+    if (name === 'org-number' || name === 'op-org-id') {
+      if (oldVal !== newVal) {
+        this._log(`Attribute changed: ${name} → "${newVal}" (was "${oldVal}")`);
+        this._evaluateOperatorAttributes();
+      }
+    }
   }
 
   get isOpen() { return this.hasAttribute('open'); }
+
+  // ==================== OPERATOR LOOKUP (Enverus) ====================
+
+  /**
+   * Evaluates the current orgNumber / opOrgId attributes and triggers
+   * the Enverus operator lookup if at least one is present.
+   * Priority: opOrgId > orgNumber
+   */
+  _evaluateOperatorAttributes() {
+    const opOrgId  = (this.getAttribute('op-org-id')  || '').trim();
+    const orgNumber = (this.getAttribute('org-number') || '').trim();
+
+    if (!opOrgId && !orgNumber) {
+      this._log('Both op-org-id and org-number are empty → component DISABLED');
+      this._operatorData = null;
+      this._operatorLookupError = null;
+      this._componentDisabled = true;
+      this._updateTriggerState();
+      this._dispatchLookupEvent({ status: 'disabled', reason: 'Both opOrgId and orgNumber are empty' });
+      return;
+    }
+
+    // Determine which identifier to use (opOrgId takes priority)
+    const lookupKey = opOrgId ? 'opOrgId' : 'orgNumber';
+    const lookupVal = opOrgId || orgNumber;
+    this._log(`Operator lookup initiated via ${lookupKey}="${lookupVal}"`);
+    this._performOperatorLookup(opOrgId || null, orgNumber || null);
+  }
+
+  /**
+   * Calls findOperatorFromEnverus on the API and handles success/error.
+   * Requires window.BisonJibPayAPI or a pre-wired this._api instance.
+   */
+  async _performOperatorLookup(opOrgId, orgNumber) {
+    // Resolve API instance — consumers can set this._api externally,
+    // or the component falls back to a global instance on window.
+    const api = this._api || (typeof window !== 'undefined' && window.__bisonApi);
+    if (!api || typeof api.findOperatorFromEnverus !== 'function') {
+      const msg = 'No API instance available — set component._api or window.__bisonApi';
+      this._log(`ERROR: ${msg}`);
+      this._operatorData = null;
+      this._operatorLookupError = msg;
+      this._componentDisabled = true;
+      this._updateTriggerState();
+      this._dispatchLookupEvent({ status: 'error', error: msg });
+      return;
+    }
+
+    this._isOperatorLookupPending = true;
+    this._componentDisabled = true; // Stay disabled while in-flight
+    this._updateTriggerState();
+
+    try {
+      const result = await api.findOperatorFromEnverus(opOrgId, orgNumber);
+      this._log('Operator lookup SUCCESS', result);
+      this._operatorData = result;
+      this._operatorLookupError = null;
+      this._componentDisabled = false;
+      this._dispatchLookupEvent({ status: 'success', data: result });
+    } catch (err) {
+      const errData = err?.data || err;
+      this._log('Operator lookup ERROR', errData);
+      this._operatorData = null;
+      this._operatorLookupError = errData;
+      this._componentDisabled = true;
+      this._dispatchLookupEvent({ status: 'error', error: errData });
+    } finally {
+      this._isOperatorLookupPending = false;
+      this._updateTriggerState();
+    }
+  }
+
+  /** Updates the trigger button disabled/enabled state based on _componentDisabled. */
+  _updateTriggerState() {
+    const btn = this.shadowRoot?.querySelector('.bop-trigger-btn');
+    if (!btn) return;
+    btn.disabled = this._componentDisabled;
+    if (this._componentDisabled) {
+      btn.setAttribute('aria-disabled', 'true');
+    } else {
+      btn.removeAttribute('aria-disabled');
+    }
+  }
+
+  /** Emit a custom event with operator-lookup details for external consumers / debug logs. */
+  _dispatchLookupEvent(detail) {
+    this.dispatchEvent(new CustomEvent('bop-operator-lookup', {
+      bubbles: true, composed: true, detail,
+    }));
+  }
+
+  /** Internal dev-friendly logger, prefixed for easy identification. */
+  _log(msg, data) {
+    const prefix = '[BOP]';
+    if (data !== undefined) {
+      console.log(prefix, msg, data);
+    } else {
+      console.log(prefix, msg);
+    }
+  }
 
   _generateMockAccounts() {
     const bankId = this._selectedBank?.id;
@@ -986,7 +1099,12 @@ class BisonOperatorPayments extends HTMLElement {
     const btn = document.createElement('button');
     btn.className = 'bop-trigger-btn';
     btn.innerHTML = `<img src="${BOP_BISON_LOGO}" alt="Bison" class="bop-trigger-logo"> Manage Bank Accounts`;
-    btn.addEventListener('click', () => this.setAttribute('open', ''));
+    btn.disabled = this._componentDisabled;
+    if (this._componentDisabled) btn.setAttribute('aria-disabled', 'true');
+    btn.addEventListener('click', () => {
+      if (this._componentDisabled) return;
+      this.setAttribute('open', '');
+    });
     this.shadowRoot.appendChild(btn);
   }
 

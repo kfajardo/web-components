@@ -545,6 +545,25 @@ class BisonJibPayAPI {
       }
     );
   }
+
+  /**
+   * Find operator from Enverus
+   *
+   * @param {string|number} [opOrgId] - Optional Operator Org ID
+   * @param {string} [orgNumber] - Optional Org Number
+   * @returns {Promise<any>}
+   */
+  async findOperatorFromEnverus(opOrgId = null, orgNumber = null) {
+    const params = new URLSearchParams();
+    if (opOrgId) params.append("opOrgId", opOrgId);
+    if (orgNumber) params.append("orgNumber", orgNumber);
+
+    const queryString = params.toString() ? `?${params.toString()}` : "";
+    
+    return this.request(`/api/enverus/operators/lookup${queryString}`, {
+      method: "GET",
+    });
+  }
 }
 
 // Export for ES6 modules (primary export method for modern bundlers)
