@@ -564,6 +564,78 @@ class BisonJibPayAPI {
       method: "GET",
     });
   }
+
+  /**
+   * List all bank accounts for an operator
+   *
+   * @param {string} operatorId - The internal GUID of the operator
+   * @returns {Promise<any>}
+   */
+  async getOperatorBankAccounts(operatorId) {
+    if (!operatorId) {
+      throw {
+        status: 400,
+        data: {
+          success: false,
+          message: "Operator ID is required",
+          errors: ["operatorId parameter is missing"],
+        },
+      };
+    }
+
+    return this.request(`/api/operators/${operatorId}/bank-accounts`, {
+      method: "GET",
+    });
+  }
+
+  /**
+   * Add a new bank account for an operator
+   *
+   * @param {string} operatorId - The internal GUID of the operator
+   * @param {Object} bankAccountData - The bank account details to add
+   * @returns {Promise<any>}
+   */
+  async addOperatorBankAccount(operatorId, bankAccountData) {
+    if (!operatorId) {
+      throw {
+        status: 400,
+        data: {
+          success: false,
+          message: "Operator ID is required",
+          errors: ["operatorId parameter is missing"],
+        },
+      };
+    }
+
+    return this.request(`/api/operators/${operatorId}/bank-accounts`, {
+      method: "POST",
+      body: JSON.stringify(bankAccountData),
+    });
+  }
+
+  /**
+   * Delete/unlink a bank account for an operator
+   *
+   * @param {string} operatorId - The internal GUID of the operator
+   * @param {string} bankAccountId - The ID of the bank account to delete
+   * @returns {Promise<any>}
+   */
+  async deleteOperatorBankAccount(operatorId, bankAccountId) {
+    if (!operatorId || !bankAccountId) {
+      throw {
+        status: 400,
+        data: {
+          success: false,
+          message: "Operator ID and Bank Account ID are required",
+          errors: ["operatorId or bankAccountId parameter is missing"],
+        },
+      };
+    }
+
+    return this.request(`/api/operators/${operatorId}/bank-accounts/${bankAccountId}`, {
+      method: "DELETE",
+    });
+  }
 }
 
 // Export for ES6 modules (primary export method for modern bundlers)

@@ -55,34 +55,42 @@ class BisonOperatorPayments extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
+
+    // Navigation state
     this._step = 'select-accounts';
     this._direction = 1;
     this._searchQuery = '';
     this._selectedBank = BOP_BRAND_BANK;
     this._isLoading = false;
-    this._mockAccounts = [];
+    this._isClosing = false;
+
+    // Account list state
+    this._accounts = [];
     this._selectedAccounts = new Set();
     this._linkedAccount = null;
-    this._isClosing = false;
+    this._isFetchingAccounts = false;
+    this._pendingLinkedAccount = null;
+
+    // Unlink state
     this._unlinkTarget = null;
     this._unlinkResult = null; // { succeeded: [], failed: [] }
+
     // Link Account modal state
     this._linkModalOpen = false;
     this._linkModalSubmitting = false;
     this._linkModalResult = null; // null | 'success' | 'error'
-    this._linkModalFieldErrors = {}; // { accountName, accountNumber, routingNumber }
+    this._linkModalFieldErrors = {};
     this._linkModalValues = { accountName: '', accountNumber: '', routingNumber: '' };
     this._linkModalDirty = false;
     this._linkModalBeforeUnload = null;
     this._linkModalPopState = null;
-    // Accounts list fetch state
-    this._isFetchingAccounts = false;
-    this._pendingLinkedAccount = null; // Holds new account data post-link until refetch completes
+
     // Operator lookup state (Enverus)
-    this._operatorData = null;          // Holds successful Enverus lookup response
-    this._operatorLookupError = null;   // Holds error from failed lookup
-    this._isOperatorLookupPending = false; // True while lookup is in-flight
-    this._componentDisabled = true;     // Disabled until a valid operator is resolved
+    this._operatorData = null;
+    this._operatorId = null;
+    this._operatorLookupError = null;
+    this._isOperatorLookupPending = false;
+    this._componentDisabled = true;
   }
 
   static get observedAttributes() { return ['open', 'org-number', 'op-org-id']; }
@@ -124,6 +132,7 @@ class BisonOperatorPayments extends HTMLElement {
     if (!opOrgId && !orgNumber) {
       this._log('Both op-org-id and org-number are empty → component DISABLED');
       this._operatorData = null;
+      this._operatorId = null;
       this._operatorLookupError = null;
       this._componentDisabled = true;
       this._updateTriggerState();
@@ -165,13 +174,20 @@ class BisonOperatorPayments extends HTMLElement {
       const result = await api.findOperatorFromEnverus(opOrgId, orgNumber);
       this._log('Operator lookup SUCCESS', result);
       this._operatorData = result;
+      this._operatorId = result?.data?.operatorId || result?.operatorId || null;
       this._operatorLookupError = null;
       this._componentDisabled = false;
       this._dispatchLookupEvent({ status: 'success', data: result });
+      
+      // Fetch operator bank accounts
+      if (this._operatorId) {
+        await this._fetchBankAccounts(api);
+      }
     } catch (err) {
       const errData = err?.data || err;
       this._log('Operator lookup ERROR', errData);
       this._operatorData = null;
+      this._operatorId = null;
       this._operatorLookupError = errData;
       this._componentDisabled = true;
       this._dispatchLookupEvent({ status: 'error', error: errData });
@@ -191,6 +207,17 @@ class BisonOperatorPayments extends HTMLElement {
     } else {
       btn.removeAttribute('aria-disabled');
     }
+    // Show/hide inline loader while lookup is in-flight
+    const loaderSvg = '<span class="bop-trigger-spinner"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg></span>';
+    const logoImg = `<img src="${BOP_BISON_LOGO}" alt="Bison" class="bop-trigger-logo">`;
+    const companyName = this._operatorData?.companyName || '';
+    if (this._isOperatorLookupPending) {
+      btn.innerHTML = `${loaderSvg} Initializing...`;
+    } else if (companyName) {
+      btn.innerHTML = `${logoImg} <span class="bop-trigger-company" key="${companyName}">${companyName}</span> <span class="bop-trigger-sep">·</span> Manage Bank Accounts`;
+    } else {
+      btn.innerHTML = `${logoImg} Manage Bank Accounts`;
+    }
   }
 
   /** Emit a custom event with operator-lookup details for external consumers / debug logs. */
@@ -198,6 +225,46 @@ class BisonOperatorPayments extends HTMLElement {
     this.dispatchEvent(new CustomEvent('bop-operator-lookup', {
       bubbles: true, composed: true, detail,
     }));
+  }
+
+  /**
+   * Fetches the real bank accounts for the resolved operator.
+   */
+  async _fetchBankAccounts(api) {
+    this._isFetchingAccounts = true;
+    try {
+      this._log(`Fetching bank accounts for operatorId: ${this._operatorId}`);
+      const response = await api.getOperatorBankAccounts(this._operatorId);
+      
+      // The payload structure is expected to be inside response.data
+      const accountsData = response?.data || [];
+      
+      // Map the DTO to the internal representation
+      this._accounts = accountsData.map(acc => ({
+        id: acc.id,
+        externalId: acc.externalId,
+        provider: acc.provider, // 0 = Column, 1 = Moov
+        type: acc.accountType === 0 ? 'Checking' : (acc.accountType === 1 ? 'Savings' : 'Unknown'),
+        bankName: acc.bankName || 'Unknown Bank',
+        accountName: acc.accountName || '',
+        lastFour: acc.accountNumber ? acc.accountNumber.slice(-4) : '••••',
+        isVerified: acc.isVerified,
+        isDefault: acc.isDefault,
+        cannotUnlink: false, // Define business logic if needed
+      }));
+      
+      this._log('Fetched bank accounts successfully', this._accounts);
+    } catch (err) {
+      const errData = err?.data || err;
+      this._log('Error fetching bank accounts', errData);
+      this._accounts = [];
+    } finally {
+      this._isFetchingAccounts = false;
+      // Re-render accounts if we are on the select-accounts step
+      if (this._step === 'select-accounts') {
+        this._renderAccountCards();
+      }
+    }
   }
 
   /** Internal dev-friendly logger, prefixed for easy identification. */
@@ -239,10 +306,14 @@ class BisonOperatorPayments extends HTMLElement {
   }
 
   _resetState() {
-    this._step = 'select-accounts'; this._direction = 1; this._searchQuery = '';
+    this._step = 'select-accounts';
+    this._direction = 1;
+    this._searchQuery = '';
     this._selectedBank = BOP_BRAND_BANK;
     this._isLoading = false;
-    this._mockAccounts = []; this._selectedAccounts = new Set(); this._linkedAccount = null;
+    this._accounts = [];
+    this._selectedAccounts = new Set();
+    this._linkedAccount = null;
     this._unlinkTarget = null;
     this._unlinkResult = null;
     this._isFetchingAccounts = false;
@@ -292,13 +363,18 @@ class BisonOperatorPayments extends HTMLElement {
   _navigateStep(newStep, dir) {
     const old = this.shadowRoot.querySelector('.bop-step:not(.bop-hidden)');
     this._direction = dir;
+
+    const applyStep = () => {
+      this._step = newStep;
+      this._renderContent();
+      this._renderHeader();
+    };
+
     if (old) {
       old.setAttribute('data-exit', dir > 0 ? 'forward' : 'backward');
-      old.addEventListener('animationend', () => {
-        this._step = newStep; this._renderContent(); this._renderHeader();
-      }, { once: true });
+      old.addEventListener('animationend', applyStep, { once: true });
     } else {
-      this._step = newStep; this._renderContent(); this._renderHeader();
+      applyStep();
     }
   }
 
@@ -322,17 +398,24 @@ class BisonOperatorPayments extends HTMLElement {
   _animateClose() {
     const overlay = this.shadowRoot.querySelector('.bop-overlay');
     if (!overlay || this._isClosing) return;
+
     this._isClosing = true;
     overlay.setAttribute('data-state', 'closing');
+
     const modal = overlay.querySelector('.bop-modal');
     if (modal) {
       modal.addEventListener('animationend', () => {
-        this._isClosing = false; this.removeAttribute('open');
-        setTimeout(() => this._resetState(), 50); this._render();
+        this._isClosing = false;
+        this.removeAttribute('open');
+        setTimeout(() => this._resetState(), 50);
+        this._render();
         this.dispatchEvent(new CustomEvent('bop-close', { bubbles: true, composed: true }));
       }, { once: true });
     } else {
-      this._isClosing = false; this.removeAttribute('open'); this._resetState(); this._render();
+      this._isClosing = false;
+      this.removeAttribute('open');
+      this._resetState();
+      this._render();
       this.dispatchEvent(new CustomEvent('bop-close', { bubbles: true, composed: true }));
     }
   }
@@ -357,16 +440,22 @@ class BisonOperatorPayments extends HTMLElement {
 
   async _handleLinkAccounts() {
     if (this._selectedAccounts.size === 0) return;
-    this._isLoading = true; this._renderAccountsButton();
+
+    this._isLoading = true;
+    this._renderAccountsButton();
     await new Promise(r => setTimeout(r, 1200));
+
     const firstId = Array.from(this._selectedAccounts)[0];
-    const account = this._mockAccounts.find(a => a.id === firstId);
+    const account = this._accounts.find(a => a.id === firstId);
     if (account) this._linkedAccount = account;
     this._isLoading = false;
-    // Animated shrink transition to compact success view
+
+    // Phase 1: Fade out current content
     const modal = this.shadowRoot.querySelector('.bop-modal');
     this._contentEl.classList.add('bop-content-fading');
+
     setTimeout(() => {
+      // Phase 2: Lock height, switch to compact mode
       this._contentEl.innerHTML = '';
       if (modal) {
         const currentH = modal.getBoundingClientRect().height;
@@ -376,8 +465,11 @@ class BisonOperatorPayments extends HTMLElement {
         modal.offsetHeight; // force reflow
         modal.style.height = '480px';
       }
+
       this._step = 'success';
       this._renderHeader();
+
+      // Phase 3: Render success view after resize settles
       setTimeout(() => {
         this._renderSuccess();
         requestAnimationFrame(() => {
@@ -419,22 +511,46 @@ class BisonOperatorPayments extends HTMLElement {
     if (!this._unlinkTarget || this._unlinkTarget.length === 0) return;
     this._isLoading = true;
     this._renderContent();
-    await new Promise(r => setTimeout(r, 1400));
+    
+    const api = this._api || (typeof window !== 'undefined' && window.__bisonApi);
+    if (!api || !this._operatorId) {
+      this._log('Error: Missing API instance or operator ID for unlinking.');
+      this._isLoading = false;
+      return;
+    }
 
-    // Process each account individually — flag cannotUnlink ones as failures
     const succeeded = [];
     const failed = [];
-    this._unlinkTarget.forEach(acct => {
+
+    // Process all accounts concurrently
+    const unlinkPromises = this._unlinkTarget.map(async (acct) => {
       if (acct.cannotUnlink) {
-        failed.push({ ...acct, reason: 'This bank account may not be unlinked at this time.' });
-      } else {
-        succeeded.push(acct);
+        return { success: false, acct: { ...acct, reason: 'This bank account may not be unlinked at this time.' } };
+      }
+      
+      try {
+        await api.deleteOperatorBankAccount(this._operatorId, acct.id);
+        return { success: true, acct };
+      } catch (err) {
+        this._log(`Failed to unlink account ${acct.id}:`, err);
+        const msg = err?.data?.message || err?.message || 'Unable to unlink account from server.';
+        return { success: false, acct: { ...acct, reason: msg } };
       }
     });
 
+    const results = await Promise.all(unlinkPromises);
+
+    for (const result of results) {
+      if (result.success) {
+        succeeded.push(result.acct);
+      } else {
+        failed.push(result.acct);
+      }
+    }
+
     // Remove successfully unlinked accounts from the list
     const succeededIds = new Set(succeeded.map(a => a.id));
-    this._mockAccounts = this._mockAccounts.filter(a => !succeededIds.has(a.id));
+    this._accounts = this._accounts.filter(a => !succeededIds.has(a.id));
     this._selectedAccounts = new Set();
     this._isLoading = false;
     this._unlinkTarget = null;
@@ -526,18 +642,18 @@ class BisonOperatorPayments extends HTMLElement {
   // Simulates a post-link accounts refetch with a trailing loader in the list.
   // TODO: When integrating with the real API, replace the mock delay and
   //       _pendingLinkedAccount push below with an actual accounts list API
-  //       call (e.g. GET /accounts). On response, replace this._mockAccounts
+  //       call (e.g. GET /accounts). On response, replace this._accounts
   //       with the fresh server data and call this._renderAccountCards().
   async _refetchAccounts() {
     if (!this._accountListEl) return;
     // Snapshot the IDs already visible before the refetch starts —
     // these accounts will NOT re-animate on either render pass.
-    const existingIds = new Set(this._mockAccounts.map(a => a.id));
+    const existingIds = new Set(this._accounts.map(a => a.id));
     this._isFetchingAccounts = true;
     this._renderAccountCards(existingIds); // Shows loader; existing cards rendered without animation
     await new Promise(r => setTimeout(r, 1200)); // Mocked network delay
     if (this._pendingLinkedAccount) {
-      this._mockAccounts.push(this._pendingLinkedAccount);
+      this._accounts.push(this._pendingLinkedAccount);
       this._pendingLinkedAccount = null;
     }
     this._isFetchingAccounts = false;
@@ -597,39 +713,51 @@ class BisonOperatorPayments extends HTMLElement {
     this._renderLinkModal();
 
     try {
-      // Simulate API call
-      await new Promise(r => setTimeout(r, 1800));
+      const api = this._api || (typeof window !== 'undefined' && window.__bisonApi);
+      if (!api || !this._operatorId) {
+        throw new Error('Missing API instance or operator ID');
+      }
 
-      // TODO: Integrate with backend API.
-      // On success, proceed to success screen.
-      // On failure (e.g. HTTP 422 / validation error), handle like this:
-      //   const apiErrors = response.errors; // e.g. { accountNumber: 'Account number already linked.' }
-      //   this._linkModalSubmitting = false;
-      //   this._linkModalFieldErrors = apiErrors; // Maps API field keys to error messages
-      //   this._removeLinkModalGuards();
-      //   this._linkModalResult = null;
-      //   this._renderLinkModal(); // Re-render form with field-level errors highlighted in red
-      //   return;                  // Fields will clear errors as the user edits them (onChange)
+      const payload = {
+        accountName: this._linkModalValues.accountName.trim(),
+        bankName: this._selectedBank?.name || 'Manual Bank',
+        routingNumber: this._linkModalValues.routingNumber.trim(),
+        accountNumber: this._linkModalValues.accountNumber.trim(),
+        accountType: 0, // Default to checking for manual entry
+        description: null,
+        isDefault: false
+      };
+
+      const response = await api.addOperatorBankAccount(this._operatorId, payload);
 
       this._linkModalSubmitting = false;
       this._removeLinkModalGuards();
 
-      // Store the new account as pending — it will be added to the list after
-      // the modal closes and the refetch completes (see _refetchAccounts).
-      const submittedNum = this._linkModalValues.accountNumber.trim();
-      const lastFour = submittedNum.length >= 4 ? submittedNum.slice(-4) : submittedNum.padStart(4, '0');
+      // Store the new account as pending based on the response if available, or locally generated
+      const newAcc = response?.data || {};
+      const lastFour = newAcc.accountNumber ? newAcc.accountNumber.slice(-4) : this._linkModalValues.accountNumber.trim().slice(-4);
+      
       this._pendingLinkedAccount = {
-        id: `linked-${Date.now()}`,
-        type: this._linkModalValues.accountName.trim() || 'Linked Account',
-        lastFour,
+        id: newAcc.id || `linked-${Date.now()}`,
+        type: newAcc.accountType === 0 ? 'Checking' : (newAcc.accountType === 1 ? 'Savings' : (payload.accountName || 'Linked Account')),
+        bankName: newAcc.bankName || payload.bankName,
+        lastFour: lastFour.padStart(4, '0'),
         balance: 0,
+        isVerified: newAcc.isVerified || false,
+        isDefault: newAcc.isDefault || false,
+        cannotUnlink: false
       };
 
       this._linkModalResult = 'success';
       this._renderLinkModal();
     } catch (err) {
+      this._log('Error linking account:', err);
+      const apiErrors = err?.data?.errors || err?.data?.message;
       this._linkModalSubmitting = false;
       this._removeLinkModalGuards();
+      
+      // If we have field-specific errors, we could map them here.
+      // For now, if there's a generic error, show the error screen.
       this._linkModalResult = 'error';
       this._renderLinkModal();
     }
@@ -821,9 +949,13 @@ class BisonOperatorPayments extends HTMLElement {
     return `
 :host{--bop-primary:#4c7b63;--bop-primary-light:#e8f0eb;--bop-headline:#0f2a39;--bop-secondary:#5f6e78;--bop-success:#22c55e;--bop-error:#dd524b;--bop-sidebar:#fafafa;--bop-border:#e8e8e8;--bop-radius-sm:0.25rem;--bop-radius-md:0.5rem;--bop-radius-lg:0.75rem;--bop-radius-xl:1rem;--bop-radius-full:9999px;--bop-shadow-sm:0 1px 2px 0 rgb(0 0 0/0.05);--bop-shadow-md:0 4px 6px -1px rgb(0 0 0/0.1);--bop-shadow-2xl:0 25px 50px -12px rgb(0 0 0/0.25);--bop-dur-fast:150ms;--bop-dur-norm:200ms;--bop-dur-slow:300ms;--bop-ease:cubic-bezier(0.4,0,0.2,1);--bop-ease-spring:cubic-bezier(0.16,1,0.3,1);--bop-font:var(--font-sans,'Inter',system-ui,sans-serif);--bop-mono:var(--font-mono,ui-monospace,'SF Mono','Menlo',monospace);--bop-xs:0.75rem;--bop-sm:0.875rem;--bop-base:1rem;--bop-lg:1.125rem;--bop-2xl:1.5rem;--bop-logo-scale:72%;font-family:var(--bop-font);display:inline-block}
 .bop-trigger-btn{display:inline-flex;align-items:center;gap:8px;padding:12px 24px;font-size:var(--bop-sm);font-weight:600;font-family:var(--bop-font);color:#fff;background:var(--bop-primary);border:none;border-radius:var(--bop-radius-xl);cursor:pointer;box-shadow:0 4px 12px rgba(76,123,99,.3);transition:all var(--bop-dur-norm) var(--bop-ease);height:40px;line-height:1}
-.bop-trigger-btn:hover{background:rgba(76,123,99,.9);box-shadow:0 6px 16px rgba(76,123,99,.4);transform:translateY(-1px)}
-.bop-trigger-btn:active{transform:scale(.98) translateY(0)}
+.bop-trigger-btn:hover:not(:disabled){background:rgba(76,123,99,.9);box-shadow:0 6px 16px rgba(76,123,99,.4);transform:translateY(-1px)}
+.bop-trigger-btn:active:not(:disabled){transform:scale(.98) translateY(0)}
+.bop-trigger-btn:disabled{opacity:.5;cursor:not-allowed;box-shadow:none}
 .bop-trigger-btn img.bop-trigger-logo{width:18px;height:18px;object-fit:contain;flex-shrink:0;display:block}
+.bop-trigger-company{display:inline-block;font-weight:700;letter-spacing:.01em;animation:bopCompanySlideIn .45s var(--bop-ease-spring) both}
+.bop-trigger-sep{opacity:.45;font-weight:400;margin:0 2px}
+.bop-trigger-spinner{display:inline-flex;animation:bopSpin 1s linear infinite}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 
 @keyframes bopBackdropIn{from{opacity:0}to{opacity:1}}
@@ -836,6 +968,7 @@ class BisonOperatorPayments extends HTMLElement {
 @keyframes bopSlideOutBwd{from{transform:translateX(0) scale(1);opacity:1}to{transform:translateX(50px) scale(.95);opacity:0}}
 @keyframes bopItemFade{from{opacity:0}to{opacity:1}}
 @keyframes bopSuccessPop{0%{transform:scale(0)}50%{transform:scale(1.15)}70%{transform:scale(.95)}100%{transform:scale(1)}}
+@keyframes bopCompanySlideIn{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:translateX(0)}}
 @keyframes bopPulseRing{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.2);opacity:0}}
 @keyframes bopSpin{to{transform:rotate(360deg)}}
 @keyframes bopCheckPop{0%{transform:scale(0)}100%{transform:scale(1)}}
@@ -860,7 +993,8 @@ class BisonOperatorPayments extends HTMLElement {
 .bop-header-left{display:flex;align-items:center;gap:.75rem;height:2rem}
 .bop-back-btn{padding:.375rem;margin-left:-.375rem;color:var(--bop-secondary);background:transparent;border:none;border-radius:var(--bop-radius-md);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:color var(--bop-dur-norm) var(--bop-ease),background var(--bop-dur-norm) var(--bop-ease);animation:bopSlideFromLeft .2s var(--bop-ease) forwards}
 .bop-back-btn:hover{color:var(--bop-headline);background:var(--bop-sidebar)}
-.bop-header-title{font-size:var(--bop-lg);font-weight:600;color:var(--bop-headline);animation:bopFadeInUp .25s var(--bop-ease) forwards}
+.bop-header-title{font-size:var(--bop-lg);font-weight:600;color:var(--bop-headline);animation:bopFadeInUp .25s var(--bop-ease) forwards;display:flex;align-items:center;gap:.4rem}
+.bop-header-logo{width:22px;height:22px;object-fit:contain;flex-shrink:0}
 .bop-close-btn{padding:.375rem;margin-right:-.375rem;color:var(--bop-secondary);background:transparent;border:none;border-radius:var(--bop-radius-md);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:color var(--bop-dur-norm) var(--bop-ease),background var(--bop-dur-norm) var(--bop-ease)}
 .bop-close-btn:hover{color:var(--bop-headline);background:var(--bop-sidebar)}
 
@@ -924,7 +1058,7 @@ class BisonOperatorPayments extends HTMLElement {
 .bop-accounts{padding:1.5rem; padding-top: 0;}
 .bop-accounts-bank{display:flex;align-items:center;gap:.75rem;margin-bottom:.5rem}
 .bop-accounts-bank-logo{width:3rem;height:3rem;border-radius:var(--bop-radius-md);display:flex;align-items:center;justify-content:center;color:#fff;outline:1px solid rgba(0,0,0,.05);overflow:hidden}
-.bop-accounts-bank-name{font-weight:500;color:var(--bop-headline)}
+.bop-accounts-bank-name{display:block;font-size:18px;font-weight:600;color:var(--bop-headline);text-align:left}
 .bop-accounts-desc{font-size:var(--bop-sm);color:var(--bop-secondary);line-height:1.5;text-align:left}
 .bop-account-list{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:.75rem;padding:0 .25rem 1rem;scrollbar-width:none}
 .bop-account-list::-webkit-scrollbar{display:none}
@@ -1158,7 +1292,11 @@ class BisonOperatorPayments extends HTMLElement {
     }
     const title = document.createElement('h2');
     title.className = 'bop-header-title';
-    title.textContent = this._getHeaderTitle();
+    if (this._step === 'select-accounts') {
+      title.innerHTML = `<img src="bison_logo_green.png" alt="" class="bop-header-logo"> ${this._getHeaderTitle()}`;
+    } else {
+      title.textContent = this._getHeaderTitle();
+    }
     left.appendChild(title);
     this._headerEl.appendChild(left);
     const close = document.createElement('button');
@@ -1190,54 +1328,94 @@ class BisonOperatorPayments extends HTMLElement {
     const step = document.createElement('div');
     step.className = 'bop-step bop-select-bank';
     step.setAttribute('data-direction', this._direction > 0 ? 'forward' : 'backward');
+
     const inner = document.createElement('div');
     inner.className = 'bop-step-inner';
+
     const sub = document.createElement('p');
     sub.className = 'bop-subtitle';
     sub.textContent = 'Search for your institution to securely connect your accounts via JIB Pay.';
     inner.appendChild(sub);
-    const sw = document.createElement('div');
-    sw.className = 'bop-search';
-    const si = document.createElement('span');
-    si.className = 'bop-search-icon';
-    si.innerHTML = BOP_ICONS.search;
-    sw.appendChild(si);
-    const inp = document.createElement('input');
-    inp.className = 'bop-search-input';
-    inp.type = 'text'; inp.placeholder = 'Search for your bank...';
-    inp.value = this._searchQuery;
-    inp.addEventListener('input', (e) => { this._searchQuery = e.target.value; this._renderBankList(); });
-    sw.appendChild(inp);
-    inner.appendChild(sw);
+
+    // Search input
+    const searchWrap = document.createElement('div');
+    searchWrap.className = 'bop-search';
+
+    const searchIcon = document.createElement('span');
+    searchIcon.className = 'bop-search-icon';
+    searchIcon.innerHTML = BOP_ICONS.search;
+    searchWrap.appendChild(searchIcon);
+
+    const searchInput = document.createElement('input');
+    searchInput.className = 'bop-search-input';
+    searchInput.type = 'text';
+    searchInput.placeholder = 'Search for your bank...';
+    searchInput.value = this._searchQuery;
+    searchInput.addEventListener('input', (e) => {
+      this._searchQuery = e.target.value;
+      this._renderBankList();
+    });
+    searchWrap.appendChild(searchInput);
+    inner.appendChild(searchWrap);
+
+    // Bank list
     this._bankListEl = document.createElement('div');
     this._bankListEl.className = 'bop-bank-list';
     inner.appendChild(this._bankListEl);
     this._renderBankList();
+
     step.appendChild(inner);
+
+    // Security footer
     const footer = document.createElement('div');
     footer.className = 'bop-security';
     footer.innerHTML = `${BOP_ICONS.shield}<span>Secured by JIB Pay Encryption</span>`;
     step.appendChild(footer);
+
     this._contentEl.appendChild(step);
-    requestAnimationFrame(() => inp.focus());
+    requestAnimationFrame(() => searchInput.focus());
   }
 
   _renderBankList() {
     if (!this._bankListEl) return;
     this._bankListEl.innerHTML = '';
-    const q = this._searchQuery.toLowerCase();
-    const filtered = BOP_BANKS.filter(b => b.name.toLowerCase().includes(q));
+
+    const query = this._searchQuery.toLowerCase();
+    const filtered = BOP_BANKS.filter(b => b.name.toLowerCase().includes(query));
+
     if (!filtered.length) {
-      const e = document.createElement('div');
-      e.className = 'bop-empty';
-      e.innerHTML = `<svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--bop-secondary)"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><p class="bop-empty-text">No banks found</p>`;
-      this._bankListEl.appendChild(e); return;
+      const empty = document.createElement('div');
+      empty.className = 'bop-empty';
+      empty.innerHTML = `
+        <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+             style="color:var(--bop-secondary)">
+          <circle cx="11" cy="11" r="8"/>
+          <path d="m21 21-4.3-4.3"/>
+        </svg>
+        <p class="bop-empty-text">No banks found</p>
+      `;
+      this._bankListEl.appendChild(empty);
+      return;
     }
+
     filtered.forEach((bank, i) => {
       const btn = document.createElement('button');
       btn.className = 'bop-bank-item';
       btn.style.animationDelay = `${i * 50}ms`;
-      btn.innerHTML = `<div class="bop-bank-item-left"><div class="bop-bank-logo" style="background:${bank.bg}">${bank.logo ? `<img class="bop-logo-img" src="${bank.logo}" alt="${bank.name}">` : BOP_ICONS.building}</div><span class="bop-bank-name">${bank.name}</span></div><span class="bop-chevron">${BOP_ICONS.chevron}</span>`;
+
+      const logoHtml = bank.logo
+        ? `<img class="bop-logo-img" src="${bank.logo}" alt="${bank.name}">`
+        : BOP_ICONS.building;
+
+      btn.innerHTML = `
+        <div class="bop-bank-item-left">
+          <div class="bop-bank-logo" style="background:${bank.bg}">${logoHtml}</div>
+          <span class="bop-bank-name">${bank.name}</span>
+        </div>
+        <span class="bop-chevron">${BOP_ICONS.chevron}</span>
+      `;
+
       btn.addEventListener('click', () => this._handleBankSelect(bank));
       this._bankListEl.appendChild(btn);
     });
@@ -1247,37 +1425,47 @@ class BisonOperatorPayments extends HTMLElement {
     const step = document.createElement('div');
     step.className = 'bop-step bop-loading-view';
     step.setAttribute('data-direction', this._direction > 0 ? 'forward' : 'backward');
+
+    const bankBg = this._selectedBank?.bg || '#2563eb';
+    const bankName = this._selectedBank?.name || '';
+    const bankLogo = this._selectedBank?.logo
+      ? `<img class="bop-logo-img" src="${this._selectedBank.logo}" alt="${bankName}">`
+      : BOP_ICONS.buildingLg;
+
     step.innerHTML = `
-      <div class="bop-loading-logo" style="background:${this._selectedBank?.bg || '#2563eb'}">${this._selectedBank?.logo ? `<img class="bop-logo-img" src="${this._selectedBank.logo}" alt="${this._selectedBank.name}">` : BOP_ICONS.buildingLg}</div>
+      <div class="bop-loading-logo" style="background:${bankBg}">${bankLogo}</div>
       <div class="bop-loading-body">
-        <p class="bop-loading-title">${this._selectedBank?.name || ''}</p>
+        <p class="bop-loading-title">${bankName}</p>
         <p class="bop-loading-text">Securely retrieving your accounts</p>
       </div>
       <div class="bop-loading-bar-wrap"><div class="bop-loading-bar"></div></div>
       <div class="bop-loading-secure">${BOP_ICONS.shield} 256-bit encrypted connection</div>
     `;
     this._contentEl.appendChild(step);
+
     setTimeout(() => {
       if (this._step !== 'loading') return;
-      this._mockAccounts = this._generateMockAccounts();
       this._selectedAccounts = new Set();
       const modal = this.shadowRoot.querySelector('.bop-modal');
-      // Phase 1: fade out content
+
+      // Phase 1: Fade out content
       this._contentEl.classList.add('bop-content-fading');
+
       setTimeout(() => {
-        // Phase 2: lock current height, clear content, then transition to target
+        // Phase 2: Clear content, transition to wide layout
         this._contentEl.innerHTML = '';
         if (modal) {
           const currentH = modal.getBoundingClientRect().height;
           modal.style.height = currentH + 'px';
           modal.classList.add('bop-modal-wide');
-          // Force reflow then set target height
-          modal.offsetHeight;
+          modal.offsetHeight; // force reflow
           modal.style.height = '720px';
         }
+
         this._step = 'select-accounts';
         this._renderHeader();
-        // Phase 3: after resize settles, render content & fade in
+
+        // Phase 3: Render accounts after resize settles
         setTimeout(() => {
           this._renderSelectAccounts();
           requestAnimationFrame(() => {
@@ -1290,32 +1478,45 @@ class BisonOperatorPayments extends HTMLElement {
   }
 
   _renderSelectAccounts() {
-    if (this._mockAccounts.length === 0) {
-      this._mockAccounts = this._generateMockAccounts();
-    }
     const step = document.createElement('div');
     step.className = 'bop-step bop-accounts';
     step.setAttribute('data-direction', this._direction > 0 ? 'forward' : 'backward');
+
     const inner = document.createElement('div');
     inner.style.cssText = 'flex:1;display:flex;flex-direction:column;min-height:0;';
-    const hd = document.createElement('div'); hd.className = 'bop-accounts-header';
-    const hdText = document.createElement('div'); hdText.className = 'bop-accounts-header-text';
-    hdText.innerHTML = `<div class="bop-accounts-bank"><div class="bop-accounts-bank-logo" style="background:${this._selectedBank?.bg || ''}">${this._selectedBank?.logo ? `<img class="bop-logo-img" src="${this._selectedBank.logo}" alt="${this._selectedBank.name}">` : BOP_ICONS.buildingSm}</div><span class="bop-accounts-bank-name">${this._selectedBank?.name || ''}</span></div><p class="bop-accounts-desc">Add, edit, or remove your linked bank accounts.</p>`;
+
+    // Header: bank info + link button
+    const hd = document.createElement('div');
+    hd.className = 'bop-accounts-header';
+
+    const hdText = document.createElement('div');
+    hdText.className = 'bop-accounts-header-text';
+    const companyName = this._operatorData?.data?.companyName || this._operatorData?.companyName || '';
+    hdText.innerHTML = `
+      ${companyName ? `<span class="bop-accounts-bank-name">${companyName}</span>` : ''}
+      <p class="bop-accounts-desc">Add, edit, or remove your linked bank accounts.</p>
+    `;
     hd.appendChild(hdText);
+
     const linkAccountBtn = document.createElement('button');
     linkAccountBtn.className = 'bop-link-account-btn';
     linkAccountBtn.innerHTML = `${BOP_ICONS.plus} Link Account`;
     linkAccountBtn.addEventListener('click', () => this._handleLinkAccountClick());
     hd.appendChild(linkAccountBtn);
     inner.appendChild(hd);
+
+    // Account list
     this._accountListEl = document.createElement('div');
     this._accountListEl.className = 'bop-account-list';
     inner.appendChild(this._accountListEl);
     this._renderAccountCards();
+
+    // Footer (unlink button area)
     this._accountsFooterEl = document.createElement('div');
     this._accountsFooterEl.className = 'bop-accounts-footer';
     inner.appendChild(this._accountsFooterEl);
     this._renderAccountsButton();
+
     step.appendChild(inner);
     this._contentEl.appendChild(step);
   }
@@ -1324,7 +1525,7 @@ class BisonOperatorPayments extends HTMLElement {
     if (!this._accountListEl) return;
     this._accountListEl.innerHTML = '';
 
-    // Trailing loader row shown at the top while refetching accounts after a successful link
+    // Show loader while refetching accounts after a successful link
     if (this._isFetchingAccounts) {
       const loader = document.createElement('div');
       loader.className = 'bop-accounts-fetch-loader';
@@ -1335,19 +1536,36 @@ class BisonOperatorPayments extends HTMLElement {
       this._accountListEl.appendChild(loader);
     }
 
-    this._mockAccounts.forEach((acct, i) => {
-      const sel = this._selectedAccounts.has(acct.id);
-      const card = document.createElement('button'); card.className = 'bop-account-card';
+    this._accounts.forEach((acct, i) => {
+      const isSelected = this._selectedAccounts.has(acct.id);
+      const card = document.createElement('button');
+      card.className = 'bop-account-card';
       card.dataset.accountId = acct.id;
-      // Skip the fade-in animation for accounts that were already visible before this render
+      card.setAttribute('data-selected', String(isSelected));
+
+      // Skip fade-in for accounts already visible before this render pass
       if (skipAnimationIds && skipAnimationIds.has(acct.id)) {
         card.style.animation = 'none';
         card.style.opacity = '1';
       } else {
         card.style.animationDelay = `${i * 100}ms`;
       }
-      card.setAttribute('data-selected', String(sel));
-      card.innerHTML = `<div class="bop-card-inner"><div class="bop-check-circle"><span class="bop-check-icon">${BOP_ICONS.checkSm}</span></div><div class="bop-account-details"><div class="bop-account-top"><p class="bop-account-type">${BOP_ICONS.wallet} ${acct.type}</p></div>${acct.bankName ? `<p class="bop-account-bank">${acct.bankName}</p>` : ''}<p class="bop-account-number">•••• ${acct.lastFour}</p></div></div>`;
+
+      card.innerHTML = `
+        <div class="bop-card-inner">
+          <div class="bop-check-circle">
+            <span class="bop-check-icon">${BOP_ICONS.checkSm}</span>
+          </div>
+          <div class="bop-account-details">
+            <div class="bop-account-top">
+              <p class="bop-account-type">${BOP_ICONS.wallet} ${acct.type}</p>
+            </div>
+            ${acct.bankName ? `<p class="bop-account-bank">${acct.bankName}</p>` : ''}
+            <p class="bop-account-number">•••• ${acct.lastFour}</p>
+          </div>
+        </div>
+      `;
+
       card.addEventListener('click', () => this._handleAccountToggle(acct.id));
       this._accountListEl.appendChild(card);
     });
@@ -1388,7 +1606,7 @@ class BisonOperatorPayments extends HTMLElement {
     btn.style.animation = 'bopFadeIn .15s var(--bop-ease) forwards';
     btn.innerHTML = label;
     btn.addEventListener('click', () => {
-      const accounts = this._mockAccounts.filter(a => this._selectedAccounts.has(a.id));
+      const accounts = this._accounts.filter(a => this._selectedAccounts.has(a.id));
       if (accounts.length) this._handleUnlinkRequest(accounts);
     });
     this._accountsFooterEl.innerHTML = '';
@@ -1539,18 +1757,38 @@ class BisonOperatorPayments extends HTMLElement {
     const step = document.createElement('div');
     step.className = 'bop-step bop-success-view';
     step.setAttribute('data-direction', this._direction > 0 ? 'forward' : 'backward');
-    const tc = this._selectedBank?.text || this._selectedBank?.bg || '';
+
+    const textColor = this._selectedBank?.text || this._selectedBank?.bg || '';
     const bankBg = this._selectedBank?.bg || '#2563eb';
+    const bankName = this._selectedBank?.name || '';
     const bankLogo = this._selectedBank?.logo
-      ? `<img class="bop-logo-img" src="${this._selectedBank.logo}" alt="${this._selectedBank.name}">`
+      ? `<img class="bop-logo-img" src="${this._selectedBank.logo}" alt="${bankName}">`
       : `<span class="bop-success-logo-fallback">${BOP_ICONS.building}</span>`;
     const checkBadge = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>`;
-    step.innerHTML = `<div class="bop-success-icon"><div class="bop-success-icon-inner" style="background:${bankBg}">${bankLogo}</div><div class="bop-success-badge">${checkBadge}</div></div><h3 class="bop-success-title">Successfully Linked!</h3><div class="bop-success-card"><div class="bop-success-bank"><span style="color:${tc}">${this._selectedBank?.name || ''}</span><span>•</span><span>${this._linkedAccount?.type || ''}</span></div><p class="bop-success-four">•••• ${this._linkedAccount?.lastFour || ''}</p></div><p class="bop-success-desc">Your account is now ready to use for deposits and payments across the platform.</p>`;
+
+    step.innerHTML = `
+      <div class="bop-success-icon">
+        <div class="bop-success-icon-inner" style="background:${bankBg}">${bankLogo}</div>
+        <div class="bop-success-badge">${checkBadge}</div>
+      </div>
+      <h3 class="bop-success-title">Successfully Linked!</h3>
+      <div class="bop-success-card">
+        <div class="bop-success-bank">
+          <span style="color:${textColor}">${bankName}</span>
+          <span>•</span>
+          <span>${this._linkedAccount?.type || ''}</span>
+        </div>
+        <p class="bop-success-four">•••• ${this._linkedAccount?.lastFour || ''}</p>
+      </div>
+      <p class="bop-success-desc">Your account is now ready to use for deposits and payments across the platform.</p>
+    `;
+
     const done = document.createElement('button');
     done.className = 'bop-btn bop-btn-done';
     done.innerHTML = '<span class="bop-btn-label">Done</span>';
     done.addEventListener('click', () => this._handleDone());
     step.appendChild(done);
+
     this._contentEl.appendChild(step);
   }
 }

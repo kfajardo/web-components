@@ -9,11 +9,14 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
     />
     <style>
+      /* ── Reset ──────────────────────────────────────── */
       * {
         margin: 0;
         padding: 0;
         box-sizing: border-box;
       }
+
+      /* ── Layout ─────────────────────────────────────── */
       body {
         font-family: "Inter", system-ui, sans-serif;
         background: #f0f2f5;
@@ -25,6 +28,8 @@
         gap: 24px;
         padding: 40px 20px;
       }
+
+      /* ── Demo Card ──────────────────────────────────── */
       .demo-card {
         background: #fff;
         border-radius: 12px;
@@ -34,25 +39,22 @@
         max-width: 480px;
         width: 100%;
       }
+
       .demo-card h1 {
         font-size: 1.25rem;
         font-weight: 700;
         color: #0f2a39;
         margin-bottom: 4px;
       }
+
       .demo-card p {
         font-size: 0.875rem;
         color: #5f6e78;
         margin-bottom: 20px;
         line-height: 1.5;
       }
-      .demo-card .hint {
-        font-size: 0.75rem;
-        color: #9ca3af;
-        margin-top: 12px;
-      }
 
-      /* Attribute debug controls */
+      /* ── Attribute Controls ─────────────────────────── */
       .demo-controls {
         display: flex;
         flex-direction: column;
@@ -60,6 +62,7 @@
         margin-bottom: 20px;
         text-align: left;
       }
+
       .demo-controls label {
         font-size: 0.75rem;
         font-weight: 600;
@@ -67,6 +70,7 @@
         text-transform: uppercase;
         letter-spacing: 0.05em;
       }
+
       .demo-controls input {
         width: 100%;
         padding: 8px 12px;
@@ -76,22 +80,29 @@
         font-family: ui-monospace, "SF Mono", Menlo, monospace;
         color: #0f2a39;
         outline: none;
-        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        transition:
+          border-color 0.15s ease,
+          box-shadow 0.15s ease;
       }
+
       .demo-controls input:focus {
         border-color: #4c7b63;
         box-shadow: 0 0 0 3px rgba(76, 123, 99, 0.15);
       }
+
       .demo-controls input::placeholder {
         color: #b0b8c0;
       }
+
       .demo-field-row {
         display: flex;
         gap: 10px;
       }
+
       .demo-field-row > div {
         flex: 1;
       }
+
       .demo-prio-tag {
         font-size: 0.65rem;
         font-weight: 700;
@@ -103,7 +114,7 @@
         vertical-align: middle;
       }
 
-      /* Event log */
+      /* ── Event Log ──────────────────────────────────── */
       .event-log {
         max-width: 480px;
         width: 100%;
@@ -117,32 +128,24 @@
         max-height: 260px;
         overflow-y: auto;
       }
+
       .event-log h3 {
         color: #a6e3a1;
         font-size: 0.8rem;
         margin-bottom: 8px;
       }
-      .event-log .entry {
-        opacity: 0.85;
-      }
-      .event-log .entry.success {
-        color: #a6e3a1;
-      }
-      .event-log .entry.close {
-        color: #f9e2af;
-      }
-      .event-log .entry.lookup {
-        color: #89b4fa;
-      }
-      .event-log .entry.error {
-        color: #f38ba8;
-      }
-      .event-log .entry.disabled {
-        color: #9399b2;
-      }
+
+      .event-log .entry          { opacity: 0.85; }
+      .event-log .entry.success  { color: #a6e3a1; }
+      .event-log .entry.close    { color: #f9e2af; }
+      .event-log .entry.lookup   { color: #89b4fa; }
+      .event-log .entry.error    { color: #f38ba8; }
+      .event-log .entry.disabled { color: #9399b2; }
     </style>
   </head>
+
   <body>
+    <!-- ── Demo Card ────────────────────────────────── -->
     <div class="demo-card">
       <h1>Operator Bank Account Mgt.</h1>
       <p>
@@ -150,28 +153,25 @@
         Bank Management modal. Both fields empty = component disabled.
       </p>
 
-      <!-- Debug attribute controls -->
+      <!-- Attribute controls -->
       <div class="demo-controls">
         <div class="demo-field-row">
           <div>
             <label for="input-opOrgId">
               op-org-id <span class="demo-prio-tag">PRIORITY 1</span>
             </label>
-            <input
-              id="input-opOrgId"
-              type="text"
-              placeholder="e.g. 12345"
-            />
+            <input id="input-opOrgId" type="text" placeholder="e.g. 12345" />
           </div>
           <div>
             <label for="input-orgNumber">
-              org-number <span class="demo-prio-tag" style="background:#fef3c7;color:#92400e">PRIORITY 2</span>
+              org-number
+              <span
+                class="demo-prio-tag"
+                style="background: #fef3c7; color: #92400e"
+                >PRIORITY 2</span
+              >
             </label>
-            <input
-              id="input-orgNumber"
-              type="text"
-              placeholder="e.g. ORG-001"
-            />
+            <input id="input-orgNumber" type="text" placeholder="e.g. ORG-001" />
           </div>
         </div>
       </div>
@@ -179,85 +179,85 @@
       <bison-operator-payments></bison-operator-payments>
     </div>
 
+    <!-- ── Event Log ────────────────────────────────── -->
     <div class="event-log" id="log">
       <h3>Event Log</h3>
     </div>
 
-    <!-- IMPORTANT: api.js uses ES module export, load as module or use the global -->
+    <!-- ── Scripts ──────────────────────────────────── -->
     <script src="api.js" type="module"></script>
     <script src="bison-operator-payments.js"></script>
     <script type="module">
-      import { BisonJibPayAPI } from './api.js';
+      import { BisonJibPayAPI } from "./api.js";
 
-      // Wire up the API globally so the component can use it
-      const api = new BisonJibPayAPI(
-        'https://bison-backend-development-hhgrdbhcbwhahdfk.southeastasia-01.azurewebsites.net',
-        'R80WMkbNN8457RofiMYx03DL65P06IaVT30Q2emYJUBQwYCzRC'
-      );
+      // ── API Bootstrap ─────────────────────────────
+      const API_BASE =
+        "https://bison-backend-development-hhgrdbhcbwhahdfk.southeastasia-01.azurewebsites.net";
+      const API_KEY = "R80WMkbNN8457RofiMYx03DL65P06IaVT30Q2emYJUBQwYCzRC";
+
+      const api = new BisonJibPayAPI(API_BASE, API_KEY);
       window.__bisonApi = api;
 
+      // ── DOM References ────────────────────────────
       const comp = document.querySelector("bison-operator-payments");
-      const log = document.getElementById("log");
+      const logEl = document.getElementById("log");
       const inputOpOrgId = document.getElementById("input-opOrgId");
       const inputOrgNumber = document.getElementById("input-orgNumber");
 
-      // ── Helpers ──────────────────────────────────────
-      function addLog(text, cls) {
-        const el = document.createElement("div");
-        el.className = "entry " + (cls || "");
-        el.textContent = `[${new Date().toLocaleTimeString()}] ${text}`;
-        log.appendChild(el);
-        log.scrollTop = log.scrollHeight;
+      // ── Helpers ────────────────────────────────────
+      function addLog(text, cls = "") {
+        const entry = document.createElement("div");
+        entry.className = `entry ${cls}`;
+        entry.textContent = `[${new Date().toLocaleTimeString()}] ${text}`;
+        logEl.appendChild(entry);
+        logEl.scrollTop = logEl.scrollHeight;
       }
 
-      // ── Attribute binding ─────────────────────────────
-      // When the user types in the debug inputs, update the
-      // component attributes — this triggers the observed
-      // attribute callback and the Enverus lookup flow.
-      inputOpOrgId.addEventListener("input", (e) => {
-        const val = e.target.value.trim();
-        if (val) {
-          comp.setAttribute("op-org-id", val);
-          addLog(`SET op-org-id="${val}"`, "lookup");
-        } else {
-          comp.removeAttribute("op-org-id");
-          addLog("REMOVED op-org-id", "disabled");
-        }
+      // ── Attribute Binding ─────────────────────────
+      function bindAttributeInput(inputEl, attrName) {
+        inputEl.addEventListener("input", (e) => {
+          const val = e.target.value.trim();
+          if (val) {
+            comp.setAttribute(attrName, val);
+            addLog(`SET ${attrName}="${val}"`, "lookup");
+          } else {
+            comp.removeAttribute(attrName);
+            addLog(`REMOVED ${attrName}`, "disabled");
+          }
+        });
+      }
+
+      bindAttributeInput(inputOpOrgId, "op-org-id");
+      bindAttributeInput(inputOrgNumber, "org-number");
+
+      // ── Component Events ──────────────────────────
+      comp.addEventListener("bop-close", () => {
+        addLog("bop-close fired", "close");
       });
 
-      inputOrgNumber.addEventListener("input", (e) => {
-        const val = e.target.value.trim();
-        if (val) {
-          comp.setAttribute("org-number", val);
-          addLog(`SET org-number="${val}"`, "lookup");
-        } else {
-          comp.removeAttribute("org-number");
-          addLog("REMOVED org-number", "disabled");
-        }
-      });
-
-      // ── Component events ──────────────────────────────
-      comp.addEventListener("bop-close", () =>
-        addLog("bop-close fired", "close"),
-      );
       comp.addEventListener("bop-success", (e) => {
+        const { bankName, accountType, lastFour } = e.detail;
         addLog(
-          `bop-success → ${e.detail.bankName} · ${e.detail.accountType} · ••••${e.detail.lastFour}`,
-          "success",
+          `bop-success → ${bankName} · ${accountType} · ••••${lastFour}`,
+          "success"
         );
       });
 
-      // Operator lookup event — key debug output
       comp.addEventListener("bop-operator-lookup", (e) => {
-        const d = e.detail;
-        if (d.status === "success") {
-          addLog(`bop-operator-lookup → SUCCESS`, "success");
-          addLog(`  Data: ${JSON.stringify(d.data)}`, "success");
-        } else if (d.status === "error") {
-          addLog(`bop-operator-lookup → ERROR`, "error");
-          addLog(`  ${JSON.stringify(d.error)}`, "error");
-        } else if (d.status === "disabled") {
-          addLog(`bop-operator-lookup → DISABLED: ${d.reason}`, "disabled");
+        const { status, data, error, reason } = e.detail;
+
+        switch (status) {
+          case "success":
+            addLog("bop-operator-lookup → SUCCESS", "success");
+            addLog(`  Data: ${JSON.stringify(data)}`, "success");
+            break;
+          case "error":
+            addLog("bop-operator-lookup → ERROR", "error");
+            addLog(`  ${JSON.stringify(error)}`, "error");
+            break;
+          case "disabled":
+            addLog(`bop-operator-lookup → DISABLED: ${reason}`, "disabled");
+            break;
         }
       });
 
