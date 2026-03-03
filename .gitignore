@@ -2,3 +2,4 @@
 *.md
 .npmrc.envrc
 .envrc
+bison-wc-docs

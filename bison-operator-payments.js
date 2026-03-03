@@ -12,8 +12,20 @@
  *   bop-close   – emitted when the user closes the modal
  *   bop-success – emitted on successful link, detail: { bankName, accountType, lastFour }
  *
+ * CONSUMER CALLBACKS (set as properties on the element instance):
+ *   onOpen()                    – called when the main modal opens
+ *   onClose()                   – called when the main modal closes
+ *   onLookupSuccess(data)       – called after a successful operator lookup
+ *   onLookupError(error)        – called when operator lookup fails
+ *   onBankFetchSuccess(accounts)– called after bank accounts are fetched successfully
+ *   onBankFetchError(error)     – called when bank account fetching fails
+ *   onLinkSuccess(account)      – called after a bank account is linked successfully
+ *   onLinkError(error)          – called when linking a bank account fails
+ *   onUnlinkSuccess(accounts)   – called after bank account(s) are unlinked successfully
+ *   onUnlinkError(error)        – called when unlinking bank account(s) fails
+ *
  * @author @kfajardo
- * @version 1.0.0
+ * @version 1.1.0
  */
 
 const BOP_BISON_LOGO = 'data:image/png;base64,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';
@@ -91,6 +103,18 @@ class BisonOperatorPayments extends HTMLElement {
     this._operatorLookupError = null;
     this._isOperatorLookupPending = false;
     this._componentDisabled = true;
+
+    // Consumer callbacks
+    this.onOpen = null;
+    this.onClose = null;
+    this.onLookupSuccess = null;
+    this.onLookupError = null;
+    this.onBankFetchSuccess = null;
+    this.onBankFetchError = null;
+    this.onLinkSuccess = null;
+    this.onLinkError = null;
+    this.onUnlinkSuccess = null;
+    this.onUnlinkError = null;
   }
 
   static get observedAttributes() { return ['open', 'org-number', 'op-org-id']; }
@@ -105,8 +129,11 @@ class BisonOperatorPayments extends HTMLElement {
 
   attributeChangedCallback(name, oldVal, newVal) {
     if (name === 'open') {
-      if (newVal !== null) { this._isClosing = false; this._render(); }
-      else { this._animateClose(); }
+      if (newVal !== null) {
+        this._isClosing = false;
+        this._render();
+        if (typeof this.onOpen === 'function') this.onOpen();
+      } else { this._animateClose(); }
     }
     if (name === 'org-number' || name === 'op-org-id') {
       if (oldVal !== newVal) {
@@ -178,6 +205,7 @@ class BisonOperatorPayments extends HTMLElement {
       this._operatorLookupError = null;
       this._componentDisabled = false;
       this._dispatchLookupEvent({ status: 'success', data: result });
+      if (typeof this.onLookupSuccess === 'function') this.onLookupSuccess(result);
       
       // Fetch operator bank accounts
       if (this._operatorId) {
@@ -191,6 +219,7 @@ class BisonOperatorPayments extends HTMLElement {
       this._operatorLookupError = errData;
       this._componentDisabled = true;
       this._dispatchLookupEvent({ status: 'error', error: errData });
+      if (typeof this.onLookupError === 'function') this.onLookupError(errData);
     } finally {
       this._isOperatorLookupPending = false;
       this._updateTriggerState();
@@ -254,10 +283,12 @@ class BisonOperatorPayments extends HTMLElement {
       }));
       
       this._log('Fetched bank accounts successfully', this._accounts);
+      if (typeof this.onBankFetchSuccess === 'function') this.onBankFetchSuccess(this._accounts);
     } catch (err) {
       const errData = err?.data || err;
       this._log('Error fetching bank accounts', errData);
       this._accounts = [];
+      if (typeof this.onBankFetchError === 'function') this.onBankFetchError(errData);
     } finally {
       this._isFetchingAccounts = false;
       // Re-render accounts if we are on the select-accounts step
@@ -384,6 +415,7 @@ class BisonOperatorPayments extends HTMLElement {
         setTimeout(() => this._resetState(), 50);
         this._render();
         this.dispatchEvent(new CustomEvent('bop-close', { bubbles: true, composed: true }));
+        if (typeof this.onClose === 'function') this.onClose();
       }, { once: true });
     } else {
       this._isClosing = false;
@@ -391,6 +423,7 @@ class BisonOperatorPayments extends HTMLElement {
       this._resetState();
       this._render();
       this.dispatchEvent(new CustomEvent('bop-close', { bubbles: true, composed: true }));
+      if (typeof this.onClose === 'function') this.onClose();
     }
   }
 
@@ -527,6 +560,14 @@ class BisonOperatorPayments extends HTMLElement {
     this._selectedAccounts = new Set();
     this._isLoading = false;
     this._unlinkTarget = null;
+
+    // Fire consumer callbacks
+    if (succeeded.length > 0 && typeof this.onUnlinkSuccess === 'function') {
+      this.onUnlinkSuccess(succeeded);
+    }
+    if (failed.length > 0 && typeof this.onUnlinkError === 'function') {
+      this.onUnlinkError(failed);
+    }
 
     if (failed.length === 0) {
       // All succeeded — go straight back to list
@@ -723,9 +764,10 @@ class BisonOperatorPayments extends HTMLElement {
 
       this._linkModalResult = 'success';
       this._renderLinkModal();
+      if (typeof this.onLinkSuccess === 'function') this.onLinkSuccess(this._pendingLinkedAccount);
     } catch (err) {
       this._log('Error linking account:', err);
-      const apiErrors = err?.data?.errors || err?.data?.message;
+      const errData = err?.data || err;
       this._linkModalSubmitting = false;
       this._removeLinkModalGuards();
       
@@ -733,6 +775,7 @@ class BisonOperatorPayments extends HTMLElement {
       // For now, if there's a generic error, show the error screen.
       this._linkModalResult = 'error';
       this._renderLinkModal();
+      if (typeof this.onLinkError === 'function') this.onLinkError(errData);
     }
   }
 
