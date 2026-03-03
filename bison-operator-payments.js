@@ -760,7 +760,7 @@ class BisonOperatorPayments extends HTMLElement {
     const header = document.createElement('div');
     header.className = 'bla-header';
     let headerTitle = 'Link Account';
-    if (this._linkModalResult === 'success') headerTitle = 'Account Linked';
+    if (this._linkModalResult === 'success') headerTitle = '';
     if (this._linkModalResult === 'error') headerTitle = 'Something Went Wrong';
     header.innerHTML = `<div class="bla-header-left"><h2 class="bla-header-title">${headerTitle}</h2></div>`;
 
