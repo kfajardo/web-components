@@ -277,33 +277,7 @@ class BisonOperatorPayments extends HTMLElement {
     }
   }
 
-  _generateMockAccounts() {
-    const bankId = this._selectedBank?.id;
-    const accountsByProvider = {
-      bison: [
-        { id: 'bis-1', type: 'Checking',         bankName: 'Chase',           lastFour: '4821', balance: 0 },
-        { id: 'bis-2', type: 'Savings',          bankName: 'Bank of America', lastFour: '3390', balance: 0, cannotUnlink: true },
-        { id: 'bis-3', type: 'Business Checking', bankName: 'Wells Fargo',    lastFour: '9154', balance: 0 },
-        { id: 'bis-4', type: 'Business Savings', bankName: 'Citibank',        lastFour: '2289', balance: 0 },
-      ],
-      column: [
-        { id: 'col-1', type: 'Checking',         bankName: 'Chase',           lastFour: '4821', balance: 0 },
-        { id: 'col-2', type: 'Savings',           bankName: 'Bank of America', lastFour: '3390', balance: 0, cannotUnlink: true },
-        { id: 'col-3', type: 'Business Checking', bankName: 'Wells Fargo',     lastFour: '9154', balance: 0 },
-        { id: 'col-4', type: 'Business Savings',  bankName: 'Citibank',        lastFour: '2289', balance: 0 },
-      ],
-      moov: [
-        { id: 'moov-1', type: 'Checking',         bankName: 'US Bank',         lastFour: '1107', balance: 0 },
-        { id: 'moov-2', type: 'Savings',           bankName: 'PNC Bank',        lastFour: '5534', balance: 0 },
-        { id: 'moov-3', type: 'Business Checking', bankName: 'TD Bank',         lastFour: '8862', balance: 0, cannotUnlink: true },
-        { id: 'moov-4', type: 'Business Savings',  bankName: 'Truist',          lastFour: '2275', balance: 0 },
-      ],
-    };
-    return (accountsByProvider[bankId] ?? [
-      { id: `${bankId}-1`, type: 'Checking', bankName: 'Chase',           lastFour: String(Math.floor(1000 + Math.random() * 9000)), balance: 0 },
-      { id: `${bankId}-2`, type: 'Savings',  bankName: 'Bank of America', lastFour: String(Math.floor(1000 + Math.random() * 9000)), balance: 0 },
-    ]);
-  }
+   
 
   _resetState() {
     this._step = 'select-accounts';
