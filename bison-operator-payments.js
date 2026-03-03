@@ -434,7 +434,6 @@ class BisonOperatorPayments extends HTMLElement {
       if (modal) {
         const currentH = modal.getBoundingClientRect().height;
         modal.style.height = currentH + 'px';
-        modal.classList.remove('bop-modal-wide');
         modal.classList.add('bop-modal-compact');
         modal.offsetHeight; // force reflow
         modal.style.height = '480px';
@@ -959,7 +958,7 @@ class BisonOperatorPayments extends HTMLElement {
 .bop-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.4);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);animation:bopBackdropIn .3s var(--bop-ease) forwards}
 .bop-overlay[data-state="closing"] .bop-backdrop{animation:bopBackdropOut .3s var(--bop-ease) forwards}
 .bop-modal{position:relative;width:100%;max-width:448px;height:520px;background:#fff;border:1px solid var(--bop-border);box-shadow:var(--bop-shadow-2xl);border-radius:var(--bop-radius-xl);overflow:hidden;display:flex;flex-direction:column;max-height:90vh;animation:bopModalIn .3s var(--bop-ease-spring) forwards;transition:max-width .4s var(--bop-ease-spring),height .4s var(--bop-ease-spring)}
-.bop-modal.bop-modal-wide{max-width:544px;height:720px}
+
 .bop-modal.bop-modal-compact{max-width:400px;height:480px}
 .bop-overlay[data-state="closing"] .bop-modal{animation:bopModalOut .3s var(--bop-ease-spring) forwards}
 
@@ -1285,9 +1284,10 @@ class BisonOperatorPayments extends HTMLElement {
     this._contentEl.innerHTML = '';
     const modal = this.shadowRoot.querySelector('.bop-modal');
     if (modal) {
-      modal.classList.remove('bop-modal-wide', 'bop-modal-compact');
-      if (this._step === 'select-accounts') modal.classList.add('bop-modal-wide');
-      if (this._step === 'success') modal.classList.add('bop-modal-compact');
+      const wantCompact = this._step === 'success';
+      const hasCompact = modal.classList.contains('bop-modal-compact');
+      if (wantCompact && !hasCompact) { modal.classList.add('bop-modal-compact'); }
+      else if (!wantCompact && hasCompact) { modal.classList.remove('bop-modal-compact'); }
     }
     switch (this._step) {
       case 'loading': this._renderLoading(); break;
@@ -1429,11 +1429,7 @@ class BisonOperatorPayments extends HTMLElement {
         // Phase 2: Clear content, transition to wide layout
         this._contentEl.innerHTML = '';
         if (modal) {
-          const currentH = modal.getBoundingClientRect().height;
-          modal.style.height = currentH + 'px';
-          modal.classList.add('bop-modal-wide');
-          modal.offsetHeight; // force reflow
-          modal.style.height = '720px';
+          modal.style.height = '';
         }
 
         this._step = 'select-accounts';
