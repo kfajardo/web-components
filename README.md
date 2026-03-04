@@ -5,16 +5,17 @@ A complete, self-contained web component for operator onboarding with 4-step ste
 ## Installation
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/web-components-moov@1.0.17/component.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bison-web-components@1.0.0/component.js"></script>
 ```
 
 ## Basic Usage
 
 ### Minimal Setup (No Callbacks)
+
 The simplest way to use the component:
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/web-components-moov@1.0.17/component.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bison-web-components@1.0.0/component.js"></script>
 <operator-onboarding></operator-onboarding>
 ```
 
@@ -27,21 +28,22 @@ When submitted, form data is automatically logged to console and success page is
 The component can be configured with optional attributes for API integration:
 
 ```html
-<operator-onboarding 
+<operator-onboarding
   api-base-url="https://your-api-domain.com"
-  embeddable-key="your-embeddable-key">
+  embeddable-key="your-embeddable-key"
+>
 </operator-onboarding>
 ```
 
 ### Attributes
 
-| Attribute | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `api-base-url` | `String` | `https://bison-jib-development.azurewebsites.net` | Base URL for API endpoints |
-| `embeddable-key` | `String` | Default key provided | Authentication key for API requests |
-| `on-success` | `String` | - | Name of global function to call on success |
-| `on-error` | `String` | - | Name of global function to call on error |
-| `on-load` | `String` | - | JSON string or global variable name for initial data |
+| Attribute        | Type     | Default                                           | Description                                          |
+| ---------------- | -------- | ------------------------------------------------- | ---------------------------------------------------- |
+| `api-base-url`   | `String` | `https://bison-jib-development.azurewebsites.net` | Base URL for API endpoints                           |
+| `embeddable-key` | `String` | Default key provided                              | Authentication key for API requests                  |
+| `on-success`     | `String` | -                                                 | Name of global function to call on success           |
+| `on-error`       | `String` | -                                                 | Name of global function to call on error             |
+| `on-load`        | `String` | -                                                 | JSON string or global variable name for initial data |
 
 ---
 
@@ -59,34 +61,38 @@ The onboarding process consists of a 4-step stepper form:
 ## Form Steps in Detail
 
 ### Step 1: Business Details
-- Business name *
-- Doing Business As (DBA) *
-- EIN (Employer Identification Number) * (auto-formatted as XX-XXXXXXX)
+
+- Business name \*
+- Doing Business As (DBA) \*
+- EIN (Employer Identification Number) \* (auto-formatted as XX-XXXXXXX)
 - Business website (auto-normalized to include https://)
-- Business phone * (auto-formatted as (555) 123-4567)
-- Business email *
-- Full address * (street, city, state, ZIP)
+- Business phone \* (auto-formatted as (555) 123-4567)
+- Business email \*
+- Full address \* (street, city, state, ZIP)
 
 ### Step 2: Representatives (Optional)
+
 - Add/remove multiple representatives
 - Full CRUD interface
 - Each representative requires:
-  - First name, last name *
-  - Job title *
-  - Phone * (auto-formatted)
-  - Email *
-  - Date of birth *
-  - Full address * (street, city, state, ZIP)
+  - First name, last name \*
+  - Job title \*
+  - Phone \* (auto-formatted)
+  - Email \*
+  - Date of birth \*
+  - Full address \* (street, city, state, ZIP)
 - Can skip entire step if no representatives to add
 
 ### Step 3: Bank Account
-- Account holder name *
-- Account type * (checking/savings)
-- Routing number * (9 digits)
-- Account number * (4-17 digits)
+
+- Account holder name \*
+- Account type \* (checking/savings)
+- Routing number \* (9 digits)
+- Account number \* (4-17 digits)
 
 ### Step 4: Underwriting
-- Upload supporting documents * (required)
+
+- Upload supporting documents \* (required)
 - Drag-and-drop or browse file selection
 - Maximum 10 files
 - Maximum 10MB per file
@@ -99,52 +105,54 @@ The onboarding process consists of a 4-step stepper form:
 ### Method 1: Direct Property Assignment (Recommended)
 
 ```javascript
-const component = document.querySelector('operator-onboarding');
+const component = document.querySelector("operator-onboarding");
 
 // Pre-populate with existing data
 component.onLoad = {
   businessDetails: {
-    businessName: 'Acme Corp',
-    doingBusinessAs: 'Acme',
-    ein: '12-3456789',
-    businessWebsite: 'https://acme.com',
-    businessPhoneNumber: '5551234567',
-    businessEmail: 'contact@acme.com',
-    BusinessAddress1: '123 Main St',
-    businessCity: 'San Francisco',
-    businessState: 'CA',
-    businessPostalCode: '94105'
+    businessName: "Acme Corp",
+    doingBusinessAs: "Acme",
+    ein: "12-3456789",
+    businessWebsite: "https://acme.com",
+    businessPhoneNumber: "5551234567",
+    businessEmail: "contact@acme.com",
+    BusinessAddress1: "123 Main St",
+    businessCity: "San Francisco",
+    businessState: "CA",
+    businessPostalCode: "94105",
   },
   representatives: [
     {
-      representativeFirstName: 'John',
-      representativeLastName: 'Doe',
-      representativeJobTitle: 'CEO',
-      representativePhone: '5559876543',
-      representativeEmail: 'john@company.com',
-      representativeDateOfBirth: '1980-01-15',
-      representativeAddress: '456 Oak Ave',
-      representativeCity: 'San Francisco',
-      representativeState: 'CA',
-      representativeZip: '94105'
-    }
+      representativeFirstName: "John",
+      representativeLastName: "Doe",
+      representativeJobTitle: "CEO",
+      representativePhone: "5559876543",
+      representativeEmail: "john@company.com",
+      representativeDateOfBirth: "1980-01-15",
+      representativeAddress: "456 Oak Ave",
+      representativeCity: "San Francisco",
+      representativeState: "CA",
+      representativeZip: "94105",
+    },
   ],
   underwriting: {
-    underwritingDocuments: []  // Can be pre-populated with File objects
+    underwritingDocuments: [], // Can be pre-populated with File objects
   },
   bankDetails: {
-    bankAccountHolderName: 'Acme Corp',
-    bankAccountType: 'checking',
-    bankRoutingNumber: '123456789',
-    bankAccountNumber: '987654321'
-  }
+    bankAccountHolderName: "Acme Corp",
+    bankAccountType: "checking",
+    bankRoutingNumber: "123456789",
+    bankAccountNumber: "987654321",
+  },
 };
 ```
 
 ### Method 2: HTML Attribute with JSON
 
 ```html
-<operator-onboarding on-load='{"businessDetails":{"businessName":"Acme Corp"}}'></operator-onboarding>
+<operator-onboarding
+  on-load='{"businessDetails":{"businessName":"Acme Corp"}}'
+></operator-onboarding>
 ```
 
 ### Method 3: HTML Attribute with Global Variable
@@ -153,9 +161,9 @@ component.onLoad = {
 <script>
   const initialData = {
     businessDetails: {
-      businessName: 'Acme Corp',
-      businessEmail: 'test@company.com'
-    }
+      businessName: "Acme Corp",
+      businessEmail: "test@company.com",
+    },
   };
 </script>
 
@@ -171,30 +179,30 @@ component.onLoad = {
 **Perfect for React, Vue, Angular, and vanilla JavaScript:**
 
 ```javascript
-const component = document.querySelector('operator-onboarding');
+const component = document.querySelector("operator-onboarding");
 
 // Success callback
 component.onSuccess = (formData) => {
-  console.log('Onboarding complete!', formData);
-  
+  console.log("Onboarding complete!", formData);
+
   // Send to your backend
-  fetch('/api/operators/onboard', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(formData)
+  fetch("/api/operators/onboard", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(formData),
   });
-  
+
   // Close your modal
   closeModal();
 };
 
 // Error callback
 component.onError = (errorData) => {
-  console.error('Onboarding error:', errorData);
-  
-  if (errorData.action === 'resubmit') {
+  console.error("Onboarding error:", errorData);
+
+  if (errorData.action === "resubmit") {
     // User clicked resubmit button
-    console.log('User wants to retry submission');
+    console.log("User wants to retry submission");
   }
 };
 ```
@@ -204,19 +212,17 @@ component.onError = (errorData) => {
 Good for simple cases with global functions:
 
 ```html
-<operator-onboarding 
-  on-success="handleSuccess"
-  on-error="handleError">
+<operator-onboarding on-success="handleSuccess" on-error="handleError">
 </operator-onboarding>
 
 <script>
   function handleSuccess(data) {
-    console.log('Success!', data);
+    console.log("Success!", data);
     closeModal();
   }
-  
+
   function handleError(errorData) {
-    console.error('Error:', errorData);
+    console.error("Error:", errorData);
   }
 </script>
 ```
@@ -227,16 +233,16 @@ Listen to custom events:
 
 ```javascript
 // Success event
-component.addEventListener('formComplete', (event) => {
+component.addEventListener("formComplete", (event) => {
   const formData = event.detail;
-  console.log('Form completed!', formData);
+  console.log("Form completed!", formData);
   closeModal();
 });
 
 // Submission failure event
-component.addEventListener('submissionFailed', (event) => {
+component.addEventListener("submissionFailed", (event) => {
   const errorData = event.detail;
-  console.error('Submission failed:', errorData);
+  console.error("Submission failed:", errorData);
 });
 ```
 
@@ -247,43 +253,43 @@ component.addEventListener('submissionFailed', (event) => {
 ### Recommended Pattern (Using useRef)
 
 ```jsx
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef } from "react";
 
 function OnboardingModal({ isOpen, onClose }) {
   const componentRef = useRef(null);
-  
+
   useEffect(() => {
     if (componentRef.current) {
       // Success handler
       componentRef.current.onSuccess = (data) => {
-        console.log('Onboarding complete:', data);
-        
+        console.log("Onboarding complete:", data);
+
         // Send to API
-        fetch('/api/onboard', {
-          method: 'POST',
-          body: JSON.stringify(data)
+        fetch("/api/onboard", {
+          method: "POST",
+          body: JSON.stringify(data),
         });
-        
+
         onClose();
       };
-      
+
       // Error handler
       componentRef.current.onError = (errorData) => {
-        console.error('Error:', errorData);
+        console.error("Error:", errorData);
         // Handle errors appropriately
       };
     }
   }, [onClose]);
-  
+
   if (!isOpen) return null;
-  
+
   return (
     <div className="modal">
-      <operator-onboarding 
+      <operator-onboarding
         ref={componentRef}
         api-base-url="https://your-api.com"
-        embeddable-key="your-key">
-      </operator-onboarding>
+        embeddable-key="your-key"
+      ></operator-onboarding>
     </div>
   );
 }
@@ -295,36 +301,36 @@ function OnboardingModal({ isOpen, onClose }) {
 function EditOperatorModal({ operatorId, isOpen, onClose }) {
   const componentRef = useRef(null);
   const [initialData, setInitialData] = useState(null);
-  
+
   useEffect(() => {
     if (isOpen && operatorId) {
       // Fetch existing operator data
       fetch(`/api/operators/${operatorId}`)
-        .then(res => res.json())
-        .then(data => setInitialData(data));
+        .then((res) => res.json())
+        .then((data) => setInitialData(data));
     }
   }, [isOpen, operatorId]);
-  
+
   useEffect(() => {
     if (componentRef.current) {
       // Pre-populate form
       if (initialData) {
         componentRef.current.onLoad = initialData;
       }
-      
+
       // Set success handler
       componentRef.current.onSuccess = (updatedData) => {
         fetch(`/api/operators/${operatorId}`, {
-          method: 'PUT',
-          body: JSON.stringify(updatedData)
+          method: "PUT",
+          body: JSON.stringify(updatedData),
         });
         onClose();
       };
     }
   }, [initialData, operatorId, onClose]);
-  
+
   if (!isOpen) return null;
-  
+
   return (
     <div className="modal">
       <operator-onboarding ref={componentRef} />
@@ -397,7 +403,7 @@ The component returns a complete data object:
 ✅ **Framework Friendly** - Easy integration with React, Vue, etc.  
 ✅ **Shadow DOM** - Fully encapsulated styles  
 ✅ **Zero Dependencies** - Pure vanilla JavaScript  
-✅ **API Integration** - Ready for backend integration  
+✅ **API Integration** - Ready for backend integration
 
 ---
 
@@ -405,25 +411,25 @@ The component returns a complete data object:
 
 ### Properties
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `onSuccess` | `Function` | Callback function called when form is successfully submitted. Receives complete form data as parameter. |
-| `onError` | `Function` | Callback function called when submission fails. Receives error data as parameter. |
-| `onLoad` | `Object` | Pre-populate form fields with initial data. Accepts partial or complete form data object. |
-| `apiBaseURL` | `String` | Base URL for API endpoints. |
-| `embeddableKey` | `String` | Authentication key for API requests. |
+| Property        | Type       | Description                                                                                             |
+| --------------- | ---------- | ------------------------------------------------------------------------------------------------------- |
+| `onSuccess`     | `Function` | Callback function called when form is successfully submitted. Receives complete form data as parameter. |
+| `onError`       | `Function` | Callback function called when submission fails. Receives error data as parameter.                       |
+| `onLoad`        | `Object`   | Pre-populate form fields with initial data. Accepts partial or complete form data object.               |
+| `apiBaseURL`    | `String`   | Base URL for API endpoints.                                                                             |
+| `embeddableKey` | `String`   | Authentication key for API requests.                                                                    |
 
 ### Events
 
-| Event | Detail | Description |
-|-------|--------|-------------|
-| `formComplete` | `Object` | Emitted when form is successfully submitted. `event.detail` contains complete form data. |
-| `submissionFailed` | `Object` | Emitted when form submission fails. `event.detail` contains error information. |
+| Event              | Detail   | Description                                                                              |
+| ------------------ | -------- | ---------------------------------------------------------------------------------------- |
+| `formComplete`     | `Object` | Emitted when form is successfully submitted. `event.detail` contains complete form data. |
+| `submissionFailed` | `Object` | Emitted when form submission fails. `event.detail` contains error information.           |
 
 ### Global Functions
 
-| Function | Parameters | Returns | Description |
-|----------|------------|---------|-------------|
+| Function                                    | Parameters                                     | Returns   | Description                         |
+| ------------------------------------------- | ---------------------------------------------- | --------- | ----------------------------------- |
 | `verifyOperator(operatorEmail, mockResult)` | `operatorEmail: string`, `mockResult: boolean` | `boolean` | Verify if an operator email exists. |
 
 ---
@@ -434,14 +440,14 @@ You can verify operator emails:
 
 ```javascript
 // Check if operator exists
-const exists = verifyOperator('operator@company.com', true);
+const exists = verifyOperator("operator@company.com", true);
 
 if (exists) {
   // Proceed with operation
-  console.log('Operator verified');
+  console.log("Operator verified");
 } else {
   // Show error
-  console.error('Operator not found');
+  console.error("Operator not found");
 }
 ```
 
@@ -456,15 +462,15 @@ The component provides comprehensive error handling:
 When form submission fails:
 
 ```javascript
-component.addEventListener('submissionFailed', (event) => {
+component.addEventListener("submissionFailed", (event) => {
   const { formData, message, timestamp } = event.detail;
-  console.error('Submission failed:', message);
+  console.error("Submission failed:", message);
   // Retry or show error
 });
 
 // Or use callback
 component.onError = (errorData) => {
-  if (errorData.action === 'resubmit') {
+  if (errorData.action === "resubmit") {
     // User clicked resubmit button
     // Your retry logic here
   }
@@ -478,30 +484,31 @@ component.onError = (errorData) => {
 ```html
 <div id="onboardingModal" class="modal">
   <div class="modal-content">
-    <operator-onboarding 
+    <operator-onboarding
       on-success="closeOnboardingModal"
-      on-error="handleOnboardingError">
+      on-error="handleOnboardingError"
+    >
     </operator-onboarding>
   </div>
 </div>
 
 <script>
   function closeOnboardingModal(data) {
-    console.log('Onboarding complete for:', data.businessDetails.businessName);
-    
+    console.log("Onboarding complete for:", data.businessDetails.businessName);
+
     // Close modal
-    document.getElementById('onboardingModal').style.display = 'none';
-    
+    document.getElementById("onboardingModal").style.display = "none";
+
     // Send data to backend
-    fetch('/api/onboarding', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
+    fetch("/api/onboarding", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
     });
   }
-  
+
   function handleOnboardingError(errorData) {
-    console.error('Onboarding error:', errorData);
+    console.error("Onboarding error:", errorData);
     // Show error notification
   }
 </script>
@@ -541,7 +548,7 @@ The API class is automatically exported when you load the component:
 
 ```javascript
 // ES Module
-import { BisonJibPayAPI } from './component.js';
+import { BisonJibPayAPI } from "./component.js";
 
 // Or access from window (script tag)
 const BisonJibPayAPI = window.BisonJibPayAPI;
@@ -552,67 +559,78 @@ const BisonJibPayAPI = window.BisonJibPayAPI;
 ```javascript
 // Create API instance
 const api = new BisonJibPayAPI(
-  'https://bison-jib-development.azurewebsites.net',
-  'YOUR_EMBEDDABLE_KEY'
+  "https://bison-jib-development.azurewebsites.net",
+  "YOUR_EMBEDDABLE_KEY",
 );
 
 // Validate operator email
 try {
   const result = await api.validateOperatorEmail(
-    'operator@example.com',
-    'OP123456'
+    "operator@example.com",
+    "OP123456",
   );
-  console.log('Operator email is valid:', result);
+  console.log("Operator email is valid:", result);
 } catch (error) {
-  console.error('Validation failed:', error);
+  console.error("Validation failed:", error);
 }
 
 // Register operator
 const formData = new FormData();
-formData.append('businessName', 'Acme Corp');
-formData.append('businessEmail', 'contact@acme.com');
+formData.append("businessName", "Acme Corp");
+formData.append("businessEmail", "contact@acme.com");
 // ... add more fields
 
 try {
   const result = await api.registerOperator(formData);
-  console.log('Operator registered successfully:', result);
+  console.log("Operator registered successfully:", result);
 } catch (error) {
-  console.error('Registration failed:', error);
+  console.error("Registration failed:", error);
 }
 ```
 
 ### API Methods
 
 #### `validateOperatorEmail(email, operatorId)`
+
 Validates an operator email address.
 
 **Parameters:**
+
 - `email` (string) - The operator email address to validate
 - `operatorId` (string) - The operator ID to validate
 
 **Returns:**
+
 - Promise resolving to the API response
 
 **Example:**
+
 ```javascript
-const result = await api.validateOperatorEmail('operator@company.com', 'OP123456');
+const result = await api.validateOperatorEmail(
+  "operator@company.com",
+  "OP123456",
+);
 ```
 
 #### `registerOperator(formData)`
+
 Registers a new operator with complete form data.
 
 **Parameters:**
+
 - `formData` (FormData) - FormData object containing all operator information
 
 **Returns:**
+
 - Promise resolving to the API response
 
 **Example:**
+
 ```javascript
 const formData = new FormData();
-formData.append('businessName', 'Acme Corp');
-formData.append('businessEmail', 'contact@acme.com');
-formData.append('ein', '12-3456789');
+formData.append("businessName", "Acme Corp");
+formData.append("businessEmail", "contact@acme.com");
+formData.append("ein", "12-3456789");
 // ... add all required fields
 
 const result = await api.registerOperator(formData);
@@ -621,16 +639,19 @@ const result = await api.registerOperator(formData);
 ### React Integration Example
 
 ```jsx
-import { useEffect, useState } from 'react';
-import { BisonJibPayAPI } from './component.js';
+import { useEffect, useState } from "react";
+import { BisonJibPayAPI } from "./component.js";
 
 function EmailValidator() {
-  const [api] = useState(() => new BisonJibPayAPI(
-    'https://bison-jib-development.azurewebsites.net',
-    'YOUR_KEY'
-  ));
-  const [email, setEmail] = useState('');
-  const [operatorId, setOperatorId] = useState('');
+  const [api] = useState(
+    () =>
+      new BisonJibPayAPI(
+        "https://bison-jib-development.azurewebsites.net",
+        "YOUR_KEY",
+      ),
+  );
+  const [email, setEmail] = useState("");
+  const [operatorId, setOperatorId] = useState("");
   const [isValid, setIsValid] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -641,7 +662,7 @@ function EmailValidator() {
       setIsValid(true);
     } catch (error) {
       setIsValid(false);
-      console.error('Validation failed:', error);
+      console.error("Validation failed:", error);
     } finally {
       setIsLoading(false);
     }
@@ -662,11 +683,9 @@ function EmailValidator() {
         placeholder="Enter operator email"
       />
       <button onClick={validateEmail} disabled={isLoading}>
-        {isLoading ? 'Validating...' : 'Validate'}
+        {isLoading ? "Validating..." : "Validate"}
       </button>
-      {isValid !== null && (
-        <p>{isValid ? '✓ Valid' : '✗ Invalid'}</p>
-      )}
+      {isValid !== null && <p>{isValid ? "✓ Valid" : "✗ Invalid"}</p>}
     </div>
   );
 }
@@ -678,15 +697,16 @@ The API methods throw structured errors that you can catch:
 
 ```javascript
 try {
-  await api.validateOperatorEmail('invalid@email.com', 'OP123456');
+  await api.validateOperatorEmail("invalid@email.com", "OP123456");
 } catch (error) {
-  console.error('Status:', error.status);
-  console.error('Message:', error.data.message);
-  console.error('Errors:', error.data.errors);
+  console.error("Status:", error.status);
+  console.error("Message:", error.data.message);
+  console.error("Errors:", error.data.errors);
 }
 ```
 
 Error structure:
+
 ```javascript
 {
   status: 400,  // HTTP status code
@@ -703,20 +723,20 @@ Error structure:
 ```javascript
 // Development
 const devApi = new BisonJibPayAPI(
-  'https://bison-jib-development.azurewebsites.net',
-  'DEV_KEY'
+  "https://bison-jib-development.azurewebsites.net",
+  "DEV_KEY",
 );
 
 // Production
 const prodApi = new BisonJibPayAPI(
-  'https://bison-jib-production.azurewebsites.net',
-  'PROD_KEY'
+  "https://bison-jib-production.azurewebsites.net",
+  "PROD_KEY",
 );
 
 // Use environment variables
 const api = new BisonJibPayAPI(
   process.env.REACT_APP_API_URL,
-  process.env.REACT_APP_EMBEDDABLE_KEY
+  process.env.REACT_APP_EMBEDDABLE_KEY,
 );
 ```
 
@@ -729,7 +749,8 @@ The component is designed to work with the BisonJibPay API. Configure your endpo
 ```html
 <operator-onboarding
   api-base-url="https://your-api-domain.com"
-  embeddable-key="your-embeddable-key">
+  embeddable-key="your-embeddable-key"
+>
 </operator-onboarding>
 ```
 
