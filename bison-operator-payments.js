@@ -122,7 +122,7 @@ class BisonOperatorPayments extends HTMLElement {
     this.onUnlinkError = null;
   }
 
-  static get observedAttributes() { return ['open', 'org-number', 'op-org-id', 'x-embeddable-key']; }
+  static get observedAttributes() { return ['org-number', 'op-org-id', 'x-embeddable-key']; }
 
   connectedCallback() {
     // Seed embeddable key from initial attribute
