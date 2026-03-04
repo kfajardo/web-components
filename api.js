@@ -27,6 +27,9 @@
  */
 class BisonJibPayAPI {
   constructor(baseURL, embeddableKey) {
+    if (!embeddableKey || typeof embeddableKey !== 'string' || !embeddableKey.trim()) {
+      throw new Error("Missing required 'x-embeddable-key' for BisonJibPayAPI");
+    }
     this.baseURL = baseURL || "https://bison-jib-development.azurewebsites.net";
     this.embeddableKey = embeddableKey;
   }
@@ -36,6 +39,10 @@ class BisonJibPayAPI {
    * @private
    */
   async request(endpoint, options = {}) {
+    if (!this.embeddableKey || !this.embeddableKey.trim()) {
+      throw new Error("Missing required 'x-embeddable-key' for BisonJibPayAPI request");
+    }
+
     const url = `${this.baseURL}${endpoint}`;
     const headers = {
       "X-Embeddable-Key": this.embeddableKey,
