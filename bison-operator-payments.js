@@ -420,7 +420,6 @@ class BisonOperatorPayments extends HTMLElement {
     this._searchQuery = "";
     this._selectedBank = BOP_BRAND_BANK;
     this._isLoading = false;
-    this._accounts = [];
     this._selectedAccounts = new Set();
     this._linkedAccount = null;
     this._unlinkTarget = null;
