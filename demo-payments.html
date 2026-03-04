@@ -155,6 +155,12 @@
 
       <!-- Attribute controls -->
       <div class="demo-controls">
+        <div>
+          <label for="input-embeddableKey">
+            x-embeddable-key <span class="demo-prio-tag" style="background:#fce7f3;color:#9d174d">REQUIRED</span>
+          </label>
+          <input id="input-embeddableKey" type="text" placeholder="Paste embeddable key…" />
+        </div>
         <div class="demo-field-row">
           <div>
             <label for="input-opOrgId">
@@ -193,7 +199,7 @@
       // ── API Bootstrap ─────────────────────────────
       const API_BASE =
         "https://bison-backend-development-hhgrdbhcbwhahdfk.southeastasia-01.azurewebsites.net";
-      const API_KEY = "R80WMkbNN8457RofiMYx03DL65P06IaVT30Q2emYJUBQwYCzRC";
+      const API_KEY = "BwVEfJ2u5y2JPsX8qGxtXlIhHyhu3qU2VW2y6Nf9Qc6KTsETvr";
 
       const api = new BisonJibPayAPI(API_BASE, API_KEY);
       window.__bisonApi = api;
@@ -201,6 +207,7 @@
       // ── DOM References ────────────────────────────
       const comp = document.querySelector("bison-operator-payments");
       const logEl = document.getElementById("log");
+      const inputEmbeddableKey = document.getElementById("input-embeddableKey");
       const inputOpOrgId = document.getElementById("input-opOrgId");
       const inputOrgNumber = document.getElementById("input-orgNumber");
 
@@ -227,6 +234,7 @@
         });
       }
 
+      bindAttributeInput(inputEmbeddableKey, "x-embeddable-key");
       bindAttributeInput(inputOpOrgId, "op-org-id");
       bindAttributeInput(inputOrgNumber, "org-number");
 
@@ -261,7 +269,7 @@
         }
       });
 
-      addLog("Component ready. Set op-org-id or org-number to enable.");
+      addLog("Component ready. Set x-embeddable-key first, then op-org-id or org-number.");
     </script>
   </body>
 </html>
