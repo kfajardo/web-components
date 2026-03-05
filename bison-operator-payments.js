@@ -25,7 +25,7 @@
  *   onUnlinkError(error)        – called when unlinking bank account(s) fails
  *
  * @author @kfajardo
- * @version 1.6.0
+ * @version 1.8.0
  */
 
 const BOP_BISON_LOGO =
@@ -95,7 +95,7 @@ class BisonJibPayAPI {
     if (!embeddableKey || typeof embeddableKey !== 'string' || !embeddableKey.trim()) {
       throw new Error("Missing required 'x-embeddable-key' for BisonJibPayAPI");
     }
-    this.baseURL = baseURL || "https://bison-jib-development.azurewebsites.net";
+    this.baseURL = baseURL || "https://bison-backend-development-hhgrdbhcbwhahdfk.southeastasia-01.azurewebsites.net";
     this.embeddableKey = embeddableKey;
   }
 
