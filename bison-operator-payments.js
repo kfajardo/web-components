@@ -1010,8 +1010,6 @@ class BisonOperatorPayments extends HTMLElement {
     const companyName = this._operatorData?.companyName || "";
     if (this._isOperatorLookupPending) {
       btn.innerHTML = `${loaderSvg} Initializing...`;
-    } else if (companyName) {
-      btn.innerHTML = `${logoImg} <span class="bop-trigger-company" key="${companyName}">${companyName}</span> <span class="bop-trigger-sep">·</span> Manage Bank Accounts`;
     } else {
       btn.innerHTML = `${logoImg} Manage Bank Accounts`;
     }
