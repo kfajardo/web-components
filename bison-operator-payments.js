@@ -90,7 +90,638 @@ const BOP_ICONS = {
   plus: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>',
 };
 
-class BisonOperatorPayments extends HTMLElement {
+class BisonJibPayAPI {
+  constructor(baseURL, embeddableKey) {
+    if (!embeddableKey || typeof embeddableKey !== 'string' || !embeddableKey.trim()) {
+      throw new Error("Missing required 'x-embeddable-key' for BisonJibPayAPI");
+    }
+    this.baseURL = baseURL || "https://bison-jib-development.azurewebsites.net";
+    this.embeddableKey = embeddableKey;
+  }
+
+  /**
+   * Make authenticated API request
+   * @private
+   */
+  async request(endpoint, options = {}) {
+    if (!this.embeddableKey || !this.embeddableKey.trim()) {
+      throw new Error("Missing required 'x-embeddable-key' for BisonJibPayAPI request");
+    }
+
+    const url = `${this.baseURL}${endpoint}`;
+    const headers = {
+      "X-Embeddable-Key": this.embeddableKey,
+      ...options.headers,
+    };
+
+    // Don't add Content-Type for FormData
+    if (!(options.body instanceof FormData)) {
+      headers["Content-Type"] = "application/json";
+    }
+
+    try {
+      const response = await fetch(url, {
+        ...options,
+        headers,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw {
+          status: response.status,
+          data: data,
+        };
+      }
+
+      return data;
+    } catch (error) {
+      // Re-throw with structured error
+      if (error.status) throw error;
+      throw {
+        status: 500,
+        data: {
+          success: false,
+          message: "Network error occurred",
+          errors: [error.message],
+        },
+      };
+    }
+  }
+
+  /**
+   * Validate operator email
+   *
+   * @param {string} email - Operator's email address
+   * @param {string} operatorId - Operator's ID
+   * @param {string|null} clientId - Optional client ID
+   */
+  async validateOperatorEmail(email, operatorId, clientId = null) {
+    const payload = { email, operatorId };
+    if (clientId) payload.clientId = clientId;
+    return this.request("/api/embeddable/validate/operator-email", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  /**
+   * Validate user email
+   *
+   * Checks if a user email exists in the system.
+   *
+   * @param {string} email - User's email address
+   * @returns {Promise<{success: boolean, message: string, data: {exists: boolean, message: string}, errors: string[], timestamp: string, traceId: string}>}
+   *
+   * @example
+   * const api = new BisonJibPayAPI(baseURL, embeddableKey);
+   * const result = await api.validateUserEmail('user@example.com');
+   * if (result.data.exists) {
+   *   console.log('User email exists');
+   * }
+   */
+  async validateUserEmail(email) {
+    return this.request("/api/embeddable/validate/user-email", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    });
+  }
+
+  /**
+   * Verify operator email
+   * Checks if an operator is registered/onboarded in the system
+   *
+   * @param {string} email - Operator's email address
+   * @param {string} operatorId - Operator's ID
+   * @param {string|null} clientId - Optional client ID
+   * @returns {Promise<{success: boolean, message: string, data?: any}>}
+   *
+   * @example
+   * const api = new BisonJibPayAPI(baseURL, embeddableKey);
+   * const result = await api.verifyOperator('operator@example.com', 'OP123456');
+   * if (result.success) {
+   *   console.log('Operator is verified');
+   * }
+   */
+  async verifyOperator(email, operatorId, clientId = null) {
+    return this.validateOperatorEmail(email, operatorId, clientId);
+  }
+
+  /**
+   * Verify WIO email
+   * Checks if a WIO (Worker Independent Operator) has an account in the system
+   *
+   * @param {string} email - WIO's email address
+   * @returns {Promise<{success: boolean, message: string, data?: {moovAccountId: string}}>}
+   *
+   * @example
+   * const api = new BisonJibPayAPI(baseURL, embeddableKey);
+   * const result = await api.verifyWio('wio@example.com');
+   * if (result.success && result.data?.moovAccountId) {
+   *   console.log('WIO is verified with account:', result.data.moovAccountId);
+   * }
+   */
+  async verifyWio(email) {
+    return this.getAccountByEmail(email);
+  }
+
+  /**
+   * Register operator
+   */
+  async registerOperator(formData) {
+    return this.request("/api/embeddable/operator-registration", {
+      method: "POST",
+      body: formData, // FormData object
+    });
+  }
+
+  /**
+   * Register WIO
+   */
+  async registerWIO(payload) {
+    return this.request("/api/embeddable/wio-registration", {
+      method: "POST",
+      body: payload, // FormData object
+    });
+  }
+
+  async getAccountByEmail(operatorEmail) {
+    const param = new URLSearchParams();
+    param.append("email", operatorEmail);
+
+    return this.request(`/api/embeddable/moov-account-id?${param.toString()}`, {
+      method: "GET",
+    });
+  }
+
+  async getAccountByOperatorId(operatorId) {
+    const param = new URLSearchParams();
+    param.append("operatorId", operatorId);
+
+    return this.request(`/api/embeddable/moov-account-id?${param.toString()}`, {
+      method: "GET",
+    });
+  }
+
+  async getAccountByClientId(clientId) {
+    const param = new URLSearchParams();
+    param.append("clientId", clientId);
+
+    return this.request(`/api/embeddable/moov-account-id?${param.toString()}`, {
+      method: "GET",
+    });
+  }
+
+  /**
+   * Generate Moov access token for operator
+   *
+   * This method calls the backend API to generate a Moov token for payment operations.
+   * The backend handles the secure communication with Moov's API.
+   *
+   * @param {string} operatorEmail - Operator's email address
+   * @param {string|null} moovAccountId - Optional Moov account ID
+   * @param {string|null} operatorId - Optional operator ID
+   * @param {string|null} clientId - Optional client ID
+   * @returns {Promise<{access_token: string, expires_in?: number, scope?: string}>}
+   *
+   * @example
+   * const api = new BisonJibPayAPI(baseURL, embeddableKey);
+   * const tokenData = await api.generateMoovToken('operator@example.com');
+   * console.log(tokenData.access_token);
+   */
+  async generateMoovToken(operatorEmail, moovAccountId = null, operatorId = null, clientId = null) {
+    console.log("CALLED GENERATE MOOV TOKEN");
+
+    // Use provided moovAccountId or fetch it if not provided
+    let accountId = moovAccountId;
+    if (!accountId) {
+      if (operatorEmail) {
+        const account = await this.getAccountByEmail(operatorEmail);
+        accountId = account.data.moovAccountId;
+      } else if (operatorId) {
+        const account = await this.getAccountByOperatorId(operatorId);
+        accountId = account.data.moovAccountId;
+      } else if (clientId) {
+        const account = await this.getAccountByClientId(clientId);
+        accountId = account.data.moovAccountId;
+      } else {
+        throw {
+          status: 400,
+          data: {
+            success: false,
+            message: "Email, operator ID, or client ID is required to generate a token",
+            errors: ["Missing operator identifier"],
+          },
+        };
+      }
+    }
+    console.log("MOOV ACCOUNT ID", accountId);
+    let accountScopes = [
+      "/accounts/{ACCOUNT_ID}/bank-accounts.read",
+      "/accounts/{ACCOUNT_ID}/bank-accounts.write",
+      "/accounts/{ACCOUNT_ID}/capabilities.read",
+      "/accounts/{ACCOUNT_ID}/capabilities.write",
+      "/accounts/{ACCOUNT_ID}/cards.read",
+      "/accounts/{ACCOUNT_ID}/cards.write",
+      "/accounts/{ACCOUNT_ID}/profile.read",
+      "/accounts/{ACCOUNT_ID}/profile.write",
+      "/accounts/{ACCOUNT_ID}/representatives.read",
+      "/accounts/{ACCOUNT_ID}/representatives.write",
+    ];
+
+    if (accountId) {
+      accountScopes = accountScopes.map((value) =>
+        value.replace("{ACCOUNT_ID}", accountId)
+      );
+    }
+
+    const tokenPayload = {
+      scopes: [
+        "/accounts.read",
+        "/accounts.write",
+        "/fed.read",
+        "/profile-enrichment.read",
+        ...accountScopes,
+      ],
+    };
+
+    if (operatorEmail) {
+      tokenPayload.email = operatorEmail;
+    }
+
+    if (operatorId) {
+      tokenPayload.operatorId = operatorId;
+    }
+
+    if (clientId) {
+      tokenPayload.clientId = clientId;
+    }
+
+    return this.request("/api/embeddable/moov-access-token", {
+      method: "POST",
+      body: JSON.stringify(tokenPayload),
+    });
+  }
+
+  /**
+   * Generate Plaid Link token for WIO
+   *
+   * This method calls the backend API to generate a Plaid Link token for bank account linking.
+   * The token is used to initialize Plaid Link in the Moov payment drop.
+   *
+   * @param {string} wioEmail - WIO's email address
+   * @returns {Promise<{link_token: string, expiration?: string}>}
+   *
+   * @example
+   * const api = new BisonJibPayAPI(baseURL, embeddableKey);
+   * const tokenData = await api.generatePlaidToken('wio@example.com');
+   * console.log(tokenData.link_token);
+   */
+  async generatePlaidToken(wioEmail) {
+    return this.request("/api/embeddable/plaid/link-token", {
+      method: "POST",
+      body: JSON.stringify({
+        clientName: wioEmail,
+        countryCodes: ["US"],
+        user: {
+          clientUserId: "wio-email",
+          legalName: "Wio User",
+        },
+        products: ["transactions"],
+        client_name: "Personal Finance App",
+      }),
+    });
+  }
+
+  /**
+   * Create Plaid processor token
+   *
+   * Exchanges a Plaid public token for a processor token that can be used with Moov.
+   * This is called during the Plaid Link flow after the user selects their bank account.
+   *
+   * @param {string} publicToken - Plaid public token from Link flow
+   * @param {string} bankAccountId - Selected bank account ID
+   * @returns {Promise<{processor_token: string, bank_account_id: string}>}
+   *
+   * @example
+   * const api = new BisonJibPayAPI(baseURL, embeddableKey);
+   * const result = await api.createProcessorToken(publicToken, accountId);
+   * console.log(result.processor_token);
+   */
+  async createProcessorToken(publicToken, bankAccountId) {
+    return this.request("/api/embeddable/plaid/processor-token", {
+      method: "POST",
+      body: JSON.stringify({
+        publicToken,
+        accountId: bankAccountId,
+      }),
+    });
+  }
+
+  async addPlaidAccountToMoov(publicToken, bankAccountId, moovAccountId) {
+    return this.request("/api/embeddable/plaid/add-to-moov", {
+      method: "POST",
+      body: JSON.stringify({
+        publicToken,
+        moovAccountId,
+        accountId: bankAccountId,
+      }),
+    });
+  }
+
+  /**
+   * Get payment methods by moovAccountId directly
+   *
+   * This method fetches all available payment methods for the given moovAccountId.
+   * Use this when you already have the moovAccountId cached to avoid extra API calls.
+   *
+   * @param {string} moovAccountId - The Moov account ID
+   * @returns {Promise<{success: boolean, message: string, data: Array<{paymentMethodID: string, paymentMethodType: string, wallet?: object, bankAccount?: object, card?: object, applePay?: object}>, errors: string[], timestamp: string, traceId: string}>}
+   *
+   * @example
+   * const api = new BisonJibPayAPI(baseURL, embeddableKey);
+   * const paymentMethods = await api.getPaymentMethodsByAccountId('moov-account-id');
+   * console.log(paymentMethods.data); // Array of payment methods
+   */
+  async getPaymentMethodsByAccountId(moovAccountId) {
+    if (!moovAccountId) {
+      throw {
+        status: 400,
+        data: {
+          success: false,
+          message: "Moov account ID is required",
+          errors: ["moovAccountId parameter is missing"],
+        },
+      };
+    }
+
+    return this.request(`/api/embeddable/payment-methods/${moovAccountId}`, {
+      method: "GET",
+    });
+  }
+
+  /**
+   * Get payment methods for an operator by email
+   *
+   * This method first retrieves the operator's moovAccountId by email,
+   * then fetches all available payment methods for that account.
+   * Note: If you already have the moovAccountId, use getPaymentMethodsByAccountId() instead
+   * to avoid the extra API call.
+   *
+   * @param {string} operatorEmail - Operator's email address
+   * @returns {Promise<{success: boolean, message: string, data: Array<{paymentMethodID: string, paymentMethodType: string, wallet?: object, bankAccount?: object, card?: object, applePay?: object}>, errors: string[], timestamp: string, traceId: string}>}
+   *
+   * @example
+   * const api = new BisonJibPayAPI(baseURL, embeddableKey);
+   * const paymentMethods = await api.getPaymentMethods('operator@example.com');
+   * console.log(paymentMethods.data); // Array of payment methods
+   */
+  async getPaymentMethods(operatorEmail) {
+    // First, get the account by email to retrieve moovAccountId
+    const account = await this.getAccountByEmail(operatorEmail);
+    const moovAccountId = account.data?.moovAccountId || account.moovAccountId;
+
+    if (!moovAccountId) {
+      throw {
+        status: 404,
+        data: {
+          success: false,
+          message: "Moov account ID not found for the given email",
+          errors: ["No moovAccountId associated with this operator"],
+        },
+      };
+    }
+
+    // Use the direct method to fetch payment methods
+    return this.getPaymentMethodsByAccountId(moovAccountId);
+  }
+
+  /**
+   * Delete a payment method by moovAccountId and paymentMethodId directly
+   *
+   * Use this when you already have the moovAccountId cached to avoid extra API calls.
+   *
+   * @param {string} moovAccountId - The Moov account ID
+   * @param {string} paymentMethodId - The ID of the payment method to delete
+   * @returns {Promise<{success: boolean, message: string, data: string, errors: string[], timestamp: string, traceId: string}>}
+   *
+   * @example
+   * const api = new BisonJibPayAPI(baseURL, embeddableKey);
+   * const result = await api.deletePaymentMethodByAccountId('moov-account-id', 'pm_123456');
+   * console.log(result.success); // true if deleted successfully
+   */
+  async deletePaymentMethodByAccountId(moovAccountId, paymentMethodId) {
+    if (!moovAccountId) {
+      throw {
+        status: 400,
+        data: {
+          success: false,
+          message: "Moov account ID is required",
+          errors: ["moovAccountId parameter is missing"],
+        },
+      };
+    }
+
+    if (!paymentMethodId) {
+      throw {
+        status: 400,
+        data: {
+          success: false,
+          message: "Payment method ID is required",
+          errors: ["paymentMethodId parameter is missing"],
+        },
+      };
+    }
+
+    return this.request(
+      `/api/embeddable/bank-account/${moovAccountId}/${paymentMethodId}`,
+      {
+        method: "DELETE",
+      }
+    );
+  }
+
+  /**
+   * Delete a payment method by ID
+   *
+   * This method first retrieves the operator's moovAccountId by email,
+   * then deletes the specified payment method.
+   * Note: If you already have the moovAccountId, use deletePaymentMethodByAccountId() instead
+   * to avoid the extra API call.
+   *
+   * @param {string} operatorEmail - Operator's email address
+   * @param {string} paymentMethodId - The ID of the payment method to delete
+   * @returns {Promise<{success: boolean, message: string, data: string, errors: string[], timestamp: string, traceId: string}>}
+   *
+   * @example
+   * const api = new BisonJibPayAPI(baseURL, embeddableKey);
+   * const result = await api.deletePaymentMethodById('operator@example.com', 'pm_123456');
+   * console.log(result.success); // true if deleted successfully
+   */
+  async deletePaymentMethodById(operatorEmail, paymentMethodId) {
+    // First, get the account by email to retrieve moovAccountId
+    const account = await this.getAccountByEmail(operatorEmail);
+    const moovAccountId = account.data?.moovAccountId || account.moovAccountId;
+
+    if (!moovAccountId) {
+      throw {
+        status: 404,
+        data: {
+          success: false,
+          message: "Moov account ID not found for the given email",
+          errors: ["No moovAccountId associated with this operator"],
+        },
+      };
+    }
+
+    // Use the direct method to delete payment method
+    return this.deletePaymentMethodByAccountId(moovAccountId, paymentMethodId);
+  }
+  /**
+   * Fetch underwriting history by moovAccountId
+   *
+   * This method retrieves the underwriting history for the given moovAccountId.
+   * Use this when you already have the moovAccountId cached.
+   *
+   * Response Codes:
+   * - 200: Success with data array (may be empty)
+   * - 400: Missing or invalid moovAccountId parameter
+   * - 401: Invalid or missing X-Embeddable-Key header
+   * - 404: Moov account with specified ID not found
+   * - 500: Server error while retrieving underwriting history
+   *
+   * @param {string} moovAccountId - The Moov account ID
+   * @returns {Promise<{success: boolean, message?: string, data: Array|null, errors: string[], timestamp?: string, traceId?: string}>}
+   *
+   * @example
+   * const api = new BisonJibPayAPI(baseURL, embeddableKey);
+   * const history = await api.fetchUnderwritingByAccountId('moov-account-id');
+   * console.log(history.data); // Array of underwriting history records
+   */
+  async fetchUnderwritingByAccountId(moovAccountId) {
+    if (!moovAccountId) {
+      throw {
+        status: 400,
+        data: {
+          success: false,
+          message: "Moov account ID is required",
+          errors: ["moovAccountId parameter is missing"],
+        },
+      };
+    }
+
+    return this.request(
+      `/api/embeddable/underwriting-history/${moovAccountId}`,
+      {
+        method: "GET",
+      }
+    );
+  }
+
+  /**
+   * Find operator from Enverus
+   *
+   * @param {string|number} [opOrgId] - Optional Operator Org ID
+   * @param {string} [orgNumber] - Optional Org Number
+   * @returns {Promise<any>}
+   */
+  async findOperatorFromEnverus(opOrgId = null, orgNumber = null) {
+    const params = new URLSearchParams();
+    if (opOrgId) params.append("opOrgId", opOrgId);
+    if (orgNumber) params.append("orgNumber", orgNumber);
+
+    const queryString = params.toString() ? `?${params.toString()}` : "";
+    
+    return this.request(`/api/enverus/operators/lookup${queryString}`, {
+      method: "GET",
+    });
+  }
+
+  /**
+   * List all bank accounts for an operator
+   *
+   * @param {string} operatorId - The internal GUID of the operator
+   * @returns {Promise<any>}
+   */
+  async getOperatorBankAccounts(operatorId) {
+    if (!operatorId) {
+      throw {
+        status: 400,
+        data: {
+          success: false,
+          message: "Operator ID is required",
+          errors: ["operatorId parameter is missing"],
+        },
+      };
+    }
+
+    return this.request(`/api/operators/${operatorId}/bank-accounts`, {
+      method: "GET",
+    });
+  }
+
+  /**
+   * Add a new bank account for an operator
+   *
+   * @param {string} operatorId - The internal GUID of the operator
+   * @param {Object} bankAccountData - The bank account details to add
+   * @returns {Promise<any>}
+   */
+  async addOperatorBankAccount(operatorId, bankAccountData) {
+    if (!operatorId) {
+      throw {
+        status: 400,
+        data: {
+          success: false,
+          message: "Operator ID is required",
+          errors: ["operatorId parameter is missing"],
+        },
+      };
+    }
+
+    return this.request(`/api/operators/${operatorId}/bank-accounts`, {
+      method: "POST",
+      body: JSON.stringify(bankAccountData),
+    });
+  }
+
+  /**
+   * Delete/unlink a bank account for an operator
+   *
+   * @param {string} operatorId - The internal GUID of the operator
+   * @param {string} bankAccountId - The ID of the bank account to delete
+   * @returns {Promise<any>}
+   */
+  async deleteOperatorBankAccount(operatorId, bankAccountId) {
+    if (!operatorId || !bankAccountId) {
+      throw {
+        status: 400,
+        data: {
+          success: false,
+          message: "Operator ID and Bank Account ID are required",
+          errors: ["operatorId or bankAccountId parameter is missing"],
+        },
+      };
+    }
+
+    return this.request(`/api/operators/${operatorId}/bank-accounts/${bankAccountId}`, {
+      method: "DELETE",
+    });
+  }
+}
+
+// Export for ES6 modules (primary export method for modern bundlers)
+export { BisonJibPayAPI };
+
+// Make available globally for script tag usage
+if (typeof window !== "undefined") {
+  window.BisonJibPayAPI = BisonJibPayAPI;
+}
+
+// Export for CommonJS (Node.js)
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = { BisonJibPayAPI };
+}\n\nclass BisonOperatorPayments extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
@@ -153,7 +784,7 @@ class BisonOperatorPayments extends HTMLElement {
   }
 
   static get observedAttributes() {
-    return ["org-number", "op-org-id", "x-embeddable-key"];
+    return ["org-number", "op-org-id", "x-embeddable-key", "api-base-url"];
   }
 
   connectedCallback() {
@@ -212,16 +843,19 @@ class BisonOperatorPayments extends HTMLElement {
       return window.__bisonApi;
     }
 
-    try {
-      if (typeof window !== "undefined" && window.BisonJibPayAPI) {
-        this._api = new window.BisonJibPayAPI("", this._embeddableKey);
-        return this._api;
-      }
+    // Try reading config from window object explicitly provided by consumer
+    let baseUrl = this.getAttribute("api-base-url") || "";
+    let globalKey = this._embeddableKey;
+    if (typeof window !== "undefined" && window.BISON_JIB_PAY_CONFIG) {
+       baseUrl = baseUrl || window.BISON_JIB_PAY_CONFIG.apiBaseURL || "";
+       if (!this._embeddableKey && window.BISON_JIB_PAY_CONFIG.embeddableKey) {
+          globalKey = window.BISON_JIB_PAY_CONFIG.embeddableKey;
+          this._embeddableKey = globalKey; // Sync to component state
+       }
+    }
 
-      // Dynamically import the API class
-      // Works for both local dev and CDN (api.js deployed alongside)
-      const { BisonJibPayAPI } = await import("./api.js");
-      this._api = new BisonJibPayAPI("", this._embeddableKey);
+    try {
+      this._api = new BisonJibPayAPI(baseUrl, globalKey);
 
       // Attach to window to prevent redundant instantiations across components
       if (typeof window !== "undefined") {
@@ -231,7 +865,7 @@ class BisonOperatorPayments extends HTMLElement {
 
       return this._api;
     } catch (err) {
-      this._log("Failed to initialize BisonJibPayAPI dynamically:", err);
+      this._log("Failed to initialize BisonJibPayAPI:", err);
       return null;
     }
   }
