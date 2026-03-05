@@ -18,6 +18,7 @@ Use the barrel export file that loads all components via imports:
 ```
 
 **Benefits:**
+
 - ✅ Simple single import
 - ✅ Leverages native ES modules
 - ✅ Browser caching per component
@@ -41,6 +42,7 @@ Load components separately for better development experience:
 ```
 
 **Benefits:**
+
 - ✅ Better code organization
 - ✅ Selective loading (load only what you need)
 - ✅ Better caching
@@ -52,13 +54,13 @@ For Webpack, Vite, Rollup, etc.:
 
 ```javascript
 // Import from barrel export (loads all components)
-import { BisonJibPayAPI } from './component.js';
+import { BisonJibPayAPI } from "./component.js";
 // Components auto-register when imported
 
 // Or import specific components
-import { BisonJibPayAPI } from './api.js';
-import './operator-onboarding.js';
-import './operator-payment.js';
+import { BisonJibPayAPI } from "./api.js";
+import "./operator-onboarding.js";
+import "./operator-payment.js";
 ```
 
 ---
@@ -70,33 +72,34 @@ Multi-step onboarding form for capturing operator information.
 ### Basic Usage
 
 ```html
-<operator-onboarding 
+<operator-onboarding
   id="onboarding"
   api-base-url="https://your-api.com"
-  embeddable-key="your-key-here">
+  embeddable-key="your-key-here"
+>
 </operator-onboarding>
 
 <script>
-  const onboarding = document.getElementById('onboarding');
-  
+  const onboarding = document.getElementById("onboarding");
+
   // Submit callback (called before submission, can modify or cancel)
   onboarding.onSubmit = async (formData) => {
-    console.log('About to submit:', formData);
+    console.log("About to submit:", formData);
     // Return false to cancel submission
     // Return modified data to use instead
     // Return nothing/true to proceed normally
     return formData;
   };
-  
+
   // Success callback (called after successful submission)
   onboarding.onSuccess = (formData) => {
-    console.log('Onboarding completed!', formData);
+    console.log("Onboarding completed!", formData);
     // formData contains: businessDetails, representatives, bankDetails, underwriting
   };
-  
+
   // Error callback
   onboarding.onError = (error) => {
-    console.error('Onboarding failed:', error);
+    console.error("Onboarding failed:", error);
   };
 </script>
 ```
@@ -107,8 +110,8 @@ Multi-step onboarding form for capturing operator information.
 <operator-onboarding id="onboarding"></operator-onboarding>
 
 <script>
-  const onboarding = document.getElementById('onboarding');
-  
+  const onboarding = document.getElementById("onboarding");
+
   // Load existing data
   onboarding.onLoad = {
     businessDetails: {
@@ -123,26 +126,26 @@ Multi-step onboarding form for capturing operator information.
         representativeLastName: "Doe",
         representativeEmail: "john@acme.com",
         // ... other fields
-      }
-    ]
+      },
+    ],
   };
 </script>
 ```
 
 ### Attributes
 
-| Attribute | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `api-base-url` | string | `https://bison-jib-development.azurewebsites.net` | API base URL |
-| `embeddable-key` | string | (dev key) | Your embeddable API key |
-| `on-submit` | string | - | Global function name for pre-submission callback |
-| `on-success` | string | - | Global function name for success callback |
-| `on-error` | string | - | Global function name for error callback |
+| Attribute        | Type   | Default                                           | Description                                      |
+| ---------------- | ------ | ------------------------------------------------- | ------------------------------------------------ |
+| `api-base-url`   | string | `https://bison-jib-development.azurewebsites.net` | API base URL                                     |
+| `embeddable-key` | string | (dev key)                                         | Your embeddable API key                          |
+| `on-submit`      | string | -                                                 | Global function name for pre-submission callback |
+| `on-success`     | string | -                                                 | Global function name for success callback        |
+| `on-error`       | string | -                                                 | Global function name for error callback          |
 
 ### Properties
 
 ```javascript
-const onboarding = document.getElementById('onboarding');
+const onboarding = document.getElementById("onboarding");
 
 // Callbacks
 onboarding.onSubmit = async (data) => {
@@ -150,23 +153,29 @@ onboarding.onSubmit = async (data) => {
   // Return false to cancel, modified data to transform, or nothing to proceed
   return data;
 };
-onboarding.onSuccess = (data) => { /* Called after successful submission */ };
-onboarding.onError = (error) => { /* Called on error */ };
+onboarding.onSuccess = (data) => {
+  /* Called after successful submission */
+};
+onboarding.onError = (error) => {
+  /* Called on error */
+};
 
 // Pre-fill data
-onboarding.onLoad = { /* data object */ };
+onboarding.onLoad = {
+  /* data object */
+};
 ```
 
 ### Events
 
 ```javascript
 // Custom events (bubbles and composed)
-onboarding.addEventListener('formComplete', (event) => {
-  console.log('Form completed:', event.detail);
+onboarding.addEventListener("formComplete", (event) => {
+  console.log("Form completed:", event.detail);
 });
 
-onboarding.addEventListener('submissionFailed', (event) => {
-  console.log('Submission failed:', event.detail);
+onboarding.addEventListener("submissionFailed", (event) => {
+  console.log("Submission failed:", event.detail);
 });
 ```
 
@@ -175,39 +184,40 @@ onboarding.addEventListener('submissionFailed', (event) => {
 The `onSubmit` callback allows you to intercept form data before submission:
 
 ```javascript
-const onboarding = document.getElementById('onboarding');
+const onboarding = document.getElementById("onboarding");
 
 onboarding.onSubmit = async (formData) => {
-  console.log('Pre-submission data:', formData);
-  
+  console.log("Pre-submission data:", formData);
+
   // Example 1: Validate data
-  if (!formData.businessDetails.businessEmail.includes('@company.com')) {
-    alert('Must use company email');
+  if (!formData.businessDetails.businessEmail.includes("@company.com")) {
+    alert("Must use company email");
     return false; // Cancel submission
   }
-  
+
   // Example 2: Transform data
   const modifiedData = {
     ...formData,
     businessDetails: {
       ...formData.businessDetails,
-      businessName: formData.businessDetails.businessName.toUpperCase()
-    }
+      businessName: formData.businessDetails.businessName.toUpperCase(),
+    },
   };
   return modifiedData; // Use modified data
-  
+
   // Example 3: Add metadata
   return {
     ...formData,
     metadata: {
       submittedAt: new Date().toISOString(),
-      source: 'web'
-    }
+      source: "web",
+    },
   };
 };
 ```
 
 **Return Values:**
+
 - `false` - Cancels submission
 - `object` - Uses returned object as form data
 - `undefined`/`true` - Proceeds with original data
@@ -221,32 +231,33 @@ Payment methods integration using Moov's drop-in component.
 ### Basic Usage
 
 ```html
-<operator-payment 
+<operator-payment
   id="payment"
   operator-id="OP123456"
   api-base-url="https://your-api.com"
-  embeddable-key="your-key-here">
+  embeddable-key="your-key-here"
+>
 </operator-payment>
 
 <script>
-  const payment = document.getElementById('payment');
-  
+  const payment = document.getElementById("payment");
+
   // Set operator email
-  payment.operatorEmail = 'operator@example.com';
+  payment.operatorEmail = "operator@example.com";
 
   // Set operator ID (required)
-  payment.operatorId = 'OP123456';
-  
+  payment.operatorId = "OP123456";
+
   // Success callback
   payment.onSuccess = (result) => {
-    console.log('Payment method added!', result);
+    console.log("Payment method added!", result);
   };
-  
+
   // Error callback
   payment.onError = ({ errorType, error }) => {
     console.error(`Error (${errorType}):`, error);
   };
-  
+
   // Open the payment modal
   payment.open = true;
 </script>
@@ -255,11 +266,11 @@ Payment methods integration using Moov's drop-in component.
 ### Programmatic Control
 
 ```javascript
-const payment = document.getElementById('payment');
+const payment = document.getElementById("payment");
 
 // Set email and ID, then open
-payment.operatorEmail = 'user@example.com';
-payment.operatorId = 'OP123456';
+payment.operatorEmail = "user@example.com";
+payment.operatorId = "OP123456";
 payment.open = true;
 
 // Check if open
@@ -271,37 +282,40 @@ payment.open = false;
 
 ### Attributes
 
-| Attribute | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `operator-email` | string | - | Operator's email address (required) |
-| `operator-id` | string | - | Operator's ID (required) |
-| `api-base-url` | string | `https://bison-jib-development.azurewebsites.net` | API base URL |
-| `embeddable-key` | string | (dev key) | Your embeddable API key |
-| `on-success` | string | - | Global function name for success callback |
-| `on-error` | string | - | Global function name for error callback |
-| `open` | boolean | false | Whether the modal is open |
+| Attribute        | Type   | Default                                           | Description                               |
+| ---------------- | ------ | ------------------------------------------------- | ----------------------------------------- |
+| `operator-email` | string | -                                                 | Operator's email address (required)       |
+| `operator-id`    | string | -                                                 | Operator's ID (required)                  |
+| `api-base-url`   | string | `https://bison-jib-development.azurewebsites.net` | API base URL                              |
+| `embeddable-key` | string | (dev key)                                         | Your embeddable API key                   |
+| `on-success`     | string | -                                                 | Global function name for success callback |
+| `on-error`       | string | -                                                 | Global function name for error callback   |
 
 ### Properties
 
 ```javascript
-const payment = document.getElementById('payment');
+const payment = document.getElementById("payment");
 
 // Operator email and ID (triggers initialization when set)
-payment.operatorEmail = 'user@example.com';
-payment.operatorId = 'OP123456';
+payment.operatorEmail = "user@example.com";
+payment.operatorId = "OP123456";
 
 // Open state
 payment.open = true;
 
 // Callbacks
-payment.onSuccess = (result) => { /* ... */ };
-payment.onError = ({ errorType, error }) => { /* ... */ };
+payment.onSuccess = (result) => {
+  /* ... */
+};
+payment.onError = ({ errorType, error }) => {
+  /* ... */
+};
 ```
 
 ### Events
 
 ```javascript
-payment.addEventListener('payment-error', (event) => {
+payment.addEventListener("payment-error", (event) => {
   const { errorType, error } = event.detail;
   console.error(`Payment error (${errorType}):`, error);
 });
@@ -317,52 +331,54 @@ Direct API access for custom integrations.
 
 ```javascript
 // Initialize API
-const api = new BisonJibPayAPI(
-  'https://your-api.com',
-  'your-embeddable-key'
-);
+const api = new BisonJibPayAPI("https://your-api.com", "your-embeddable-key");
 
 // Validate operator email
 try {
   const result = await api.validateOperatorEmail(
-    'operator@example.com',
-    'OP123456'
+    "operator@example.com",
+    "OP123456",
   );
-  console.log('Email valid:', result);
+  console.log("Email valid:", result);
 } catch (error) {
-  console.error('Validation failed:', error);
+  console.error("Validation failed:", error);
 }
 
 // Register operator
 const formData = new FormData();
-formData.append('businessName', 'Acme Corp');
+formData.append("businessName", "Acme Corp");
 // ... add other fields
 
 try {
   const result = await api.registerOperator(formData);
-  console.log('Registration successful:', result);
+  console.log("Registration successful:", result);
 } catch (error) {
-  console.error('Registration failed:', error);
+  console.error("Registration failed:", error);
 }
 
 // Generate Moov token
 try {
-  const tokenData = await api.generateMoovToken('operator@example.com');
-  console.log('Token:', tokenData.access_token);
+  const tokenData = await api.generateMoovToken("operator@example.com");
+  console.log("Token:", tokenData.access_token);
 } catch (error) {
-  console.error('Token generation failed:', error);
+  console.error("Token generation failed:", error);
 }
 ```
 
 ### Methods
 
 #### `validateOperatorEmail(email, operatorId)`
+
 ```javascript
-const result = await api.validateOperatorEmail('operator@example.com', 'OP123456');
+const result = await api.validateOperatorEmail(
+  "operator@example.com",
+  "OP123456",
+);
 // Returns: { valid: boolean, message: string }
 ```
 
 #### `registerOperator(formData)`
+
 ```javascript
 const formData = new FormData();
 // Add form fields...
@@ -371,8 +387,9 @@ const result = await api.registerOperator(formData);
 ```
 
 #### `generateMoovToken(operatorEmail)`
+
 ```javascript
-const tokenData = await api.generateMoovToken('operator@example.com');
+const tokenData = await api.generateMoovToken("operator@example.com");
 // Returns: { access_token: string, expires_in: number, scope: string }
 ```
 
@@ -383,20 +400,20 @@ const tokenData = await api.generateMoovToken('operator@example.com');
 ### React
 
 ```jsx
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef } from "react";
 
 function OnboardingForm() {
   const onboardingRef = useRef(null);
 
   useEffect(() => {
     const element = onboardingRef.current;
-    
+
     element.onSuccess = (data) => {
-      console.log('Success!', data);
+      console.log("Success!", data);
     };
-    
+
     element.onError = (error) => {
-      console.error('Error:', error);
+      console.error("Error:", error);
     };
   }, []);
 
@@ -408,10 +425,11 @@ function OnboardingForm() {
 
 ```vue
 <template>
-  <operator-onboarding 
+  <operator-onboarding
     ref="onboarding"
     api-base-url="https://your-api.com"
-    embeddable-key="your-key">
+    embeddable-key="your-key"
+  >
   </operator-onboarding>
 </template>
 
@@ -419,38 +437,38 @@ function OnboardingForm() {
 export default {
   mounted() {
     this.$refs.onboarding.onSuccess = (data) => {
-      console.log('Success!', data);
+      console.log("Success!", data);
     };
-    
+
     this.$refs.onboarding.onError = (error) => {
-      console.error('Error:', error);
+      console.error("Error:", error);
     };
-  }
-}
+  },
+};
 </script>
 ```
 
 ### Angular
 
 ```typescript
-import { Component, ViewChild, ElementRef, AfterViewInit } from '@angular/core';
+import { Component, ViewChild, ElementRef, AfterViewInit } from "@angular/core";
 
 @Component({
-  selector: 'app-onboarding',
-  template: '<operator-onboarding #onboarding></operator-onboarding>'
+  selector: "app-onboarding",
+  template: "<operator-onboarding #onboarding></operator-onboarding>",
 })
 export class OnboardingComponent implements AfterViewInit {
-  @ViewChild('onboarding') onboarding!: ElementRef;
+  @ViewChild("onboarding") onboarding!: ElementRef;
 
   ngAfterViewInit() {
     const element = this.onboarding.nativeElement;
-    
+
     element.onSuccess = (data: any) => {
-      console.log('Success!', data);
+      console.log("Success!", data);
     };
-    
+
     element.onError = (error: any) => {
-      console.error('Error:', error);
+      console.error("Error:", error);
     };
   }
 }
@@ -481,6 +499,7 @@ export class OnboardingComponent implements AfterViewInit {
 **Problem:** Web components don't appear on the page.
 
 **Solution:**
+
 ```html
 <!-- Ensure scripts are loaded BEFORE using components -->
 <script src="component.js"></script>
@@ -494,6 +513,7 @@ export class OnboardingComponent implements AfterViewInit {
 **Problem:** `BisonJibPayAPI is not available` error.
 
 **Solution:** Load `api.js` before other component files:
+
 ```html
 <script src="api.js"></script>
 <script src="operator-onboarding.js"></script>
@@ -505,6 +525,7 @@ export class OnboardingComponent implements AfterViewInit {
 **Problem:** `Failed to generate Moov token` error.
 
 **Solution:**
+
 1. Verify your embeddable key is correct
 2. Check that your backend endpoint is configured
 3. Ensure the backend API is accessible
@@ -524,6 +545,7 @@ web-components/
 ```
 
 **Architecture:**
+
 - `component.js` is a lightweight barrel export that imports and re-exports from the individual files
 - Each component file (`api.js`, `operator-onboarding.js`, `operator-payment.js`) is standalone
 - Load `component.js` for convenience, or load individual files for selective inclusion
@@ -533,6 +555,7 @@ web-components/
 ## 🆘 Support
 
 For issues or questions:
+
 - Check the troubleshooting section above
 - Review the code examples
 - Contact support at support@bisonjibpay.com

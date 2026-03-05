@@ -81,7 +81,6 @@ class WioPayment extends HTMLElement {
       "redirect-url",
       "on-success",
       "on-error",
-      "open",
       "api-base-url",
       "embeddable-key",
     ];
@@ -266,10 +265,6 @@ class WioPayment extends HTMLElement {
         if (newValue && window[newValue]) {
           this.onError = window[newValue];
         }
-        break;
-
-      case "open":
-        this.open = newValue !== null;
         break;
 
       case "api-base-url":

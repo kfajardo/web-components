@@ -25,7 +25,7 @@
  *   onUnlinkError(error)        – called when unlinking bank account(s) fails
  *
  * @author @kfajardo
- * @version 1.1.0
+ * @version 1.6.0
  */
 
 const BOP_BISON_LOGO =
@@ -742,6 +742,7 @@ class BisonOperatorPayments extends HTMLElement {
     this._linkedAccount = null;
     this._isFetchingAccounts = false;
     this._pendingLinkedAccount = null;
+    this._isOpen = false;
 
     // Unlink state
     this._unlinkTarget = null;
@@ -830,8 +831,20 @@ class BisonOperatorPayments extends HTMLElement {
     }
   }
 
+  open() {
+    this._isOpen = true;
+    this._isClosing = false;
+    this._render();
+    if (typeof this.onOpen === "function") this.onOpen();
+  }
+
+  /** Programmatic close */
+  close() {
+    this._handleClose();
+  }
+
   get isOpen() {
-    return this.hasAttribute("open");
+    return this._isOpen;
   }
 
   /** Resolves the API instance and syncs the current embeddable key. */
@@ -1198,7 +1211,7 @@ class BisonOperatorPayments extends HTMLElement {
         "animationend",
         () => {
           this._isClosing = false;
-          this.removeAttribute("open");
+          this._isOpen = false;
           setTimeout(() => this._resetState(), 50);
           this._render();
           this.dispatchEvent(
@@ -1210,7 +1223,7 @@ class BisonOperatorPayments extends HTMLElement {
       );
     } else {
       this._isClosing = false;
-      this.removeAttribute("open");
+      this._isOpen = false;
       this._resetState();
       this._render();
       this.dispatchEvent(
@@ -2136,10 +2149,7 @@ class BisonOperatorPayments extends HTMLElement {
     if (this._componentDisabled) btn.setAttribute("aria-disabled", "true");
     btn.addEventListener("click", () => {
       if (this._componentDisabled) return;
-      this.setAttribute("open", "");
-      this._isClosing = false;
-      this._render();
-      if (typeof this.onOpen === "function") this.onOpen();
+      this.open();
     });
 
     const tooltip = document.createElement("span");
