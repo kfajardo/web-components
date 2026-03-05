@@ -202,13 +202,38 @@ class BisonOperatorPayments extends HTMLElement {
   }
 
   /** Resolves the API instance and syncs the current embeddable key. */
-  _getApi() {
-    const api =
-      this._api || (typeof window !== "undefined" && window.__bisonApi);
-    if (api) {
-      api.embeddableKey = this._embeddableKey;
+  async _getApi() {
+    if (this._api) {
+      this._api.embeddableKey = this._embeddableKey;
+      return this._api;
     }
-    return api;
+    if (typeof window !== "undefined" && window.__bisonApi) {
+      window.__bisonApi.embeddableKey = this._embeddableKey;
+      return window.__bisonApi;
+    }
+
+    try {
+      if (typeof window !== "undefined" && window.BisonJibPayAPI) {
+        this._api = new window.BisonJibPayAPI("", this._embeddableKey);
+        return this._api;
+      }
+
+      // Dynamically import the API class
+      // Works for both local dev and CDN (api.js deployed alongside)
+      const { BisonJibPayAPI } = await import("./api.js");
+      this._api = new BisonJibPayAPI("", this._embeddableKey);
+
+      // Attach to window to prevent redundant instantiations across components
+      if (typeof window !== "undefined") {
+        window.BisonJibPayAPI = BisonJibPayAPI;
+        window.__bisonApi = this._api;
+      }
+
+      return this._api;
+    } catch (err) {
+      this._log("Failed to initialize BisonJibPayAPI dynamically:", err);
+      return null;
+    }
   }
 
   // ==================== OPERATOR LOOKUP (Enverus) ====================
@@ -260,7 +285,7 @@ class BisonOperatorPayments extends HTMLElement {
   async _performOperatorLookup(opOrgId, orgNumber) {
     // Resolve API instance — consumers can set this._api externally,
     // or the component falls back to a global instance on window.
-    const api = this._getApi();
+    const api = await this._getApi();
     if (!api || typeof api.findOperatorFromEnverus !== "function") {
       const msg =
         "No API instance available — set component._api or window.__bisonApi";
@@ -652,7 +677,7 @@ class BisonOperatorPayments extends HTMLElement {
     this._isLoading = true;
     this._renderContent();
 
-    const api = this._getApi();
+    const api = await this._getApi();
     if (!api || !this._operatorId) {
       this._log("Error: Missing API instance or operator ID for unlinking.");
       this._isLoading = false;
@@ -892,7 +917,7 @@ class BisonOperatorPayments extends HTMLElement {
     this._renderLinkModal();
 
     try {
-      const api = this._getApi();
+      const api = await this._getApi();
       if (!api || !this._operatorId) {
         throw new Error("Missing API instance or operator ID");
       }
