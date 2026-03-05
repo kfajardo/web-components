@@ -773,30 +773,118 @@ class BisonOperatorPayments extends HTMLElement {
     this._isOperatorLookupPending = false;
     this._componentDisabled = true;
 
-    // Consumer callbacks
-    this.onOpen = null;
-    this.onClose = null;
-    this.onLookupSuccess = null;
-    this.onLookupError = null;
-    this.onBankFetchSuccess = null;
-    this.onBankFetchError = null;
-    this.onLinkSuccess = null;
-    this.onLinkError = null;
-    this.onUnlinkSuccess = null;
-    this.onUnlinkError = null;
+    // Consumer callbacks — intentionally NOT set to null here.
+    // Setting them in the constructor would clobber values the consumer
+    // assigned before the element upgraded. They are rescued via
+    // _upgradeProperty() in connectedCallback instead.
   }
 
   static get observedAttributes() {
-    return ["org-number", "op-org-id", "x-embeddable-key", "api-base-url"];
+    return [
+      "org-number",
+      "op-org-id",
+      "x-embeddable-key",
+      "api-base-url",
+      // Callback attributes — resolved from window globals by name
+      "on-open",
+      "on-close",
+      "on-lookup-success",
+      "on-lookup-error",
+      "on-bank-fetch-success",
+      "on-bank-fetch-error",
+      "on-link-success",
+      "on-link-error",
+      "on-unlink-success",
+      "on-unlink-error",
+    ];
+  }
+
+  /** Attribute name → JS property name mapping for consumer callbacks */
+  static get _callbackAttrMap() {
+    return {
+      "on-open": "onOpen",
+      "on-close": "onClose",
+      "on-lookup-success": "onLookupSuccess",
+      "on-lookup-error": "onLookupError",
+      "on-bank-fetch-success": "onBankFetchSuccess",
+      "on-bank-fetch-error": "onBankFetchError",
+      "on-link-success": "onLinkSuccess",
+      "on-link-error": "onLinkError",
+      "on-unlink-success": "onUnlinkSuccess",
+      "on-unlink-error": "onUnlinkError",
+    };
+  }
+
+  /**
+   * Resolves a callback attribute value to a window-global function and assigns
+   * it to the corresponding JS property.
+   *
+   * @param {string} attrName - e.g. "on-lookup-success"
+   * @param {string|null} fnName  - e.g. "handleLookup"
+   */
+  _resolveCallbackAttr(attrName, fnName) {
+    const propName = BisonOperatorPayments._callbackAttrMap[attrName];
+    if (!propName) return;
+    if (!fnName) {
+      this[propName] = null;
+      return;
+    }
+    const fn = typeof window !== "undefined" ? window[fnName] : undefined;
+    if (typeof fn === "function") {
+      this[propName] = fn;
+      this._log(`Callback attribute "${attrName}" → window.${fnName}`);
+    } else {
+      this._log(`Warning: "${fnName}" not found on window for attribute "${attrName}"`);
+    }
+  }
+
+  /** Seeds all callback attributes declared in HTML at connect time. */
+  _seedCallbackAttributes() {
+    for (const attrName of Object.keys(BisonOperatorPayments._callbackAttrMap)) {
+      const val = this.getAttribute(attrName);
+      if (val) this._resolveCallbackAttr(attrName, val.trim());
+    }
+  }
+
+  /**
+   * Rescues a property that was set on the element before it was upgraded
+   * by customElements.define. Without this, the constructor's field
+   * initializations would silently overwrite the consumer's pre-set values.
+   *
+   * @param {string} prop - Property name, e.g. 'onLookupSuccess'
+   */
+  _upgradeProperty(prop) {
+    if (Object.prototype.hasOwnProperty.call(this, prop)) {
+      const value = this[prop];
+      delete this[prop];
+      this[prop] = value;
+    }
   }
 
   connectedCallback() {
+    // Rescue any callback properties set on the element before upgrade.
+    // Must run first — before anything else could overwrite them.
+    this._upgradeProperty("onOpen");
+    this._upgradeProperty("onClose");
+    this._upgradeProperty("onLookupSuccess");
+    this._upgradeProperty("onLookupError");
+    this._upgradeProperty("onBankFetchSuccess");
+    this._upgradeProperty("onBankFetchError");
+    this._upgradeProperty("onLinkSuccess");
+    this._upgradeProperty("onLinkError");
+    this._upgradeProperty("onUnlinkSuccess");
+    this._upgradeProperty("onUnlinkError");
+
     // Seed embeddable key from initial attribute
     const initialKey = (this.getAttribute("x-embeddable-key") || "").trim();
     if (initialKey) {
       this._embeddableKey = initialKey;
       this._disabledReason = null;
     }
+
+    // Seed any callback attributes declared directly in HTML.
+    // Attribute values take lower priority — only apply if JS property not already set.
+    this._seedCallbackAttributes();
 
     this._injectStyles();
     this._renderTrigger();
@@ -828,6 +916,11 @@ class BisonOperatorPayments extends HTMLElement {
         this._log(`Attribute changed: ${name} → "${newVal}" (was "${oldVal}")`);
         this._evaluateOperatorAttributes();
       }
+      return;
+    }
+    // Callback attributes: resolve the named window function and wire it up
+    if (name in BisonOperatorPayments._callbackAttrMap) {
+      this._resolveCallbackAttr(name, (newVal || "").trim() || null);
     }
   }
 
@@ -970,7 +1063,7 @@ class BisonOperatorPayments extends HTMLElement {
       this._componentDisabled = false;
       this._dispatchLookupEvent({ status: "success", data: result });
       if (typeof this.onLookupSuccess === "function")
-        this.onLookupSuccess(result);
+        this.onLookupSuccess(result.data);
 
       // Fetch operator bank accounts
       if (this._operatorId) {
@@ -1072,7 +1165,7 @@ class BisonOperatorPayments extends HTMLElement {
 
       this._log("Fetched bank accounts successfully", this._accounts);
       if (typeof this.onBankFetchSuccess === "function")
-        this.onBankFetchSuccess(this._accounts);
+        this.onBankFetchSuccess(response.data);
     } catch (err) {
       const errData = err?.data || err;
       this._log("Error fetching bank accounts", errData);
@@ -1624,7 +1717,7 @@ class BisonOperatorPayments extends HTMLElement {
       this._linkModalResult = "success";
       this._renderLinkModal();
       if (typeof this.onLinkSuccess === "function")
-        this.onLinkSuccess(this._pendingLinkedAccount);
+        this.onLinkSuccess(response.data);
     } catch (err) {
       this._log("Error linking account:", err);
       const errData = err?.data || err;
