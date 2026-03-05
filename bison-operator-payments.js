@@ -25,7 +25,7 @@
  *   onUnlinkError(error)        – called when unlinking bank account(s) fails
  *
  * @author @kfajardo
- * @version 1.8.0
+ * @version 2.0.0
  */
 
 const BOP_BISON_LOGO =
