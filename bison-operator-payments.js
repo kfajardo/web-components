@@ -721,7 +721,9 @@ if (typeof window !== "undefined") {
 // Export for CommonJS (Node.js)
 if (typeof module !== "undefined" && module.exports) {
   module.exports = { BisonJibPayAPI };
-}\n\nclass BisonOperatorPayments extends HTMLElement {
+}
+
+class BisonOperatorPayments extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
@@ -835,11 +837,11 @@ if (typeof module !== "undefined" && module.exports) {
   /** Resolves the API instance and syncs the current embeddable key. */
   async _getApi() {
     if (this._api) {
-      this._api.embeddableKey = this._embeddableKey;
+      if (this._embeddableKey) this._api.embeddableKey = this._embeddableKey;
       return this._api;
     }
     if (typeof window !== "undefined" && window.__bisonApi) {
-      window.__bisonApi.embeddableKey = this._embeddableKey;
+      if (this._embeddableKey) window.__bisonApi.embeddableKey = this._embeddableKey;
       return window.__bisonApi;
     }
 
@@ -878,6 +880,12 @@ if (typeof module !== "undefined" && module.exports) {
    * Priority: opOrgId > orgNumber
    */
   _evaluateOperatorAttributes() {
+    // Try to resolve key from global config if not already set via attribute
+    if (!this._embeddableKey && typeof window !== "undefined" && window.BISON_JIB_PAY_CONFIG?.embeddableKey) {
+      this._embeddableKey = window.BISON_JIB_PAY_CONFIG.embeddableKey;
+      this._disabledReason = null;
+    }
+
     // Gate: embeddable key must be present before any API calls
     if (!this._embeddableKey) {
       this._log("Embeddable key missing → skipping operator evaluation");
@@ -939,8 +947,12 @@ if (typeof module !== "undefined" && module.exports) {
     try {
       const result = await api.findOperatorFromEnverus(opOrgId, orgNumber);
       this._log("Operator lookup SUCCESS", result);
-      this._operatorData = result;
-      this._operatorId = result?.data?.operatorId || result?.operatorId || null;
+      
+      // Handle both wrapped and unwrapped response
+      const data = result?.data || result;
+      this._operatorData = data;
+      this._operatorId = data?.operatorId || null;
+      
       this._operatorLookupError = null;
       this._componentDisabled = false;
       this._dispatchLookupEvent({ status: "success", data: result });
@@ -993,6 +1005,8 @@ if (typeof module !== "undefined" && module.exports) {
     const loaderSvg =
       '<span class="bop-trigger-spinner"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg></span>';
     const logoImg = `<img src="${BOP_BISON_LOGO}" alt="Bison" class="bop-trigger-logo">`;
+    
+    // Check for company name in operatorData
     const companyName = this._operatorData?.companyName || "";
     if (this._isOperatorLookupPending) {
       btn.innerHTML = `${loaderSvg} Initializing...`;
@@ -1023,8 +1037,8 @@ if (typeof module !== "undefined" && module.exports) {
       this._log(`Fetching bank accounts for operatorId: ${this._operatorId}`);
       const response = await api.getOperatorBankAccounts(this._operatorId);
 
-      // The payload structure is expected to be inside response.data
-      const accountsData = response?.data || [];
+      // Higher robustness: handle both direct array or wrapped in response.data
+      const accountsData = Array.isArray(response) ? response : (response?.data || []);
 
       // Map the DTO to the internal representation
       this._accounts = accountsData.map((acc) => ({
@@ -1574,25 +1588,25 @@ if (typeof module !== "undefined" && module.exports) {
       this._linkModalSubmitting = false;
       this._removeLinkModalGuards();
 
-      // Store the new account as pending based on the response if available, or locally generated
-      const newAcc = response?.data || {};
-      const lastFour = newAcc.accountNumber
-        ? newAcc.accountNumber.slice(-4)
+      // Store the new account as pending - handle both direct object or wrapped in response.data
+      const data = response?.data || response || {};
+      const lastFour = data.accountNumber
+        ? data.accountNumber.slice(-4)
         : this._linkModalValues.accountNumber.trim().slice(-4);
 
       this._pendingLinkedAccount = {
-        id: newAcc.id || `linked-${Date.now()}`,
+        id: data.id || `linked-${Date.now()}`,
         type:
-          newAcc.accountType === 0
+          data.accountType === 0
             ? "Checking"
-            : newAcc.accountType === 1
+            : data.accountType === 1
               ? "Savings"
-              : payload.accountName || "Linked Account",
-        bankName: newAcc.bankName || payload.bankName,
+              : data.accountName || payload.accountName || "Linked Account",
+        bankName: data.bankName || payload.bankName,
         lastFour: lastFour.padStart(4, "0"),
         balance: 0,
-        isVerified: newAcc.isVerified || false,
-        isDefault: newAcc.isDefault || false,
+        isVerified: data.isVerified || false,
+        isDefault: data.isDefault || false,
         cannotUnlink: false,
       };
 
@@ -2786,3 +2800,6 @@ if (typeof module !== "undefined" && module.exports) {
 if (typeof window !== "undefined") {
   window.BisonOperatorPayments = BisonOperatorPayments;
 }
+
+// Named export for ESM
+export { BisonOperatorPayments };
