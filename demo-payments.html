@@ -150,7 +150,8 @@
       <h1>Operator Bank Account Mgt.</h1>
       <p>
         Set the operator attributes below, then click the button to open the
-        Bank Management modal. Both fields empty = component disabled.
+        Bank Management modal. Link Account uses the latest Plaid Link flow.
+        Both lookup fields empty = component disabled.
       </p>
 
       <!-- Attribute controls -->
@@ -191,84 +192,110 @@
     </div>
 
     <!-- ── Scripts ──────────────────────────────────── -->
-    <script src="https://cdn.jsdelivr.net/npm/bison-web-components@1.0.0/bison-operator-payments.js"></script>
+    <script type="module" src="./bison-operator-payments.js"></script>
     <script type="module">
-      import { BisonJibPayAPI } from "https://cdn.jsdelivr.net/npm/bison-web-components@1.0.0/api.js";
-
-      // ── API Bootstrap ─────────────────────────────
-      const API_BASE =
-        "https://bison-backend-development-hhgrdbhcbwhahdfk.southeastasia-01.azurewebsites.net";
-      const API_KEY = "BwVEfJ2u5y2JPsX8qGxtXlIhHyhu3qU2VW2y6Nf9Qc6KTsETvr";
-
-      const api = new BisonJibPayAPI(API_BASE, API_KEY);
-      window.__bisonApi = api;
-
-      // ── DOM References ────────────────────────────
-      const comp = document.querySelector("bison-operator-payments");
+      const paymentsEl = document.querySelector("bison-operator-payments");
       const logEl = document.getElementById("log");
-      const inputEmbeddableKey = document.getElementById("input-embeddableKey");
-      const inputOpOrgId = document.getElementById("input-opOrgId");
-      const inputOrgNumber = document.getElementById("input-orgNumber");
+      const embeddableKeyInput = document.getElementById("input-embeddableKey");
+      const opOrgIdInput = document.getElementById("input-opOrgId");
+      const orgNumberInput = document.getElementById("input-orgNumber");
 
-      // ── Helpers ────────────────────────────────────
-      function addLog(text, cls = "") {
-        const entry = document.createElement("div");
-        entry.className = `entry ${cls}`;
-        entry.textContent = `[${new Date().toLocaleTimeString()}] ${text}`;
-        logEl.appendChild(entry);
+      function log(message, type = "") {
+        const row = document.createElement("div");
+        row.className = `entry ${type}`.trim();
+        const timestamp = new Date().toLocaleTimeString();
+        row.textContent = `[${timestamp}] ${message}`;
+        logEl.appendChild(row);
         logEl.scrollTop = logEl.scrollHeight;
       }
 
-      // ── Attribute Binding ─────────────────────────
-      function bindAttributeInput(inputEl, attrName) {
-        inputEl.addEventListener("input", (e) => {
-          const val = e.target.value.trim();
-          if (val) {
-            comp.setAttribute(attrName, val);
-            addLog(`SET ${attrName}="${val}"`, "lookup");
-          } else {
-            comp.removeAttribute(attrName);
-            addLog(`REMOVED ${attrName}`, "disabled");
-          }
-        });
+      function setOrRemoveAttr(el, attr, value) {
+        const cleaned = (value || "").trim();
+        if (cleaned) {
+          el.setAttribute(attr, cleaned);
+        } else {
+          el.removeAttribute(attr);
+        }
       }
 
-      bindAttributeInput(inputEmbeddableKey, "x-embeddable-key");
-      bindAttributeInput(inputOpOrgId, "op-org-id");
-      bindAttributeInput(inputOrgNumber, "org-number");
+      function applyComponentAttributes() {
+        setOrRemoveAttr(paymentsEl, "x-embeddable-key", embeddableKeyInput.value);
+        setOrRemoveAttr(paymentsEl, "op-org-id", opOrgIdInput.value);
+        setOrRemoveAttr(paymentsEl, "org-number", orgNumberInput.value);
+      }
 
-      // ── Component Events ──────────────────────────
-      comp.addEventListener("bop-close", () => {
-        addLog("bop-close fired", "close");
-      });
-
-      comp.addEventListener("bop-success", (e) => {
-        const { bankName, accountType, lastFour } = e.detail;
-        addLog(
-          `bop-success → ${bankName} · ${accountType} · ••••${lastFour}`,
-          "success"
+      // Property callbacks
+      paymentsEl.onOpen = () => log("Modal opened");
+      paymentsEl.onClose = () => log("Modal closed", "close");
+      paymentsEl.onLookupSuccess = (data) => {
+        const operatorId = data?.operatorId || data?.data?.operatorId || "n/a";
+        log(`Lookup success (operatorId=${operatorId})`, "lookup");
+      };
+      paymentsEl.onLookupError = (error) => {
+        const msg = error?.message || "Lookup failed";
+        log(`Lookup error: ${msg}`, "error");
+      };
+      paymentsEl.onBankFetchSuccess = (accounts) => {
+        const count = Array.isArray(accounts) ? accounts.length : 0;
+        log(`Fetched ${count} bank account(s)`, "success");
+      };
+      paymentsEl.onBankFetchError = (error) => {
+        const msg = error?.message || "Bank account fetch failed";
+        log(`Bank fetch error: ${msg}`, "error");
+      };
+      paymentsEl.onLinkSuccess = (payload) => {
+        const succeeded = payload?.allSucceeded;
+        log(
+          `Link success${typeof succeeded === "boolean" ? ` (allSucceeded=${succeeded})` : ""}`,
+          "success",
         );
+      };
+      paymentsEl.onLinkError = (error) => {
+        const msg = error?.message || "Link account failed";
+        log(`Link error: ${msg}`, "error");
+      };
+      paymentsEl.onUnlinkSuccess = (accounts) => {
+        const count = Array.isArray(accounts) ? accounts.length : 0;
+        log(`Unlinked ${count} account(s)`, "success");
+      };
+      paymentsEl.onUnlinkError = (errors) => {
+        const count = Array.isArray(errors) ? errors.length : 0;
+        log(`Unlink error for ${count} account(s)`, "error");
+      };
+
+      // Custom events
+      paymentsEl.addEventListener("bop-operator-lookup", (event) => {
+        const status = event?.detail?.status || "unknown";
+        const cssClass =
+          status === "success"
+            ? "lookup"
+            : status === "disabled"
+              ? "disabled"
+              : status === "error"
+                ? "error"
+                : "";
+        log(`Lookup event status: ${status}`, cssClass);
       });
 
-      comp.addEventListener("bop-operator-lookup", (e) => {
-        const { status, data, error, reason } = e.detail;
-
-        switch (status) {
-          case "success":
-            addLog("bop-operator-lookup → SUCCESS", "success");
-            addLog(`  Data: ${JSON.stringify(data)}`, "success");
-            break;
-          case "error":
-            addLog("bop-operator-lookup → ERROR", "error");
-            addLog(`  ${JSON.stringify(error)}`, "error");
-            break;
-          case "disabled":
-            addLog(`bop-operator-lookup → DISABLED: ${reason}`, "disabled");
-            break;
-        }
+      paymentsEl.addEventListener("bop-success", (event) => {
+        const detail = event.detail || {};
+        const bankName = detail.bankName || "Unknown bank";
+        const lastFour = detail.lastFour || "----";
+        log(`bop-success: ${bankName} ••••${lastFour}`, "success");
       });
 
-      addLog("Component ready. Set x-embeddable-key first, then op-org-id or org-number.");
+      paymentsEl.addEventListener("bop-close", () => {
+        log("bop-close emitted", "close");
+      });
+
+      // Attribute controls
+      embeddableKeyInput.addEventListener("input", applyComponentAttributes);
+      opOrgIdInput.addEventListener("input", applyComponentAttributes);
+      orgNumberInput.addEventListener("input", applyComponentAttributes);
+
+      applyComponentAttributes();
+      log("Demo ready. Set embeddable key and operator lookup fields.");
+      log("Link Account now uses Plaid Link + registerPlaidBankAccount.");
     </script>
   </body>
 </html>

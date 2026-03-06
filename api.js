@@ -484,6 +484,56 @@ class BisonJibPayAPI {
   }
 
   /**
+   * Register Plaid-linked bank account (embeddable)
+   *
+   * Calls POST /api/plaid/embeddable/register-bank-account.
+   *
+   * Response codes:
+   * - 200: Bank account registered across processors
+   * - 400: Invalid request data or missing entityId
+   * - 401: Missing or invalid X-Embeddable-Key header
+   * - 500: Internal server error during registration
+   *
+   * @param {Object} payload - Bank account registration payload
+   * @param {string|null} [payload.publicToken]
+   * @param {string|null} [payload.accountId]
+   * @param {number} payload.entityType - 0 for WIO, 1 for Operator
+   * @param {string} payload.entityId - Entity ID
+   * @param {string|null} [payload.accountType]
+   * @param {string|null} [payload.description]
+   * @param {string|null} [payload.accountHolderName]
+   * @returns {Promise<{success: boolean, message: string, data: {registrations: Array<{provider: string, success: boolean, externalId: string, bankAccountId: string, errorMessage: string}>, allSucceeded: boolean, isTokenizedAccount: boolean, persistentAccountId: string, plaidItemId: string, isDuplicate: boolean} | string, errors: string[], timestamp: string, traceId: string}>}
+   */
+  async registerEmbeddablePlaidBankAccount(payload = {}) {
+    if (payload?.entityType !== 0 && payload?.entityType !== 1) {
+      throw {
+        status: 400,
+        data: {
+          success: false,
+          message: "entityType must be 0 (WIO) or 1 (Operator)",
+          errors: ["payload.entityType must be 0 or 1"],
+        },
+      };
+    }
+
+    if (!payload?.entityId || typeof payload.entityId !== "string" || !payload.entityId.trim()) {
+      throw {
+        status: 400,
+        data: {
+          success: false,
+          message: "entityId is required",
+          errors: ["payload.entityId parameter is missing"],
+        },
+      };
+    }
+
+    return this.request("/api/plaid/embeddable/register-bank-account", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  /**
    * Create Plaid processor token
    *
    * Exchanges a Plaid public token for a processor token that can be used with Moov.

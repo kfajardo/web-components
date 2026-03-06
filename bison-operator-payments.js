@@ -381,7 +381,7 @@ class BisonJibPayAPI {
     return this.request("/api/embeddable/plaid/link-token", {
       method: "POST",
       body: JSON.stringify({
-        clientName: wioEmail,
+        clientName: "BisonJibPay",
         countryCodes: ["US"],
         user: {
           clientUserId: "wio-email",
@@ -390,6 +390,87 @@ class BisonJibPayAPI {
         products: ["transactions"],
         client_name: "Personal Finance App",
       }),
+    });
+  }
+
+  /**
+   * Create Plaid Link token using the new Plaid flow.
+   *
+   * @param {Object} payload
+   * @returns {Promise<any>}
+   */
+  async createPlaidLinkToken(payload) {
+    if (!payload?.user?.clientUserId) {
+      throw {
+        status: 400,
+        data: {
+          success: false,
+          message: "user.clientUserId is required",
+          errors: ["payload.user.clientUserId parameter is missing"],
+        },
+      };
+    }
+
+    return this.request("/api/plaid/create-token", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  /**
+   * Register a Plaid-linked bank account using public token and selected account.
+   *
+   * @param {Object} payload
+   * @returns {Promise<any>}
+   */
+  async registerPlaidBankAccount(payload) {
+    if (!payload?.publicToken) {
+      throw {
+        status: 400,
+        data: {
+          success: false,
+          message: "publicToken is required",
+          errors: ["payload.publicToken parameter is missing"],
+        },
+      };
+    }
+
+    if (!payload?.accountId) {
+      throw {
+        status: 400,
+        data: {
+          success: false,
+          message: "accountId is required",
+          errors: ["payload.accountId parameter is missing"],
+        },
+      };
+    }
+
+    if (payload?.entityType !== 0 && payload?.entityType !== 1) {
+      throw {
+        status: 400,
+        data: {
+          success: false,
+          message: "entityType must be 0 (WIO) or 1 (Operator)",
+          errors: ["payload.entityType must be 0 or 1"],
+        },
+      };
+    }
+
+    if (!payload?.entityId) {
+      throw {
+        status: 400,
+        data: {
+          success: false,
+          message: "entityId is required",
+          errors: ["payload.entityId parameter is missing"],
+        },
+      };
+    }
+
+    return this.request("/api/plaid/register-bank-account", {
+      method: "POST",
+      body: JSON.stringify(payload),
     });
   }
 
@@ -761,6 +842,10 @@ class BisonOperatorPayments extends HTMLElement {
     this._linkModalDirty = false;
     this._linkModalBeforeUnload = null;
     this._linkModalPopState = null;
+    this._isPlaidLinkInProgress = false;
+    this._plaidLinkToken = null;
+    this._plaidLinkHandler = null;
+    this._plaidScriptPromise = null;
 
     // Embeddable key gate
     this._embeddableKey = null;
@@ -1203,6 +1288,9 @@ class BisonOperatorPayments extends HTMLElement {
     this._unlinkResult = null;
     this._isFetchingAccounts = false;
     this._pendingLinkedAccount = null;
+    this._isPlaidLinkInProgress = false;
+    this._plaidLinkToken = null;
+    this._plaidLinkHandler = null;
     this._resetLinkModal();
   }
 
@@ -1270,6 +1358,13 @@ class BisonOperatorPayments extends HTMLElement {
   }
 
   _handleClose() {
+    if (this._isPlaidLinkInProgress) {
+      window.alert(
+        "Please finish or exit the Plaid flow before closing this window.",
+      );
+      return;
+    }
+
     if (this._linkModalOpen && this._linkModalSubmitting) {
       // Submitting — cannot close (keep native alert for this blocking case)
       window.alert(
@@ -1504,8 +1599,246 @@ class BisonOperatorPayments extends HTMLElement {
     this._navigateStep("select-accounts", -1);
   }
 
-  _handleLinkAccountClick() {
-    this._openLinkModal();
+  async _handleLinkAccountClick() {
+    if (this._isPlaidLinkInProgress) return;
+
+    const api = await this._getApi();
+    if (!api || typeof api.createPlaidLinkToken !== "function" || typeof api.registerPlaidBankAccount !== "function") {
+      const err = { message: "Plaid API handlers are not available on the API instance." };
+      this._log("Error linking account via Plaid:", err);
+      if (typeof this.onLinkError === "function") this.onLinkError(err);
+      window.alert(err.message);
+      return;
+    }
+
+    this._isPlaidLinkInProgress = true;
+    if (this._step === "select-accounts") this._renderContent();
+
+    try {
+      const entityContext = this._resolvePlaidEntityContext();
+      const lookupData = this._operatorData?.data || this._operatorData || {};
+
+      const createTokenPayload = {
+        clientName: "BisonJibPay",
+        language: "en",
+        products: ["auth"],
+        countryCodes: ["US"],
+        user: {
+          clientUserId: entityContext.clientUserId,
+        },
+      };
+
+      const tokenResponse = await api.createPlaidLinkToken(createTokenPayload);
+      const tokenData = tokenResponse?.data || tokenResponse || {};
+      this._plaidLinkToken = tokenData.linkToken || tokenData.link_token || null;
+
+      if (!this._plaidLinkToken) {
+        throw new Error("Failed to create Plaid Link token.");
+      }
+
+      const linkResult = await this._openPlaidLinkAndRegister(
+        api,
+        this._plaidLinkToken,
+        entityContext,
+      );
+
+      // User exited Plaid without completing a link.
+      if (!linkResult) return;
+
+      if (this._operatorId) {
+        await this._fetchBankAccounts(api);
+      } else if (this._step === "select-accounts") {
+        this._renderAccountCards();
+      }
+
+      if (typeof this.onLinkSuccess === "function") {
+        this.onLinkSuccess(linkResult.registerResponse?.data || linkResult.registerResponse);
+      }
+    } catch (err) {
+      const errData = err?.data || err;
+      this._log("Error linking account via Plaid:", errData);
+      if (typeof this.onLinkError === "function") this.onLinkError(errData);
+      const message =
+        errData?.message || err?.message || "Unable to link bank account.";
+      window.alert(message);
+    } finally {
+      this._isPlaidLinkInProgress = false;
+      if (this._step === "select-accounts") this._renderContent();
+    }
+  }
+
+  _resolvePlaidEntityContext() {
+    const lookupData = this._operatorData?.data || this._operatorData || {};
+    const operatorId = lookupData.operatorId || this._operatorId || null;
+
+    if (operatorId) {
+      return {
+        entityType: 1,
+        entityId: String(operatorId),
+        clientUserId: String(operatorId),
+      };
+    }
+
+    const wioEntityId = lookupData.wioId || lookupData.entityId || null;
+    if (!wioEntityId) {
+      throw new Error(
+        "Missing entityId for WIO flow. Lookup data must include operatorId, wioId, or entityId.",
+      );
+    }
+
+    return {
+      entityType: 0,
+      entityId: String(wioEntityId),
+      clientUserId: String(wioEntityId),
+    };
+  }
+
+  _getPlaidAccountType(metadataAccount) {
+    const subtype = (metadataAccount?.subtype || "").toLowerCase();
+    if (subtype.includes("savings")) return "Savings";
+    return "Checking";
+  }
+
+  _buildPlaidRegisterPayload(publicToken, plaidAccountId, entityContext, metadata) {
+    const lookupData = this._operatorData?.data || this._operatorData || {};
+    const metadataAccount = metadata?.accounts?.[0] || null;
+    const payload = {
+      publicToken,
+      accountId: plaidAccountId,
+      entityType: entityContext.entityType,
+      entityId: entityContext.entityId,
+      accountType: this._getPlaidAccountType(metadataAccount),
+      description: "Linked via Plaid Link",
+    };
+
+    const accountHolderName = (lookupData.companyName || "").trim();
+    if (accountHolderName) payload.accountHolderName = accountHolderName;
+
+    return payload;
+  }
+
+  async _ensurePlaidLinkLoaded() {
+    if (typeof window !== "undefined" && window.Plaid && typeof window.Plaid.create === "function") {
+      return;
+    }
+
+    if (!this._plaidScriptPromise) {
+      this._plaidScriptPromise = new Promise((resolve, reject) => {
+        const scriptSrc = "https://cdn.plaid.com/link/v2/stable/link-initialize.js";
+        const existingScript = document.querySelector(`script[src="${scriptSrc}"]`);
+        let timeoutId = null;
+
+        const cleanup = () => {
+          if (timeoutId) {
+            clearTimeout(timeoutId);
+            timeoutId = null;
+          }
+        };
+
+        const handleLoad = () => {
+          cleanup();
+          resolve();
+        };
+        const handleError = () => {
+          cleanup();
+          reject(new Error("Failed to load Plaid Link script."));
+        };
+        timeoutId = setTimeout(() => {
+          reject(new Error("Timed out while loading Plaid Link script."));
+        }, 10000);
+
+        if (existingScript) {
+          existingScript.addEventListener("load", handleLoad, { once: true });
+          existingScript.addEventListener("error", handleError, { once: true });
+          if (window.Plaid && typeof window.Plaid.create === "function") {
+            cleanup();
+            resolve();
+            return;
+          }
+          if (existingScript.readyState === "complete" || existingScript.readyState === "loaded") {
+            cleanup();
+            reject(new Error("Plaid Link script is present but Plaid is unavailable."));
+          }
+          return;
+        }
+
+        const script = document.createElement("script");
+        script.src = scriptSrc;
+        script.async = true;
+        script.onload = handleLoad;
+        script.onerror = handleError;
+        document.head.appendChild(script);
+      });
+    }
+
+    try {
+      await this._plaidScriptPromise;
+    } catch (error) {
+      this._plaidScriptPromise = null;
+      throw error;
+    }
+
+    if (!window.Plaid || typeof window.Plaid.create !== "function") {
+      throw new Error("Plaid Link is not available after script load.");
+    }
+  }
+
+  async _openPlaidLinkAndRegister(api, linkToken, entityContext) {
+    await this._ensurePlaidLinkLoaded();
+
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      let successStarted = false;
+      const resolveOnce = (value) => {
+        if (settled) return;
+        settled = true;
+        resolve(value);
+      };
+      const rejectOnce = (error) => {
+        if (settled) return;
+        settled = true;
+        reject(error);
+      };
+
+      try {
+        this._plaidLinkHandler = window.Plaid.create({
+          token: linkToken,
+          onSuccess: async (publicToken, metadata) => {
+            successStarted = true;
+            try {
+              const plaidAccountId = metadata?.accounts?.[0]?.id;
+              if (!plaidAccountId) {
+                throw new Error("Plaid did not return an accountId in onSuccess metadata.");
+              }
+
+              const registerPayload = this._buildPlaidRegisterPayload(
+                publicToken,
+                plaidAccountId,
+                entityContext,
+                metadata,
+              );
+
+              const registerResponse = await api.registerPlaidBankAccount(registerPayload);
+              resolveOnce({ registerResponse, metadata });
+            } catch (error) {
+              rejectOnce(error);
+            }
+          },
+          onExit: (error) => {
+            if (successStarted) return;
+            if (error) {
+              rejectOnce(error);
+              return;
+            }
+            resolveOnce(null);
+          },
+        });
+
+        this._plaidLinkHandler.open();
+      } catch (error) {
+        rejectOnce(error);
+      }
+    });
   }
 
   _getHeaderTitle() {
@@ -2553,10 +2886,11 @@ class BisonOperatorPayments extends HTMLElement {
 
     const linkAccountBtn = document.createElement("button");
     linkAccountBtn.className = "bop-link-account-btn";
-    linkAccountBtn.innerHTML = `${BOP_ICONS.plus} Link Account`;
-    linkAccountBtn.addEventListener("click", () =>
-      this._handleLinkAccountClick(),
-    );
+    linkAccountBtn.disabled = this._isPlaidLinkInProgress;
+    linkAccountBtn.innerHTML = this._isPlaidLinkInProgress
+      ? `${BOP_ICONS.loader} Linking...`
+      : `${BOP_ICONS.plus} Link Account`;
+    linkAccountBtn.addEventListener("click", () => this._handleLinkAccountClick());
     hd.appendChild(linkAccountBtn);
     inner.appendChild(hd);
 
