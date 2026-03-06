@@ -329,6 +329,161 @@ class BisonJibPayAPI {
   }
 
   /**
+   * Create Plaid Link token
+   *
+   * Creates a Plaid Link token using the new API flow.
+   *
+   * @param {Object} payload - Plaid create-token request payload
+   * @param {string} payload.clientName - Client name shown in Plaid Link
+   * @param {string} payload.language - Language code (e.g., "en")
+   * @param {string[]} payload.products - Plaid products (e.g., ["auth"])
+   * @param {string[]} payload.countryCodes - Country codes (e.g., ["US"])
+   * @param {{clientUserId: string}} payload.user - Plaid user object
+   * @returns {Promise<any>}
+   */
+  async createPlaidLinkToken(payload) {
+    if (!payload?.user?.clientUserId) {
+      throw {
+        status: 400,
+        data: {
+          success: false,
+          message: "user.clientUserId is required",
+          errors: ["payload.user.clientUserId parameter is missing"],
+        },
+      };
+    }
+
+    return this.request("/api/plaid/create-token", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  /**
+   * Generate Plaid embeddable Link token
+   *
+   * Calls POST /api/plaid/embeddable/create-token with entityId as query param.
+   *
+   * Response codes:
+   * - 200: Link token created successfully
+   * - 400: Invalid request data or missing entityId
+   * - 401: Missing or invalid X-Embeddable-Key header
+   *
+   * @param {string} entityId - Entity UUID (required)
+   * @param {Object} payload - Plaid create-token request payload
+   * @param {string|null} [payload.clientName]
+   * @param {string|null} [payload.language]
+   * @param {string[]} [payload.products]
+   * @param {(string|null)[]} [payload.countryCodes]
+   * @param {{clientUserId?: string|null, legalName?: string|null, phoneNumber?: string|null, emailAddress?: string|null}} [payload.user]
+   * @param {string|null} [payload.redirectUri]
+   * @param {string|null} [payload.webhook]
+   * @returns {Promise<{success: boolean, message: string, data: {linkToken: string, expiration: string, requestId: string} | string, errors: string[], timestamp: string, traceId: string}>}
+   */
+  async generatePlaidLinkToken(entityId, payload = {}) {
+    if (!entityId || typeof entityId !== "string" || !entityId.trim()) {
+      throw {
+        status: 400,
+        data: {
+          success: false,
+          message: "entityId is required",
+          errors: ["entityId parameter is missing"],
+        },
+      };
+    }
+
+    const isUuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        entityId
+      );
+    if (!isUuid) {
+      throw {
+        status: 400,
+        data: {
+          success: false,
+          message: "entityId must be a valid UUID",
+          errors: ["entityId parameter must be a UUID"],
+        },
+      };
+    }
+
+    const params = new URLSearchParams();
+    params.append("entityId", entityId);
+
+    return this.request(`/api/plaid/embeddable/create-token?${params.toString()}`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  /**
+   * Register Plaid-linked bank account
+   *
+   * Registers a bank account after Plaid Link success using publicToken and accountId.
+   *
+   * @param {Object} payload - Bank account registration payload
+   * @param {string} payload.publicToken - Plaid public token
+   * @param {string} payload.accountId - Plaid account ID
+   * @param {number} payload.entityType - 0 for WIO, 1 for Operator
+   * @param {string} payload.entityId - WIO or Operator entity GUID
+   * @param {string} [payload.moovAccountId] - Optional Moov account ID
+   * @param {string} [payload.accountType] - Account type (e.g., "Checking")
+   * @param {string} [payload.description] - Description for registration
+   * @param {string} [payload.accountHolderName] - Account holder full name
+   * @returns {Promise<any>}
+   */
+  async registerPlaidBankAccount(payload) {
+    if (!payload?.publicToken) {
+      throw {
+        status: 400,
+        data: {
+          success: false,
+          message: "publicToken is required",
+          errors: ["payload.publicToken parameter is missing"],
+        },
+      };
+    }
+
+    if (!payload?.accountId) {
+      throw {
+        status: 400,
+        data: {
+          success: false,
+          message: "accountId is required",
+          errors: ["payload.accountId parameter is missing"],
+        },
+      };
+    }
+
+    if (payload?.entityType !== 0 && payload?.entityType !== 1) {
+      throw {
+        status: 400,
+        data: {
+          success: false,
+          message: "entityType must be 0 (WIO) or 1 (Operator)",
+          errors: ["payload.entityType must be 0 or 1"],
+        },
+      };
+    }
+
+    if (!payload?.entityId) {
+      throw {
+        status: 400,
+        data: {
+          success: false,
+          message: "entityId is required",
+          errors: ["payload.entityId parameter is missing"],
+        },
+      };
+    }
+
+    return this.request("/api/plaid/register-bank-account", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  /**
    * Create Plaid processor token
    *
    * Exchanges a Plaid public token for a processor token that can be used with Moov.
