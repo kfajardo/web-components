@@ -288,10 +288,8 @@ class BisonJibPayAPI {
    * const api = new BisonJibPayAPI(baseURL, embeddableKey);
    * const tokenData = await api.generateMoovToken('operator@example.com');
    * console.log(tokenData.access_token);
-   */
+  */
   async generateMoovToken(operatorEmail, moovAccountId = null, operatorId = null, clientId = null) {
-    console.log("CALLED GENERATE MOOV TOKEN");
-
     // Use provided moovAccountId or fetch it if not provided
     let accountId = moovAccountId;
     if (!accountId) {
@@ -315,7 +313,6 @@ class BisonJibPayAPI {
         };
       }
     }
-    console.log("MOOV ACCOUNT ID", accountId);
     let accountScopes = [
       "/accounts/{ACCOUNT_ID}/bank-accounts.read",
       "/accounts/{ACCOUNT_ID}/bank-accounts.write",
@@ -418,6 +415,51 @@ class BisonJibPayAPI {
   }
 
   /**
+   * Generate Plaid embeddable Link token
+   *
+   * Calls POST /api/plaid/embeddable/create-token with entityId as query param.
+   *
+   * @param {string} entityId - Entity UUID (required)
+   * @param {Object} payload - Plaid create-token request payload
+   * @returns {Promise<any>}
+   */
+  async generatePlaidLinkToken(entityId, payload = {}) {
+    if (!entityId || typeof entityId !== "string" || !entityId.trim()) {
+      throw {
+        status: 400,
+        data: {
+          success: false,
+          message: "entityId is required",
+          errors: ["entityId parameter is missing"],
+        },
+      };
+    }
+
+    const isUuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        entityId
+      );
+    if (!isUuid) {
+      throw {
+        status: 400,
+        data: {
+          success: false,
+          message: "entityId must be a valid UUID",
+          errors: ["entityId parameter must be a UUID"],
+        },
+      };
+    }
+
+    const params = new URLSearchParams();
+    params.append("entityId", entityId);
+
+    return this.request(`/api/plaid/embeddable/create-token?${params.toString()}`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  /**
    * Register a Plaid-linked bank account using public token and selected account.
    *
    * @param {Object} payload
@@ -468,7 +510,62 @@ class BisonJibPayAPI {
       };
     }
 
-    return this.request("/api/plaid/register-bank-account", {
+    return this.request("/api/plaid/embeddable/register-bank-account", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  /**
+   * Retry Plaid bank account registration (embeddable)
+   *
+   * Calls POST /api/plaid/embeddable/retry-registration.
+   *
+   * @param {Object} payload - Retry registration payload
+   * @param {number} payload.entityType - 0 for WIO, 1 for Operator
+   * @param {string} payload.entityId - Entity ID
+   * @param {string[]} payload.providers - Provider names to retry against
+   * @returns {Promise<any>}
+   */
+  async retryEmbeddablePlaidRegistration(payload = {}) {
+    if (payload?.entityType !== 0 && payload?.entityType !== 1) {
+      throw {
+        status: 400,
+        data: {
+          success: false,
+          message: "entityType must be 0 (WIO) or 1 (Operator)",
+          errors: ["payload.entityType must be 0 or 1"],
+        },
+      };
+    }
+
+    if (!payload?.entityId || typeof payload.entityId !== "string" || !payload.entityId.trim()) {
+      throw {
+        status: 400,
+        data: {
+          success: false,
+          message: "entityId is required",
+          errors: ["payload.entityId parameter is missing"],
+        },
+      };
+    }
+
+    if (
+      !Array.isArray(payload?.providers) ||
+      payload.providers.length === 0 ||
+      payload.providers.some((provider) => typeof provider !== "string" || !provider.trim())
+    ) {
+      throw {
+        status: 400,
+        data: {
+          success: false,
+          message: "providers is required",
+          errors: ["payload.providers must be a non-empty string array"],
+        },
+      };
+    }
+
+    return this.request("/api/plaid/embeddable/retry-registration", {
       method: "POST",
       body: JSON.stringify(payload),
     });
@@ -843,6 +940,10 @@ class BisonOperatorPayments extends HTMLElement {
     this._linkModalBeforeUnload = null;
     this._linkModalPopState = null;
     this._isPlaidLinkInProgress = false;
+    this._isPlaidLinkFinalizing = false;
+    this._isPlaidRetryInProgress = false;
+    this._plaidLinkErrorState = null;
+    this._plaidRetryPayload = null;
     this._plaidLinkToken = null;
     this._plaidLinkHandler = null;
     this._plaidScriptPromise = null;
@@ -1268,12 +1369,8 @@ class BisonOperatorPayments extends HTMLElement {
 
   /** Internal dev-friendly logger, prefixed for easy identification. */
   _log(msg, data) {
-    const prefix = "[BOP]";
-    if (data !== undefined) {
-      console.log(prefix, msg, data);
-    } else {
-      console.log(prefix, msg);
-    }
+    void msg;
+    void data;
   }
 
   _resetState() {
@@ -1289,6 +1386,10 @@ class BisonOperatorPayments extends HTMLElement {
     this._isFetchingAccounts = false;
     this._pendingLinkedAccount = null;
     this._isPlaidLinkInProgress = false;
+    this._isPlaidLinkFinalizing = false;
+    this._isPlaidRetryInProgress = false;
+    this._plaidLinkErrorState = null;
+    this._plaidRetryPayload = null;
     this._plaidLinkToken = null;
     this._plaidLinkHandler = null;
     this._resetLinkModal();
@@ -1357,11 +1458,16 @@ class BisonOperatorPayments extends HTMLElement {
     }
   }
 
-  _handleClose() {
+  _handleClose(showBlockedAlert = true) {
     if (this._isPlaidLinkInProgress) {
-      window.alert(
-        "Please finish or exit the Plaid flow before closing this window.",
-      );
+      if (!showBlockedAlert) return;
+      let message = "Please finish or exit the Plaid flow before closing this window.";
+      if (this._isPlaidRetryInProgress) {
+        message = "Please wait — we're retrying your bank link.";
+      } else if (this._isPlaidLinkFinalizing) {
+        message = "Please wait — we're finishing your bank link.";
+      }
+      window.alert(message);
       return;
     }
 
@@ -1427,6 +1533,7 @@ class BisonOperatorPayments extends HTMLElement {
   }
 
   _handleAccountToggle(id) {
+    if (this._isPlaidLinkInProgress) return;
     if (this._selectedAccounts.has(id)) this._selectedAccounts.delete(id);
     else this._selectedAccounts.add(id);
     // Update selection state in-place without re-rendering
@@ -1603,7 +1710,11 @@ class BisonOperatorPayments extends HTMLElement {
     if (this._isPlaidLinkInProgress) return;
 
     const api = await this._getApi();
-    if (!api || typeof api.createPlaidLinkToken !== "function" || typeof api.registerPlaidBankAccount !== "function") {
+    if (
+      !api ||
+      typeof api.generatePlaidLinkToken !== "function" ||
+      typeof api.registerPlaidBankAccount !== "function"
+    ) {
       const err = { message: "Plaid API handlers are not available on the API instance." };
       this._log("Error linking account via Plaid:", err);
       if (typeof this.onLinkError === "function") this.onLinkError(err);
@@ -1612,11 +1723,15 @@ class BisonOperatorPayments extends HTMLElement {
     }
 
     this._isPlaidLinkInProgress = true;
-    if (this._step === "select-accounts") this._renderContent();
+    this._isPlaidLinkFinalizing = false;
+    this._isPlaidRetryInProgress = false;
+    this._clearPlaidLinkErrorState();
+    this._plaidRetryPayload = null;
+    this._syncSelectAccountsInteractionState();
 
+    let entityContext = null;
     try {
-      const entityContext = this._resolvePlaidEntityContext();
-      const lookupData = this._operatorData?.data || this._operatorData || {};
+      entityContext = this._resolvePlaidEntityContext();
 
       const createTokenPayload = {
         clientName: "BisonJibPay",
@@ -1628,7 +1743,10 @@ class BisonOperatorPayments extends HTMLElement {
         },
       };
 
-      const tokenResponse = await api.createPlaidLinkToken(createTokenPayload);
+      const tokenResponse = await api.generatePlaidLinkToken(
+        entityContext.entityId,
+        createTokenPayload,
+      );
       const tokenData = tokenResponse?.data || tokenResponse || {};
       this._plaidLinkToken = tokenData.linkToken || tokenData.link_token || null;
 
@@ -1645,6 +1763,17 @@ class BisonOperatorPayments extends HTMLElement {
       // User exited Plaid without completing a link.
       if (!linkResult) return;
 
+      const registerResponse = linkResult.registerResponse || {};
+      if (this._isPlaidRegistrationFailure(registerResponse)) {
+        this._setPlaidLinkErrorState(
+          registerResponse,
+          "We couldn’t finish linking your account. Please retry.",
+          entityContext,
+        );
+        if (typeof this.onLinkError === "function") this.onLinkError(registerResponse);
+        return;
+      }
+
       if (this._operatorId) {
         await this._fetchBankAccounts(api);
       } else if (this._step === "select-accounts") {
@@ -1652,7 +1781,7 @@ class BisonOperatorPayments extends HTMLElement {
       }
 
       if (typeof this.onLinkSuccess === "function") {
-        this.onLinkSuccess(linkResult.registerResponse?.data || linkResult.registerResponse);
+        this.onLinkSuccess(registerResponse?.data || registerResponse);
       }
     } catch (err) {
       const errData = err?.data || err;
@@ -1660,11 +1789,123 @@ class BisonOperatorPayments extends HTMLElement {
       if (typeof this.onLinkError === "function") this.onLinkError(errData);
       const message =
         errData?.message || err?.message || "Unable to link bank account.";
-      window.alert(message);
+
+      // If we already have retry context, show in-modal retry screen.
+      if (this._plaidRetryPayload && this._step === "select-accounts") {
+        this._setPlaidLinkErrorState(errData, message, entityContext);
+      } else {
+        window.alert(message);
+      }
     } finally {
+      this._isPlaidLinkFinalizing = false;
+      this._isPlaidRetryInProgress = false;
       this._isPlaidLinkInProgress = false;
-      if (this._step === "select-accounts") this._renderContent();
+      if (this._step === "select-accounts") {
+        this._renderHeader();
+        this._renderContent();
+      }
     }
+  }
+
+  async _handlePlaidRetryRegistration() {
+    if (this._isPlaidRetryInProgress) return;
+    if (!this._plaidRetryPayload) return;
+
+    const api = await this._getApi();
+    if (!api || typeof api.retryEmbeddablePlaidRegistration !== "function") {
+      const err = { message: "Plaid retry API handler is not available on the API instance." };
+      this._log("Error retrying Plaid registration:", err);
+      if (typeof this.onLinkError === "function") this.onLinkError(err);
+      this._setPlaidLinkErrorState(err, err.message);
+      this._renderHeader();
+      this._renderContent();
+      return;
+    }
+
+    this._isPlaidLinkInProgress = true;
+    this._isPlaidRetryInProgress = true;
+    this._isPlaidLinkFinalizing = false;
+    this._renderHeader();
+    this._renderContent();
+
+    try {
+      const retryResponse = await api.retryEmbeddablePlaidRegistration(
+        this._plaidRetryPayload,
+      );
+
+      if (this._isPlaidRegistrationFailure(retryResponse)) {
+        this._setPlaidLinkErrorState(
+          retryResponse,
+          "Retry failed. Please try again.",
+        );
+        if (typeof this.onLinkError === "function") this.onLinkError(retryResponse);
+        return;
+      }
+
+      this._clearPlaidLinkErrorState();
+      this._isPlaidLinkFinalizing = true;
+      this._renderHeader();
+      this._renderContent();
+
+      if (this._operatorId) {
+        await this._fetchBankAccounts(api);
+      } else if (this._step === "select-accounts") {
+        this._renderAccountCards();
+      }
+
+      if (typeof this.onLinkSuccess === "function") {
+        this.onLinkSuccess(retryResponse?.data || retryResponse);
+      }
+    } catch (err) {
+      const errData = err?.data || err;
+      this._log("Error retrying Plaid registration:", errData);
+      if (typeof this.onLinkError === "function") this.onLinkError(errData);
+      const message =
+        errData?.message || err?.message || "Unable to retry linking bank account.";
+      this._setPlaidLinkErrorState(errData, message);
+    } finally {
+      this._isPlaidLinkFinalizing = false;
+      this._isPlaidRetryInProgress = false;
+      this._isPlaidLinkInProgress = false;
+      if (this._step === "select-accounts") {
+        this._renderHeader();
+        this._renderContent();
+      }
+    }
+  }
+
+  _dismissPlaidLinkError() {
+    this._clearPlaidLinkErrorState();
+    this._renderHeader();
+    this._renderContent();
+  }
+
+  _getLinkAccountButtonLabel() {
+    return this._isPlaidLinkInProgress
+      ? `<span class="bop-spinner">${BOP_ICONS.loader}</span> Linking...`
+      : `${BOP_ICONS.plus} Link Account`;
+  }
+
+  _syncSelectAccountsInteractionState() {
+    if (this._step !== "select-accounts") return;
+
+    const closeBtn = this._headerEl?.querySelector(".bop-close-btn");
+    if (closeBtn) closeBtn.disabled = this._isPlaidLinkInProgress;
+
+    const linkAccountBtn = this._contentEl?.querySelector(".bop-link-account-btn");
+    if (linkAccountBtn) {
+      linkAccountBtn.disabled = this._isPlaidLinkInProgress;
+      linkAccountBtn.innerHTML = this._getLinkAccountButtonLabel();
+    }
+
+    this._contentEl
+      ?.querySelectorAll(".bop-account-card")
+      .forEach((card) => {
+        card.disabled = this._isPlaidLinkInProgress;
+      });
+
+    const unlinkBtn = this._contentEl?.querySelector(".bop-btn-unlink");
+    if (unlinkBtn) unlinkBtn.disabled = this._isPlaidLinkInProgress;
   }
 
   _resolvePlaidEntityContext() {
@@ -1715,6 +1956,111 @@ class BisonOperatorPayments extends HTMLElement {
     if (accountHolderName) payload.accountHolderName = accountHolderName;
 
     return payload;
+  }
+
+  _extractPlaidRetryDetails(source) {
+    if (!source || typeof source !== "object") return {};
+    if (
+      source.data &&
+      typeof source.data === "object" &&
+      ("success" in source || "message" in source || "errors" in source || "status" in source)
+    ) {
+      return source.data;
+    }
+    return source;
+  }
+
+  _collectPlaidRetryProviders(details) {
+    const providers = [];
+
+    if (Array.isArray(details?.providers)) {
+      for (const provider of details.providers) {
+        if (typeof provider === "string" && provider.trim()) {
+          providers.push(provider.trim());
+        }
+      }
+    }
+
+    if (Array.isArray(details?.registrations)) {
+      for (const registration of details.registrations) {
+        const provider = registration?.provider;
+        if (typeof provider === "string" && provider.trim()) {
+          providers.push(provider.trim());
+        }
+      }
+    }
+
+    const unique = Array.from(new Set(providers));
+    return unique.length > 0 ? unique : ["Moov", "Column"];
+  }
+
+  _updatePlaidRetryPayload(entityContext, details = {}) {
+    if (!entityContext?.entityId) return null;
+
+    const existing = this._plaidRetryPayload || {};
+    const next = {
+      entityType: entityContext.entityType,
+      entityId: entityContext.entityId,
+      providers: this._collectPlaidRetryProviders({
+        ...details,
+        providers: details.providers || existing.providers,
+        registrations: details.registrations || [],
+      }),
+    };
+
+    const accountId = details.accountId || existing.accountId || null;
+    if (accountId) next.accountId = accountId;
+
+    const plaidItemId = details.plaidItemId || existing.plaidItemId || null;
+    if (plaidItemId) next.plaidItemId = plaidItemId;
+
+    this._plaidRetryPayload = next;
+    return next;
+  }
+
+  _isPlaidRegistrationFailure(response) {
+    if (!response || typeof response !== "object") return true;
+    if (response.success === false) return true;
+
+    const data = this._extractPlaidRetryDetails(response);
+    if (data?.allSucceeded === false) return true;
+
+    if (
+      Array.isArray(data?.registrations) &&
+      data.registrations.some((registration) => registration?.success === false)
+    ) {
+      return true;
+    }
+
+    return false;
+  }
+
+  _setPlaidLinkErrorState(source, fallbackMessage, entityContext = null) {
+    const details = this._extractPlaidRetryDetails(source);
+    const retryContext =
+      entityContext ||
+      (this._plaidRetryPayload
+        ? {
+            entityType: this._plaidRetryPayload.entityType,
+            entityId: this._plaidRetryPayload.entityId,
+          }
+        : null);
+    if (retryContext) this._updatePlaidRetryPayload(retryContext, details);
+
+    const message =
+      source?.message ||
+      details?.message ||
+      fallbackMessage ||
+      "We couldn’t finish linking your bank account.";
+
+    this._isPlaidLinkFinalizing = false;
+    this._plaidLinkErrorState = {
+      message,
+    };
+  }
+
+  _clearPlaidLinkErrorState() {
+    this._plaidLinkErrorState = null;
   }
 
   async _ensurePlaidLinkLoaded() {
@@ -1783,8 +2129,35 @@ class BisonOperatorPayments extends HTMLElement {
     }
   }
 
+  _setPlaidOverlayPriority(isPlaidOpen) {
+    const overlay = this.shadowRoot?.querySelector(".bop-overlay");
+    if (!overlay) return;
+    overlay.classList.toggle("bop-overlay--behind-plaid", Boolean(isPlaidOpen));
+  }
+
+  _ensurePlaidGlobalLayerFix() {
+    if (typeof document === "undefined") return;
+    const styleId = "bop-plaid-link-layer-fix";
+    if (document.getElementById(styleId)) return;
+
+    const style = document.createElement("style");
+    style.id = styleId;
+    style.textContent = `
+iframe[id^="plaid-link-iframe"],
+iframe[name^="plaid-link-iframe"],
+.plaid-link-iframe,
+.plaid-link-container,
+.plaid-link-iframe-wrapper {
+  z-index: 2147483647 !important;
+}
+`;
+    document.head.appendChild(style);
+  }
+
   async _openPlaidLinkAndRegister(api, linkToken, entityContext) {
     await this._ensurePlaidLinkLoaded();
+    this._setPlaidOverlayPriority(true);
+    this._ensurePlaidGlobalLayerFix();
 
     return new Promise((resolve, reject) => {
       let settled = false;
@@ -1792,11 +2165,13 @@ class BisonOperatorPayments extends HTMLElement {
       const resolveOnce = (value) => {
         if (settled) return;
         settled = true;
+        this._setPlaidOverlayPriority(false);
         resolve(value);
       };
       const rejectOnce = (error) => {
         if (settled) return;
         settled = true;
+        this._setPlaidOverlayPriority(false);
         reject(error);
       };
 
@@ -1805,11 +2180,21 @@ class BisonOperatorPayments extends HTMLElement {
           token: linkToken,
           onSuccess: async (publicToken, metadata) => {
             successStarted = true;
+            this._isPlaidLinkFinalizing = true;
+            this._setPlaidOverlayPriority(false);
+            if (this._step === "select-accounts") {
+              this._renderHeader();
+              this._renderContent();
+            }
             try {
               const plaidAccountId = metadata?.accounts?.[0]?.id;
               if (!plaidAccountId) {
                 throw new Error("Plaid did not return an accountId in onSuccess metadata.");
               }
+
+              this._updatePlaidRetryPayload(entityContext, {
+                accountId: plaidAccountId,
+              });
 
               const registerPayload = this._buildPlaidRegisterPayload(
                 publicToken,
@@ -1819,6 +2204,10 @@ class BisonOperatorPayments extends HTMLElement {
               );
 
               const registerResponse = await api.registerPlaidBankAccount(registerPayload);
+              this._updatePlaidRetryPayload(
+                entityContext,
+                this._extractPlaidRetryDetails(registerResponse),
+              );
               resolveOnce({ registerResponse, metadata });
             } catch (error) {
               rejectOnce(error);
@@ -1846,6 +2235,8 @@ class BisonOperatorPayments extends HTMLElement {
       case "loading":
         return this._selectedBank?.name || "Connecting";
       case "select-accounts":
+        if (this._isPlaidLinkFinalizing) return "Linking Account";
+        if (this._plaidLinkErrorState) return "Link Failed";
         return "Manage Accounts";
       case "confirm-unlink":
         return "Unlink Account";
@@ -2306,12 +2697,13 @@ class BisonOperatorPayments extends HTMLElement {
 @keyframes bopSlideFromLeft{from{opacity:0;transform:translateX(-10px)}to{opacity:1;transform:translateX(0)}}
 @keyframes bopFadeIn{from{opacity:0}to{opacity:1}}
 @keyframes bopFadeOut{from{opacity:1}to{opacity:0}}
-@keyframes bopExpandIn{from{opacity:0;max-height:0;padding-top:0;padding-bottom:0}to{opacity:1;max-height:60px;padding-top:.75rem;padding-bottom:.75rem}}
+	@keyframes bopExpandIn{from{opacity:0;max-height:0;padding-top:0;padding-bottom:0}to{opacity:1;max-height:60px;padding-top:.75rem;padding-bottom:.75rem}}
 
-.bop-overlay{position:fixed;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;padding:1rem;border:none;background:transparent;max-width:none;max-height:none;width:100%;height:100%;margin:0}
-.bop-overlay::backdrop{background:transparent}
-.bop-overlay[data-state="open"]{pointer-events:auto}
-.bop-overlay[data-state="closed"]{pointer-events:none}
+	.bop-overlay{position:fixed;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;padding:1rem;border:none;background:transparent;max-width:none;max-height:none;width:100%;height:100%;margin:0}
+	.bop-overlay.bop-overlay--behind-plaid{z-index:-1!important;opacity:0!important;pointer-events:none!important}
+	.bop-overlay::backdrop{background:transparent}
+	.bop-overlay[data-state="open"]{pointer-events:auto}
+	.bop-overlay[data-state="closed"]{pointer-events:none}
 .bop-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.4);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);animation:bopBackdropIn .3s var(--bop-ease) forwards}
 .bop-overlay[data-state="closing"] .bop-backdrop{animation:bopBackdropOut .3s var(--bop-ease) forwards}
 .bop-modal{position:relative;width:100%;max-width:448px;height:520px;background:#fff;border:1px solid var(--bop-border);box-shadow:var(--bop-shadow-2xl);border-radius:var(--bop-radius-xl);overflow:hidden;display:flex;flex-direction:column;max-height:90vh;animation:bopModalIn .3s var(--bop-ease-spring) forwards;transition:max-width .4s var(--bop-ease-spring),height .4s var(--bop-ease-spring)}
@@ -2327,6 +2719,8 @@ class BisonOperatorPayments extends HTMLElement {
 .bop-header-logo{width:22px;height:22px;object-fit:contain;flex-shrink:0}
 .bop-close-btn{padding:.375rem;margin-right:-.375rem;color:var(--bop-secondary);background:transparent;border:none;border-radius:var(--bop-radius-md);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:color var(--bop-dur-norm) var(--bop-ease),background var(--bop-dur-norm) var(--bop-ease)}
 .bop-close-btn:hover{color:var(--bop-headline);background:var(--bop-sidebar)}
+.bop-close-btn:disabled{opacity:.45;cursor:not-allowed}
+.bop-close-btn:disabled:hover{color:var(--bop-secondary);background:transparent}
 
 .bop-content{position:relative;flex:1;overflow:hidden;min-height:0;background:rgba(248,250,252,.3);transition:opacity .2s var(--bop-ease)}
 .bop-content.bop-content-fading{opacity:0}
@@ -2397,6 +2791,8 @@ class BisonOperatorPayments extends HTMLElement {
 .bop-accounts-fetch-text{font-size:var(--bop-xs);font-weight:500;color:var(--bop-primary)}
 .bop-account-card{width:100%;display:flex;align-items:center;padding:1rem;border-radius:var(--bop-radius-xl);border:2px solid transparent;background:#fff;box-shadow:var(--bop-shadow-sm);cursor:pointer;transition:all var(--bop-dur-norm) var(--bop-ease);font-family:var(--bop-font);text-align:left;animation:bopItemFade .3s var(--bop-ease) forwards;opacity:0}
 .bop-account-card:hover{border-color:rgba(76,123,99,.2);box-shadow:var(--bop-shadow-md)}
+.bop-account-card:disabled{opacity:.7;cursor:not-allowed;pointer-events:none}
+.bop-account-card:disabled:hover{border-color:transparent;box-shadow:var(--bop-shadow-sm)}
 .bop-account-card[data-selected="true"]{border-color:var(--bop-primary);background:rgba(76,123,99,.05)}
 .bop-card-inner{display:flex;align-items:center;gap:1rem;flex:1}
 .bop-check-circle{width:1.5rem;height:1.5rem;border-radius:var(--bop-radius-full);border:2px solid var(--bop-border);display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all var(--bop-dur-norm) var(--bop-ease)}
@@ -2483,15 +2879,17 @@ class BisonOperatorPayments extends HTMLElement {
 .bop-btn-done:active{transform:scale(.98)}
 .bop-btn-label{animation:bopFadeIn .2s var(--bop-ease) forwards}
 .bop-btn-loading{display:flex;align-items:center;justify-content:center;gap:.5rem;position:absolute;inset:0;animation:bopFadeIn .2s var(--bop-ease) forwards}
-.bop-spinner{animation:bopSpin 1s linear infinite}
+.bop-spinner{display:inline-flex;animation:bopSpin 1s linear infinite}
 .bop-hidden{display:none!important}
 .bop-loading-view{padding:2rem;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:#fff;gap:1.5rem}
 .bop-loading-logo{width:4.5rem;height:4.5rem;border-radius:1.25rem;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:var(--bop-shadow-md);outline:1px solid rgba(0,0,0,.05);overflow:hidden;animation:bopFadeInUp .5s var(--bop-ease-spring) forwards,bopBreath 2s ease-in-out .5s infinite}
 .bop-loading-body{display:flex;flex-direction:column;align-items:center;gap:.375rem;opacity:0;animation:bopFadeInUp .4s var(--bop-ease) .15s forwards}
 .bop-loading-title{font-size:var(--bop-base);font-weight:600;color:var(--bop-headline)}
 .bop-loading-text{font-size:var(--bop-sm);color:var(--bop-secondary);line-height:1.5}
-.bop-loading-bar-wrap{width:11rem;height:3px;background:var(--bop-sidebar);border-radius:var(--bop-radius-full);overflow:hidden;opacity:0;animation:bopFadeIn .3s var(--bop-ease) .3s forwards}
-.bop-loading-bar{height:100%;width:0;background:var(--bop-primary);border-radius:var(--bop-radius-full);animation:bopBarFill 1s cubic-bezier(.4,0,.2,1) .15s forwards}
+.bop-loading-indicator{display:inline-flex;align-items:center;gap:.5rem;opacity:0;animation:bopFadeIn .3s var(--bop-ease) .3s forwards}
+.bop-loading-spinner{display:inline-flex;color:var(--bop-primary);animation:bopSpin 1s linear infinite}
+.bop-loading-spinner svg{width:1rem;height:1rem}
+.bop-loading-indicator-text{font-size:var(--bop-xs);color:var(--bop-secondary)}
 .bop-loading-secure{display:flex;align-items:center;gap:.375rem;font-size:var(--bop-xs);color:var(--bop-secondary);opacity:0;animation:bopFadeIn .3s var(--bop-ease) .45s forwards}
 .bop-loading-secure svg{color:#10b981}
 @keyframes bopBreath{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}
@@ -2606,12 +3004,12 @@ class BisonOperatorPayments extends HTMLElement {
     // Intercept native ESC key behavior to use smooth animation
     overlay.addEventListener("cancel", (e) => {
       e.preventDefault();
-      this._handleClose();
+      this._handleClose(false);
     });
 
     const backdrop = document.createElement("div");
     backdrop.className = "bop-backdrop";
-    backdrop.addEventListener("click", () => this._handleClose());
+    backdrop.addEventListener("click", () => this._handleClose(false));
     overlay.appendChild(backdrop);
 
     const modal = document.createElement("div");
@@ -2629,11 +3027,9 @@ class BisonOperatorPayments extends HTMLElement {
     this._renderContent();
 
     this.shadowRoot.appendChild(overlay);
-    if (typeof overlay.showModal === "function") {
-      overlay.showModal();
-    } else {
-      overlay.setAttribute("open", "");
-    }
+    // Use non-modal dialog mode so external overlays (e.g., Plaid Link iframe)
+    // can stack above this component via normal z-index rules.
+    overlay.setAttribute("open", "");
   }
 
   _renderHeader() {
@@ -2662,7 +3058,8 @@ class BisonOperatorPayments extends HTMLElement {
     const close = document.createElement("button");
     close.className = "bop-close-btn";
     close.innerHTML = BOP_ICONS.x;
-    close.addEventListener("click", () => this._handleClose());
+    close.disabled = this._isPlaidLinkInProgress;
+    close.addEventListener("click", () => this._handleClose(false));
     this._headerEl.appendChild(close);
   }
 
@@ -2821,7 +3218,10 @@ class BisonOperatorPayments extends HTMLElement {
         <p class="bop-loading-title">${bankName}</p>
         <p class="bop-loading-text">Securely retrieving your accounts</p>
       </div>
-      <div class="bop-loading-bar-wrap"><div class="bop-loading-bar"></div></div>
+      <div class="bop-loading-indicator">
+        <span class="bop-loading-spinner">${BOP_ICONS.loader}</span>
+        <span class="bop-loading-indicator-text">Establishing secure connection...</span>
+      </div>
       <div class="bop-loading-secure">${BOP_ICONS.shield} 256-bit encrypted connection</div>
     `;
     this._contentEl.appendChild(step);
@@ -2857,6 +3257,16 @@ class BisonOperatorPayments extends HTMLElement {
   }
 
   _renderSelectAccounts() {
+    if (this._isPlaidLinkFinalizing) {
+      this._renderPlaidFinalizingView();
+      return;
+    }
+
+    if (this._plaidLinkErrorState) {
+      this._renderPlaidLinkErrorView();
+      return;
+    }
+
     const step = document.createElement("div");
     step.className = "bop-step bop-accounts";
     step.setAttribute(
@@ -2887,9 +3297,7 @@ class BisonOperatorPayments extends HTMLElement {
     const linkAccountBtn = document.createElement("button");
     linkAccountBtn.className = "bop-link-account-btn";
     linkAccountBtn.disabled = this._isPlaidLinkInProgress;
-    linkAccountBtn.innerHTML = this._isPlaidLinkInProgress
-      ? `${BOP_ICONS.loader} Linking...`
-      : `${BOP_ICONS.plus} Link Account`;
+    linkAccountBtn.innerHTML = this._getLinkAccountButtonLabel();
     linkAccountBtn.addEventListener("click", () => this._handleLinkAccountClick());
     hd.appendChild(linkAccountBtn);
     inner.appendChild(hd);
@@ -2910,9 +3318,89 @@ class BisonOperatorPayments extends HTMLElement {
     this._contentEl.appendChild(step);
   }
 
+  _renderPlaidFinalizingView() {
+    this._accountListEl = null;
+    this._accountsFooterEl = null;
+
+    const step = document.createElement("div");
+    step.className = "bop-step bop-loading-view";
+    step.setAttribute(
+      "data-direction",
+      this._direction > 0 ? "forward" : "backward",
+    );
+
+    const bankBg = this._selectedBank?.bg || "#2563eb";
+    const bankName = this._selectedBank?.name || "your bank";
+    const bankLogo = this._selectedBank?.logo
+      ? `<img class="bop-logo-img" src="${this._selectedBank.logo}" alt="${bankName}">`
+      : BOP_ICONS.buildingLg;
+
+    step.innerHTML = `
+      <div class="bop-loading-logo" style="background:${bankBg}">${bankLogo}</div>
+      <div class="bop-loading-body">
+        <p class="bop-loading-title">Finalizing account link</p>
+        <p class="bop-loading-text">Please wait while we securely connect your bank account.</p>
+      </div>
+      <div class="bop-loading-indicator">
+        <span class="bop-loading-spinner">${BOP_ICONS.loader}</span>
+        <span class="bop-loading-indicator-text">Finalizing with payment providers...</span>
+      </div>
+      <div class="bop-loading-secure">${BOP_ICONS.shield} Verifying and syncing account details</div>
+    `;
+
+    this._contentEl.appendChild(step);
+  }
+
+  _renderPlaidLinkErrorView() {
+    this._accountListEl = null;
+    this._accountsFooterEl = null;
+
+    const step = document.createElement("div");
+    step.className = "bop-step bop-confirm-unlink";
+    step.setAttribute(
+      "data-direction",
+      this._direction > 0 ? "forward" : "backward",
+    );
+
+    const alertIcon =
+      '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>';
+
+    const message =
+      this._plaidLinkErrorState?.message ||
+      "We couldn’t finish linking your bank account. Please retry.";
+
+    step.innerHTML = `
+      <div class="bop-unlink-icon">${alertIcon}</div>
+      <h3 class="bop-unlink-title">Unable to Link Account</h3>
+      <p class="bop-unlink-desc">${message}</p>
+      <div class="bop-unlink-actions"></div>
+    `;
+
+    const actions = step.querySelector(".bop-unlink-actions");
+
+    const retryBtn = document.createElement("button");
+    retryBtn.className = "bop-btn";
+    retryBtn.disabled = this._isPlaidRetryInProgress;
+    retryBtn.innerHTML = this._isPlaidRetryInProgress
+      ? `<span class="bop-btn-loading"><span class="bop-spinner">${BOP_ICONS.loader}</span><span>Retrying...</span></span>`
+      : '<span class="bop-btn-label">Retry Link</span>';
+    retryBtn.addEventListener("click", () => this._handlePlaidRetryRegistration());
+    actions.appendChild(retryBtn);
+
+    const backBtn = document.createElement("button");
+    backBtn.className = "bop-btn bop-btn-ghost";
+    backBtn.disabled = this._isPlaidRetryInProgress;
+    backBtn.innerHTML = '<span class="bop-btn-label">Back to Accounts</span>';
+    backBtn.addEventListener("click", () => this._dismissPlaidLinkError());
+    actions.appendChild(backBtn);
+
+    this._contentEl.appendChild(step);
+  }
+
   _renderAccountCards(skipAnimationIds = null) {
     if (!this._accountListEl) return;
     this._accountListEl.innerHTML = "";
+    const isInteractionLocked = this._isPlaidLinkInProgress;
 
     // Show loader while refetching accounts after a successful link
     if (this._isFetchingAccounts) {
@@ -2944,6 +3432,7 @@ class BisonOperatorPayments extends HTMLElement {
       card.className = "bop-account-card";
       card.dataset.accountId = acct.id;
       card.setAttribute("data-selected", String(isSelected));
+      card.disabled = isInteractionLocked;
 
       // Skip fade-in for accounts already visible before this render pass
       if (skipAnimationIds && skipAnimationIds.has(acct.id)) {
@@ -2976,6 +3465,7 @@ class BisonOperatorPayments extends HTMLElement {
   _renderAccountsButton() {
     if (!this._accountsFooterEl) return;
     const c = this._selectedAccounts.size;
+    const isInteractionLocked = this._isPlaidLinkInProgress;
     const isOpen = this._accountsFooterEl.classList.contains(
       "bop-accounts-footer--open",
     );
@@ -3001,6 +3491,7 @@ class BisonOperatorPayments extends HTMLElement {
     if (existing) {
       // Already open — just update the label, no rebuild
       existing.innerHTML = label;
+      existing.disabled = isInteractionLocked;
       return;
     }
 
@@ -3009,7 +3500,9 @@ class BisonOperatorPayments extends HTMLElement {
     btn.className = "bop-btn bop-btn-danger bop-btn-unlink";
     btn.style.animation = "bopFadeIn .15s var(--bop-ease) forwards";
     btn.innerHTML = label;
+    btn.disabled = isInteractionLocked;
     btn.addEventListener("click", () => {
+      if (this._isPlaidLinkInProgress) return;
       const accounts = this._accounts.filter((a) =>
         this._selectedAccounts.has(a.id),
       );
@@ -3052,7 +3545,10 @@ class BisonOperatorPayments extends HTMLElement {
           <p class="bop-loading-title">Unlinking Account${plural ? "s" : ""}</p>
           <p class="bop-loading-text">Removing ${count} account${plural ? "s" : ""} from your linked accounts</p>
         </div>
-        <div class="bop-loading-bar-wrap"><div class="bop-loading-bar"></div></div>
+        <div class="bop-loading-indicator">
+          <span class="bop-loading-spinner">${BOP_ICONS.loader}</span>
+          <span class="bop-loading-indicator-text">Removing selected account${plural ? "s" : ""}...</span>
+        </div>
       `;
       this._contentEl.appendChild(step);
       return;

@@ -534,6 +534,70 @@ class BisonJibPayAPI {
   }
 
   /**
+   * Retry Plaid bank account registration (embeddable)
+   *
+   * Calls POST /api/plaid/embeddable/retry-registration.
+   *
+   * Response codes:
+   * - 200: Retry registration completed
+   * - 400: Invalid request data or missing entityId
+   * - 401: Missing or invalid X-Embeddable-Key header
+   * - 404: Plaid item not found
+   * - 500: Internal server error during retry
+   *
+   * @param {Object} payload - Retry registration payload
+   * @param {string|null} [payload.plaidItemId]
+   * @param {string|null} [payload.accountId]
+   * @param {number} payload.entityType - 0 for WIO, 1 for Operator
+   * @param {string} payload.entityId - Entity ID
+   * @param {string[]} payload.providers - Provider names to retry against
+   * @returns {Promise<{success: boolean, message: string, data: {registrations: Array<{provider: string, success: boolean, externalId: string, bankAccountId: string, errorMessage: string}>, allSucceeded: boolean, isTokenizedAccount: boolean, persistentAccountId: string, plaidItemId: string, isDuplicate: boolean} | string, errors: string[], timestamp: string, traceId: string}>}
+   */
+  async retryEmbeddablePlaidRegistration(payload = {}) {
+    if (payload?.entityType !== 0 && payload?.entityType !== 1) {
+      throw {
+        status: 400,
+        data: {
+          success: false,
+          message: "entityType must be 0 (WIO) or 1 (Operator)",
+          errors: ["payload.entityType must be 0 or 1"],
+        },
+      };
+    }
+
+    if (!payload?.entityId || typeof payload.entityId !== "string" || !payload.entityId.trim()) {
+      throw {
+        status: 400,
+        data: {
+          success: false,
+          message: "entityId is required",
+          errors: ["payload.entityId parameter is missing"],
+        },
+      };
+    }
+
+    if (
+      !Array.isArray(payload?.providers) ||
+      payload.providers.length === 0 ||
+      payload.providers.some((provider) => typeof provider !== "string" || !provider.trim())
+    ) {
+      throw {
+        status: 400,
+        data: {
+          success: false,
+          message: "providers is required",
+          errors: ["payload.providers must be a non-empty string array"],
+        },
+      };
+    }
+
+    return this.request("/api/plaid/embeddable/retry-registration", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  /**
    * Create Plaid processor token
    *
    * Exchanges a Plaid public token for a processor token that can be used with Moov.
