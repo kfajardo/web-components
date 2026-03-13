@@ -1,6 +1,4 @@
-const STORAGE_KEY = 'bison_operator_onboarding'
 const WELCOME_SEEN_PREFIX = 'bison_operator_welcome_seen_'
-const WELCOME_METHODS_PREFIX = 'bison_operator_welcome_methods_'
 const LUCIDE_CDN_BASE = 'https://cdn.jsdelivr.net/npm/lucide-static@latest/icons'
 
 const BANKING_TABS = [
@@ -569,8 +567,24 @@ export class BisonOperatorOnboarding extends HTMLElement {
     this._modalAnimateIn = true
     this._isClosing = false
     this._modalTransitioning = false
-    this._modalStartRect = null
     this._listenersAttached = false
+    this._lastRenderedProgress = null
+    this._progressAnimationFrame = null
+    this._verificationStatusStage = 'progress'
+    this._verificationLoadingTimer = null
+    this._verificationCompletionTimer = null
+    this._accordionHeights = {}
+    this._accordionSyncFrame = null
+    this._lastOpenSection = null
+    this._setupModalHeight = null
+    this._api = null
+    this._ownsApiInstance = false
+    this._embeddableKey = (this.getAttribute('x-embeddable-key') || '').trim() || null
+    this._lookupRequestId = 0
+    this._activeLookupRequestId = 0
+    this._isOperatorLookupPending = false
+    this._operatorLookupData = null
+    this._operatorLookupError = null
 
     this.state = this.buildInitialState()
 
@@ -581,9 +595,96 @@ export class BisonOperatorOnboarding extends HTMLElement {
     this.onDragOver = this.onDragOver.bind(this)
     this.onDragLeave = this.onDragLeave.bind(this)
     this.onDrop = this.onDrop.bind(this)
+    this.onWindowResize = this.onWindowResize.bind(this)
+  }
+
+  static get observedAttributes() {
+    return [
+      'x-embeddable-key',
+      'api-base-url',
+      'op-org-id',
+      'on-lookup-success',
+      'on-lookup-error',
+    ]
+  }
+
+  static get _callbackAttrMap() {
+    return {
+      'on-lookup-success': 'onLookupSuccess',
+      'on-lookup-error': 'onLookupError',
+    }
+  }
+
+  _resolveCallbackAttr(attrName, fnName) {
+    const propName = BisonOperatorOnboarding._callbackAttrMap[attrName]
+    if (!propName) return
+    if (!fnName) {
+      this[propName] = null
+      return
+    }
+    const fn = typeof window !== 'undefined' ? window[fnName] : undefined
+    if (typeof fn === 'function') {
+      this[propName] = fn
+    }
+  }
+
+  _seedCallbackAttributes() {
+    for (const attrName of Object.keys(BisonOperatorOnboarding._callbackAttrMap)) {
+      const propName = BisonOperatorOnboarding._callbackAttrMap[attrName]
+      if (typeof this[propName] === 'function') continue
+      const val = this.getAttribute(attrName)
+      if (val) this._resolveCallbackAttr(attrName, val.trim())
+    }
+  }
+
+  _upgradeProperty(prop) {
+    if (Object.prototype.hasOwnProperty.call(this, prop)) {
+      const value = this[prop]
+      delete this[prop]
+      this[prop] = value
+    }
+  }
+
+  attributeChangedCallback(name, oldVal, newVal) {
+    if (oldVal === newVal) return
+
+    if (name === 'x-embeddable-key') {
+      this._embeddableKey = (newVal || '').trim() || null
+      if (this._ownsApiInstance && this._api && this._embeddableKey) {
+        this._api.embeddableKey = this._embeddableKey
+      } else if (!this._ownsApiInstance && this._api) {
+        const isSharedGlobal = typeof window !== 'undefined' && this._api === window.__bisonApi
+        if (isSharedGlobal) this._api = null
+      }
+      this._evaluateOperatorAttributes()
+      this.render()
+      return
+    }
+
+    if (name === 'api-base-url') {
+      if (this._ownsApiInstance) this._api = null
+      this._evaluateOperatorAttributes()
+      this.render()
+      return
+    }
+
+    if (name === 'op-org-id') {
+      this._evaluateOperatorAttributes()
+      this.render()
+      return
+    }
+
+    if (name in BisonOperatorOnboarding._callbackAttrMap) {
+      this._resolveCallbackAttr(name, (newVal || '').trim() || null)
+    }
   }
 
   connectedCallback() {
+    this._upgradeProperty('fetchOperatorFromEnverus')
+    this._upgradeProperty('onLookupSuccess')
+    this._upgradeProperty('onLookupError')
+    this._seedCallbackAttributes()
+
     if (!this._listenersAttached) {
       this.shadowRoot.addEventListener('click', this.onClick)
       this.shadowRoot.addEventListener('input', this.onInput)
@@ -592,10 +693,12 @@ export class BisonOperatorOnboarding extends HTMLElement {
       this.shadowRoot.addEventListener('dragover', this.onDragOver)
       this.shadowRoot.addEventListener('dragleave', this.onDragLeave)
       this.shadowRoot.addEventListener('drop', this.onDrop)
+      window.addEventListener('resize', this.onWindowResize)
       this._listenersAttached = true
     }
 
     this.preloadLucideIcons()
+    this._evaluateOperatorAttributes()
     this.render()
   }
 
@@ -607,12 +710,235 @@ export class BisonOperatorOnboarding extends HTMLElement {
     this.shadowRoot.removeEventListener('dragover', this.onDragOver)
     this.shadowRoot.removeEventListener('dragleave', this.onDragLeave)
     this.shadowRoot.removeEventListener('drop', this.onDrop)
+    window.removeEventListener('resize', this.onWindowResize)
     this._listenersAttached = false
 
     for (const timer of this._timers) {
       clearTimeout(timer)
     }
     this._timers.clear()
+
+    if (this._progressAnimationFrame) {
+      cancelAnimationFrame(this._progressAnimationFrame)
+      this._progressAnimationFrame = null
+    }
+
+    this.cancelAccordionHeightSync()
+    this.clearVerificationStatusTimers()
+    this._activeLookupRequestId = ++this._lookupRequestId
+    this._isOperatorLookupPending = false
+  }
+
+  async _getApi() {
+    if (this._api) {
+      if (this._ownsApiInstance && this._embeddableKey) {
+        this._api.embeddableKey = this._embeddableKey
+      }
+      return this._api
+    }
+
+    let baseUrl = this.getAttribute('api-base-url') || ''
+    let globalKey = this._embeddableKey
+
+    if (typeof window !== 'undefined' && window.BISON_JIB_PAY_CONFIG) {
+      baseUrl = baseUrl || window.BISON_JIB_PAY_CONFIG.apiBaseURL || ''
+      if (!globalKey && window.BISON_JIB_PAY_CONFIG.embeddableKey) {
+        globalKey = window.BISON_JIB_PAY_CONFIG.embeddableKey
+        this._embeddableKey = globalKey
+      }
+    }
+
+    if (typeof window !== 'undefined' && window.__bisonApi) {
+      const sharedApi = window.__bisonApi
+      const hasLookup =
+        typeof sharedApi.fetchOperatorFromEnverus === 'function' ||
+        typeof sharedApi.findOperatorFromEnverus === 'function'
+      const sharedKey =
+        typeof sharedApi.embeddableKey === 'string' ? sharedApi.embeddableKey.trim() : null
+      const canReuseShared =
+        hasLookup && (!this._embeddableKey || !sharedKey || sharedKey === this._embeddableKey)
+
+      if (canReuseShared) {
+        this._api = sharedApi
+        this._ownsApiInstance = false
+        return this._api
+      }
+    }
+
+    if (typeof window === 'undefined' || typeof window.BisonJibPayAPI !== 'function') {
+      this._ownsApiInstance = false
+      return null
+    }
+
+    try {
+      const instance = new window.BisonJibPayAPI(baseUrl, globalKey)
+      this._api = instance
+      this._ownsApiInstance = true
+      if (!window.__bisonApi) window.__bisonApi = instance
+      return this._api
+    } catch (_err) {
+      this._ownsApiInstance = false
+      return null
+    }
+  }
+
+  _resolveOperatorLookupHandler(api) {
+    if (typeof this.fetchOperatorFromEnverus === 'function') {
+      return (opOrgId, embeddableKey) =>
+        this.fetchOperatorFromEnverus(embeddableKey, opOrgId)
+    }
+    if (api && typeof api.fetchOperatorFromEnverus === 'function') {
+      return (opOrgId) => api.fetchOperatorFromEnverus(opOrgId, null)
+    }
+    if (api && typeof api.findOperatorFromEnverus === 'function') {
+      return (opOrgId) => api.findOperatorFromEnverus(opOrgId, null)
+    }
+    return null
+  }
+
+  _evaluateOperatorAttributes() {
+    const opOrgId = (this.getAttribute('op-org-id') || '').trim()
+    const resolvedEmbeddableKey = this._getResolvedEmbeddableKey()
+    this._embeddableKey = resolvedEmbeddableKey || null
+
+    if (!resolvedEmbeddableKey || !opOrgId) {
+      this._isOperatorLookupPending = false
+      this._operatorLookupData = null
+      this._operatorLookupError = !resolvedEmbeddableKey
+        ? { message: 'Missing embeddable key for operator lookup.' }
+        : { message: 'Missing op-org-id for operator lookup.' }
+      this._activeLookupRequestId = ++this._lookupRequestId
+      return
+    }
+
+    this._isOperatorLookupPending = true
+    this._operatorLookupError = null
+    const requestId = ++this._lookupRequestId
+    this._activeLookupRequestId = requestId
+    this._performOperatorLookup(opOrgId, resolvedEmbeddableKey, requestId)
+  }
+
+  _getResolvedEmbeddableKey() {
+    if (this._embeddableKey) return String(this._embeddableKey).trim()
+    if (typeof window !== 'undefined' && window.BISON_JIB_PAY_CONFIG?.embeddableKey) {
+      return String(window.BISON_JIB_PAY_CONFIG.embeddableKey).trim()
+    }
+    return ''
+  }
+
+  _getTriggerDisabledReason() {
+    const embeddableKey = this._getResolvedEmbeddableKey()
+    if (!embeddableKey) return 'Missing embeddable key'
+    const opOrgId = (this.getAttribute('op-org-id') || '').trim()
+    if (!opOrgId) return 'Missing op-org-id'
+    if (this._isOperatorLookupPending) return 'Initializing...'
+
+    const lookupErrorMessage = this._getLookupErrorMessage(this._operatorLookupError)
+    if (lookupErrorMessage) return lookupErrorMessage
+
+    return ''
+  }
+
+  _getLookupErrorMessage(errorData) {
+    if (!errorData) return ''
+    if (typeof errorData === 'string') return errorData.trim()
+    if (typeof errorData?.message === 'string' && errorData.message.trim()) {
+      return errorData.message.trim()
+    }
+    if (Array.isArray(errorData?.errors) && typeof errorData.errors[0] === 'string') {
+      return errorData.errors[0].trim()
+    }
+    return 'Operator lookup failed'
+  }
+
+  _applyLookupDataToBusiness(lookupData) {
+    if (!lookupData || typeof lookupData !== 'object') return false
+    const business = this.state?.data?.business
+    if (!business || typeof business !== 'object') return false
+
+    const textValue = (value) => {
+      if (value == null) return ''
+      return String(value).trim()
+    }
+
+    let changed = false
+    const applyIfEmpty = (field, value, formatter = null) => {
+      if (!Object.prototype.hasOwnProperty.call(business, field)) return
+      const current = textValue(business[field])
+      if (current) return
+      const nextRaw = textValue(value)
+      if (!nextRaw) return
+      const next = formatter ? formatter(nextRaw) : nextRaw
+      if (!textValue(next)) return
+      business[field] = next
+      changed = true
+    }
+
+    applyIfEmpty('legalName', lookupData.legalName || lookupData.operatorName || lookupData.name || lookupData.companyName)
+    applyIfEmpty('dba', lookupData.dba || lookupData.doingBusinessAs)
+    applyIfEmpty('ein', lookupData.ein || lookupData.taxId || lookupData.taxIdentifier, formatEIN)
+    applyIfEmpty('address', lookupData.address1 || lookupData.address || lookupData.street || lookupData.mailingAddress1)
+    applyIfEmpty('city', lookupData.city || lookupData.mailingCity)
+    applyIfEmpty('state', lookupData.state || lookupData.mailingState)
+    applyIfEmpty('zip', lookupData.zip || lookupData.postalCode || lookupData.mailingPostalCode, formatZip)
+    applyIfEmpty('phone', lookupData.phone || lookupData.phoneNumber || lookupData.businessPhone, formatPhone)
+    applyIfEmpty('website', lookupData.website || lookupData.webSite || lookupData.url)
+
+    return changed
+  }
+
+  _dispatchLookupEvent(detail) {
+    this.dispatchEvent(
+      new CustomEvent('bop-operator-lookup', {
+        bubbles: true,
+        composed: true,
+        detail,
+      })
+    )
+  }
+
+  async _performOperatorLookup(opOrgId, embeddableKey, requestId) {
+    const api = await this._getApi()
+    const lookupHandler = this._resolveOperatorLookupHandler(api)
+
+    if (typeof lookupHandler !== 'function') {
+      const err = { message: 'No fetchOperatorFromEnverus handler is available.' }
+      if (requestId !== this._activeLookupRequestId || !this.isConnected) return
+      this._isOperatorLookupPending = false
+      this._operatorLookupData = null
+      this._operatorLookupError = err
+      this._dispatchLookupEvent({ status: 'error', error: err })
+      if (typeof this.onLookupError === 'function') this.onLookupError(err)
+      this.render()
+      return
+    }
+
+    try {
+      const result = await lookupHandler(opOrgId, embeddableKey)
+      if (requestId !== this._activeLookupRequestId || !this.isConnected) return
+
+      const data = result?.data || result || null
+      this._operatorLookupData = data
+      this._operatorLookupError = null
+      const didHydrateBusiness = this._applyLookupDataToBusiness(data)
+      if (didHydrateBusiness) {
+        this.persist()
+      }
+
+      this._dispatchLookupEvent({ status: 'success', data: result })
+      if (typeof this.onLookupSuccess === 'function') this.onLookupSuccess(data)
+    } catch (err) {
+      if (requestId !== this._activeLookupRequestId || !this.isConnected) return
+      const errData = err?.data || err
+      this._operatorLookupData = null
+      this._operatorLookupError = errData
+      this._dispatchLookupEvent({ status: 'error', error: errData })
+      if (typeof this.onLookupError === 'function') this.onLookupError(errData)
+    } finally {
+      if (requestId !== this._activeLookupRequestId || !this.isConnected) return
+      this._isOperatorLookupPending = false
+      this.render()
+    }
   }
 
   open() {
@@ -621,6 +947,11 @@ export class BisonOperatorOnboarding extends HTMLElement {
     this._isClosing = false
     this._welcomeAnimateIn = true
     this._modalAnimateIn = true
+    this._accordionHeights = {}
+    this._lastOpenSection = null
+    this._setupModalHeight = null
+    this.cancelAccordionHeightSync()
+    this.state.openSection = null
     this.state.ui.welcome.isOpen = true
     this.state.ui.welcome.step = 1
     this.state.ui.welcome.direction = 1
@@ -632,7 +963,6 @@ export class BisonOperatorOnboarding extends HTMLElement {
     if (!this._isOpen || this._isClosing) return
     this._isClosing = true
     this._modalTransitioning = false
-    this._modalStartRect = null
     this.render()
 
     const timer = setTimeout(() => {
@@ -713,41 +1043,11 @@ export class BisonOperatorOnboarding extends HTMLElement {
       // ignore localStorage parse issues
     }
 
-    try {
-      const savedRaw = localStorage.getItem(STORAGE_KEY)
-      if (savedRaw) {
-        const parsed = JSON.parse(savedRaw)
-        state.data = {
-          business: { ...state.data.business, ...(parsed?.data?.business || {}) },
-          officer: { ...state.data.officer, ...(parsed?.data?.officer || {}) },
-          owners: {
-            owners: Array.isArray(parsed?.data?.owners?.owners) ? parsed.data.owners.owners : state.data.owners.owners,
-            noOwnersAbove25:
-              typeof parsed?.data?.owners?.noOwnersAbove25 === 'boolean'
-                ? parsed.data.owners.noOwnersAbove25
-                : state.data.owners.noOwnersAbove25,
-          },
-          volume: { ...state.data.volume, ...(parsed?.data?.volume || {}) },
-          bank: { ...state.data.bank, ...(parsed?.data?.bank || {}) },
-        }
-
-        state.savedAt = {
-          business: parsed?.savedAt?.business || null,
-          officer: parsed?.savedAt?.officer || null,
-          volume: parsed?.savedAt?.volume || null,
-          bank: parsed?.savedAt?.bank || null,
-        }
-      }
-    } catch (_err) {
-      // ignore localStorage parse issues
-    }
-
     const progress = this.getVerificationProgressFromState(state)
     state.activeTab = progress >= 100 ? 'bank-account' : 'verification'
-    state.openSection = this.findFirstIncompleteSection(this.getSectionStatusesFromState(state))
+    state.openSection = null
 
     const email = this.getUserEmailFromState(state)
-    state.ui.welcome.selectedMethods = this.getSavedWelcomeMethods(email)
     state.ui.welcome.isOpen = this.shouldShowWelcome(email)
 
     return state
@@ -767,10 +1067,6 @@ export class BisonOperatorOnboarding extends HTMLElement {
     return `${WELCOME_SEEN_PREFIX}${email || 'default'}`
   }
 
-  getWelcomeMethodsStorageKey(email) {
-    return `${WELCOME_METHODS_PREFIX}${email || 'default'}`
-  }
-
   shouldShowWelcome(email) {
     try {
       return localStorage.getItem(this.getWelcomeStorageKey(email)) !== 'true'
@@ -780,24 +1076,14 @@ export class BisonOperatorOnboarding extends HTMLElement {
   }
 
   getSavedWelcomeMethods(email) {
-    try {
-      const raw = localStorage.getItem(this.getWelcomeMethodsStorageKey(email))
-      if (!raw) return []
-      const parsed = JSON.parse(raw)
-      return Array.isArray(parsed) ? parsed.filter((id) => PAYMENT_METHODS.some((m) => m.id === id)) : []
-    } catch (_err) {
-      return []
-    }
+    void email
+    return []
   }
 
   persistWelcomeState() {
     const email = this.getUserEmailFromState(this.state)
     try {
       localStorage.setItem(this.getWelcomeStorageKey(email), this.state.ui.welcome.isOpen ? 'false' : 'true')
-      localStorage.setItem(
-        this.getWelcomeMethodsStorageKey(email),
-        JSON.stringify(this.state.ui.welcome.selectedMethods)
-      )
     } catch (_err) {
       // ignore localStorage write issues
     }
@@ -813,8 +1099,10 @@ export class BisonOperatorOnboarding extends HTMLElement {
 
     const modal = this.shadowRoot.querySelector('.bo-modal')
     const welcomeView = this.shadowRoot.querySelector('[data-bo-view="welcome"]')
+    const modalTitle = this.shadowRoot.querySelector('[data-testid="bo-modal-title"]')
+    const targetRect = this.measureSetupModalRect()
 
-    if (!(modal instanceof HTMLElement) || !(welcomeView instanceof HTMLElement)) {
+    if (!(modal instanceof HTMLElement) || !(welcomeView instanceof HTMLElement) || !targetRect) {
       this.state.activeTab = 'verification'
       this.closeWelcomeModal()
       this.render()
@@ -822,72 +1110,57 @@ export class BisonOperatorOnboarding extends HTMLElement {
     }
 
     this._modalTransitioning = true
-    this._modalStartRect = modal.getBoundingClientRect()
+    this._setupModalHeight = targetRect.height
     welcomeView.setAttribute('data-exit', 'forward')
+    if (modalTitle instanceof HTMLElement) {
+      modalTitle.setAttribute('data-exit', 'forward')
+    }
 
     const timer = setTimeout(() => {
       this._timers.delete(timer)
       if (!this.isOpen) {
         this._modalTransitioning = false
-        this._modalStartRect = null
         return
       }
 
-      this.state.activeTab = 'verification'
-      this.closeWelcomeModal()
-      this.render()
-      this.animateModalResizeFromCapturedRect()
+      this.resizeModalToTarget(modal, targetRect, () => {
+        if (!this.isOpen) {
+          this._modalTransitioning = false
+          return
+        }
+
+        this.state.activeTab = 'verification'
+        this.closeWelcomeModal()
+        this.render()
+        this.animateSetupViewEntrance()
+        this.animateSetupTitleEntrance()
+        this._modalTransitioning = false
+      })
     }, 220)
 
     this._timers.add(timer)
   }
 
-  animateModalResizeFromCapturedRect() {
-    const startRect = this._modalStartRect
-    const modal = this.shadowRoot.querySelector('.bo-modal')
-    const setupView = this.shadowRoot.querySelector('[data-bo-view="setup"]')
-
-    if (!startRect || !(modal instanceof HTMLElement)) {
-      this._modalTransitioning = false
-      this._modalStartRect = null
+  resizeModalToTarget(modal, targetRect, onComplete) {
+    if (!(modal instanceof HTMLElement)) {
+      if (typeof onComplete === 'function') onComplete()
       return
     }
 
-    const endRect = modal.getBoundingClientRect()
-    if (setupView instanceof HTMLElement) {
-      setupView.setAttribute('data-hold', 'true')
-      setupView.removeAttribute('data-enter')
-    }
+    const startRect = modal.getBoundingClientRect()
     modal.classList.add('bo-modal-transitioning')
     modal.style.width = `${Math.round(startRect.width)}px`
     modal.style.height = `${Math.round(startRect.height)}px`
-    // Force style flush before animating to the final dimensions.
     void modal.offsetHeight
 
     requestAnimationFrame(() => {
-      modal.style.width = `${Math.round(endRect.width)}px`
-      modal.style.height = `${Math.round(endRect.height)}px`
+      modal.style.width = `${Math.round(targetRect.width)}px`
+      modal.style.height = `${Math.round(targetRect.height)}px`
     })
 
     const finish = () => {
-      modal.classList.remove('bo-modal-transitioning')
-      modal.style.width = ''
-      modal.style.height = ''
-      if (setupView instanceof HTMLElement) {
-        setupView.removeAttribute('data-hold')
-        setupView.setAttribute('data-enter', 'forward')
-      }
-
-      const enterTimer = setTimeout(() => {
-        this._timers.delete(enterTimer)
-        if (setupView instanceof HTMLElement) {
-          setupView.removeAttribute('data-enter')
-        }
-      }, 300)
-      this._timers.add(enterTimer)
-
-      this._modalTransitioning = false
-      this._modalStartRect = null
+      modal.removeEventListener('transitionend', onResizeComplete)
+      if (typeof onComplete === 'function') onComplete()
     }
 
     let finished = false
@@ -896,7 +1169,6 @@ export class BisonOperatorOnboarding extends HTMLElement {
       if (event.propertyName !== 'width' && event.propertyName !== 'height') return
       if (finished) return
       finished = true
-      modal.removeEventListener('transitionend', onResizeComplete)
       finish()
     }
 
@@ -906,25 +1178,215 @@ export class BisonOperatorOnboarding extends HTMLElement {
       this._timers.delete(fallbackTimer)
       if (finished) return
       finished = true
-      modal.removeEventListener('transitionend', onResizeComplete)
       finish()
     }, 700)
 
     this._timers.add(fallbackTimer)
   }
 
+  animateSetupViewEntrance() {
+    const setupView = this.shadowRoot.querySelector('[data-bo-view="setup"]')
+    if (!(setupView instanceof HTMLElement)) return
+
+    setupView.removeAttribute('data-hold')
+    setupView.setAttribute('data-enter', 'forward')
+
+    const timer = setTimeout(() => {
+      this._timers.delete(timer)
+      if (setupView instanceof HTMLElement) {
+        setupView.removeAttribute('data-enter')
+      }
+    }, 700)
+
+    this._timers.add(timer)
+  }
+
+  animateSetupTitleEntrance() {
+    const modalTitle = this.shadowRoot.querySelector('[data-testid="bo-modal-title"]')
+    if (!(modalTitle instanceof HTMLElement)) return
+
+    modalTitle.removeAttribute('data-exit')
+    modalTitle.setAttribute('data-enter', 'forward')
+
+    const timer = setTimeout(() => {
+      this._timers.delete(timer)
+      if (modalTitle instanceof HTMLElement) {
+        modalTitle.removeAttribute('data-enter')
+      }
+    }, 300)
+
+    this._timers.add(timer)
+  }
+
+  getSetupRenderContext() {
+    const statuses = this.getSectionStatuses()
+    const statusMessages = this.getStatusMessages()
+    const progress = this.getVerificationProgress()
+    const isComplete = progress >= 100
+
+    return { statuses, statusMessages, progress, isComplete }
+  }
+
+  renderSetupModalContent(statuses, statusMessages, progress, isComplete) {
+    const desktopTabs = BANKING_TABS.map(
+      (tab) => `
+        <button
+          ${this.testId(`tab-button-${tab.id}`)}
+          type="button"
+          class="tab-btn ${this.state.activeTab === tab.id ? 'active' : ''}"
+          data-action="tab-switch"
+          data-tab="${escapeHTML(tab.id)}"
+        >
+          ${escapeHTML(tab.label)}
+        </button>
+      `
+    ).join('')
+
+    const mobileOptions = BANKING_TABS.map(
+      (tab) =>
+        `<option value="${escapeHTML(tab.id)}" ${this.state.activeTab === tab.id ? 'selected' : ''}>${escapeHTML(
+          tab.label
+        )}</option>`
+    ).join('')
+
+    const verificationView =
+      this.state.activeTab === 'verification'
+        ? this.renderVerificationTab(statuses, statusMessages, progress, isComplete)
+        : ''
+
+    const bankView = this.state.activeTab === 'bank-account' ? this.renderBankAccountTab(statuses) : ''
+
+    return `
+      <div
+        class="bo-view bo-view-setup"
+        data-bo-view="setup"
+        ${this.testId('bo-view-setup')}
+      >
+        <div class="root" ${this.testId('bison-operator-onboarding-root')}>
+          <div class="header" ${this.testId('page-header')}>
+            <div ${this.testId('page-title-wrap')}>
+              <h1 class="title" ${this.testId('page-title')}>Banking</h1>
+              <p class="subtitle" ${this.testId('page-subtitle')}>Account verification and payment setup</p>
+            </div>
+            <div class="demo-toggle" ${this.testId('demo-toggle')}>
+              <button
+                ${this.testId('demo-new-account')}
+                type="button"
+                class="demo-btn ${this.state.demoMode === 'new-account' ? 'active' : ''}"
+                data-action="demo-toggle"
+                data-mode="new-account"
+              >
+                New Account
+              </button>
+              <button
+                ${this.testId('demo-mid-verification')}
+                type="button"
+                class="demo-btn ${this.state.demoMode === 'mid-verification' ? 'active' : ''}"
+                data-action="demo-toggle"
+                data-mode="mid-verification"
+              >
+                Mid-Verification
+              </button>
+              <button
+                ${this.testId('demo-all-verified')}
+                type="button"
+                class="demo-btn ${this.state.demoMode === 'all-verified' ? 'active' : ''}"
+                data-action="demo-toggle"
+                data-mode="all-verified"
+              >
+                All Verified
+              </button>
+            </div>
+          </div>
+
+          <div class="card tabs-card" ${this.testId('main-card')}>
+            <div class="tabs-mobile" ${this.testId('tabs-mobile')}>
+              <select
+                ${this.testId('tab-select-mobile')}
+                class="tab-select"
+                data-action="tab-select"
+              >
+                ${mobileOptions}
+              </select>
+            </div>
+
+            <div class="tabs-desktop" ${this.testId('tabs-desktop')}>
+              <nav class="tabs-desktop-nav" ${this.testId('tabs-desktop-nav')}>
+                ${desktopTabs}
+              </nav>
+            </div>
+
+            <div class="tab-panel" ${this.testId('tab-panel')}>
+              ${verificationView}
+              ${bankView}
+            </div>
+          </div>
+        </div>
+      </div>
+    `
+  }
+
+  measureSetupModalRect() {
+    if (!this.shadowRoot) return null
+
+    const previousWelcomeState = this.state.ui.welcome.isOpen
+    const previousTab = this.state.activeTab
+    this.state.ui.welcome.isOpen = false
+    this.state.activeTab = 'verification'
+
+    const { statuses, statusMessages, progress, isComplete } = this.getSetupRenderContext()
+    const measureWrap = document.createElement('div')
+    measureWrap.className = 'bo-modal-measure-wrap'
+    measureWrap.innerHTML = `
+      <div class="bo-modal bo-modal-setup bo-modal-measure">
+        <div class="bo-modal-header">
+          <p class="bo-modal-title">Operator Banking Setup</p>
+          <button class="bo-close-btn" type="button" aria-hidden="true" tabindex="-1">
+            ${this.icon('x', 'icon-5')}
+          </button>
+        </div>
+        <div class="bo-modal-body bo-modal-body-setup">
+          ${this.renderSetupModalContent(statuses, statusMessages, progress, isComplete)}
+        </div>
+      </div>
+    `
+
+    this.shadowRoot.appendChild(measureWrap)
+    const measuredModal = measureWrap.querySelector('.bo-modal')
+    const rect =
+      measuredModal instanceof HTMLElement
+        ? {
+            width: measuredModal.getBoundingClientRect().width,
+            height: this.getClampedSetupModalHeight(measuredModal.getBoundingClientRect().height),
+          }
+        : null
+    measureWrap.remove()
+
+    this.state.ui.welcome.isOpen = previousWelcomeState
+    this.state.activeTab = previousTab
+
+    return rect
+  }
+
+  getClampedSetupModalHeight(height) {
+    const numericHeight = Math.round(Number(height) || 0)
+    if (!numericHeight) return 0
+
+    const viewportHeight =
+      typeof window !== 'undefined' && Number.isFinite(window.innerHeight)
+        ? Math.floor(window.innerHeight * 0.92)
+        : numericHeight
+
+    return Math.min(numericHeight, viewportHeight)
+  }
+
+  getSetupModalStyleAttr() {
+    if (!Number.isFinite(this._setupModalHeight) || this._setupModalHeight <= 0) return ''
+    return `style="height: min(92vh, ${Math.round(this._setupModalHeight)}px);"`
+  }
+
   persist() {
-    try {
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({
-          data: this.state.data,
-          savedAt: this.state.savedAt,
-        })
-      )
-    } catch (_err) {
-      // ignore localStorage write issues
-    }
+    // Keep onboarding state in memory only during the current session.
   }
 
   getRealStatusesFromState(state) {
@@ -1066,19 +1528,7 @@ export class BisonOperatorOnboarding extends HTMLElement {
   setDemoMode(mode) {
     this.state.demoMode = mode
     this.state.activeTab = mode === 'all-verified' ? 'bank-account' : 'verification'
-
-    if (mode === 'mid-verification') {
-      const actionable = SECTION_DEFS.find((section) => {
-        const status = DEMO_STATUSES_LOOKUP[section.key] || 'not-started'
-        return status === 'action-required' || status === 'document-requested'
-      })
-      this.state.openSection = actionable ? actionable.key : null
-    } else if (mode === 'new-account') {
-      const statuses = this.getSectionStatusesFromState(this.state)
-      this.state.openSection = this.findFirstIncompleteSection(statuses)
-    } else {
-      this.state.openSection = null
-    }
+    this.state.openSection = null
   }
 
   startOwnerAdd() {
@@ -1271,6 +1721,7 @@ export class BisonOperatorOnboarding extends HTMLElement {
     if (action === 'toggle-section') {
       const section = target.getAttribute('data-section')
       if (!section) return
+      this.captureOpenAccordionHeight(this.state.openSection)
       this.state.openSection = this.state.openSection === section ? null : section
       this.render()
       return
@@ -2818,6 +3269,72 @@ export class BisonOperatorOnboarding extends HTMLElement {
     return ''
   }
 
+  getAccordionRenderHeight(sectionKey, isOpen) {
+    const storedHeight = this._accordionHeights[sectionKey]
+    if (!Number.isFinite(storedHeight) || storedHeight <= 0) return 0
+    if (isOpen || this._lastOpenSection === sectionKey) return Math.round(storedHeight)
+    return 0
+  }
+
+  cancelAccordionHeightSync() {
+    if (this._accordionSyncFrame) {
+      cancelAnimationFrame(this._accordionSyncFrame)
+      this._accordionSyncFrame = null
+    }
+  }
+
+  syncAccordionHeights() {
+    this.cancelAccordionHeightSync()
+
+    this._accordionSyncFrame = requestAnimationFrame(() => {
+      this._accordionSyncFrame = null
+
+      const accordions = this.shadowRoot.querySelectorAll('[data-accordion-section]')
+      accordions.forEach((accordion) => {
+        if (!(accordion instanceof HTMLElement)) return
+
+        const sectionKey = accordion.dataset.accordionSection
+        if (!sectionKey) return
+
+        const inner = accordion.querySelector('.accordion-inner')
+        if (!(inner instanceof HTMLElement)) return
+
+        const isOpen = accordion.dataset.open === 'true'
+        const nextHeight = isOpen ? Math.ceil(inner.scrollHeight) : 0
+        const currentHeight = Math.round(accordion.getBoundingClientRect().height)
+
+        if (currentHeight !== nextHeight) {
+          accordion.style.height = `${currentHeight}px`
+          void accordion.offsetHeight
+        }
+
+        this._accordionHeights[sectionKey] = nextHeight
+        accordion.style.height = `${nextHeight}px`
+      })
+    })
+  }
+
+  captureOpenAccordionHeight(sectionKey) {
+    if (!sectionKey || !this.shadowRoot) return
+
+    const accordion = this.shadowRoot.querySelector(`[data-accordion-section="${sectionKey}"]`)
+    if (!(accordion instanceof HTMLElement)) return
+
+    const inner = accordion.querySelector('.accordion-inner')
+    if (!(inner instanceof HTMLElement)) return
+
+    const measuredHeight = Math.ceil(inner.scrollHeight)
+    if (!measuredHeight) return
+
+    this._accordionHeights[sectionKey] = measuredHeight
+    accordion.style.height = `${measuredHeight}px`
+  }
+
+  onWindowResize() {
+    if (!this.isOpen || this.state.ui.welcome.isOpen || this.state.activeTab !== 'verification') return
+    this.syncAccordionHeights()
+  }
+
   renderStatusMessage(sectionKey, status, message, isExpanded) {
     const isError = status === 'action-required'
     const toneClass = isError ? 'status-message status-message-error' : 'status-message status-message-warning'
@@ -2854,6 +3371,7 @@ export class BisonOperatorOnboarding extends HTMLElement {
     const badge = STATUS_CONFIG[status] || STATUS_CONFIG['not-started']
     const statusMessage = statusMessages[section.key]
     const badgeIcon = badge.icon ? this.icon(badge.icon, 'icon-3') : ''
+    const accordionHeight = this.getAccordionRenderHeight(section.key, isOpen)
 
     return `
       <div class="section-card" ${this.testId(`section-${section.key}`)}>
@@ -2882,7 +3400,14 @@ export class BisonOperatorOnboarding extends HTMLElement {
 
         ${showMessages && statusMessage ? this.renderStatusMessage(section.key, status, statusMessage, isOpen) : ''}
 
-        <div class="accordion-grid" style="grid-template-rows: ${isOpen ? '1fr' : '0fr'};" ${this.testId(`section-accordion-${section.key}`)}>
+        <div
+          class="accordion-grid"
+          data-accordion-section="${escapeHTML(section.key)}"
+          data-open="${isOpen ? 'true' : 'false'}"
+          aria-hidden="${isOpen ? 'false' : 'true'}"
+          style="height: ${accordionHeight}px;"
+          ${this.testId(`section-accordion-${section.key}`)}
+        >
           <div class="accordion-inner" ${this.testId(`section-accordion-inner-${section.key}`)}>
             <div class="section-content" ${this.testId(`section-content-${section.key}`)}>
               ${this.renderSectionContent(section.key, readOnly, statuses, statusMessages)}
@@ -2894,46 +3419,81 @@ export class BisonOperatorOnboarding extends HTMLElement {
   }
 
   renderVerificationTab(statuses, statusMessages, progress, isComplete) {
-    if (isComplete) {
-      return `
-        <div class="verification-stack" ${this.testId('verification-complete')}>
-          <div class="verified-banner" ${this.testId('verified-banner')}>
-            <div class="verified-icon-wrap" ${this.testId('verified-banner-icon-wrap')}>
-              ${this.icon('check-circle', 'icon-5')}
-            </div>
-            <div class="verified-copy" ${this.testId('verified-banner-copy')}>
-              <p class="verified-title" ${this.testId('verified-title')}>Account Verified</p>
-              <p class="verified-date" ${this.testId('verified-date')}>Verified on Mar 3, 2026</p>
-            </div>
-          </div>
-          <div class="section-list" ${this.testId('verification-complete-sections')}>
-            ${SECTION_DEFS.map((section) => this.renderSection(section, true, statuses, statusMessages, false)).join('')}
-          </div>
-        </div>
-      `
-    }
+    const statusStage = isComplete ? this._verificationStatusStage : 'progress'
+    const isVerified = statusStage === 'complete'
+    const wrapperTestId = isVerified ? 'verification-complete' : 'verification-incomplete'
+    const sectionListTestId = isVerified ? 'verification-complete-sections' : 'verification-sections'
 
     return `
-      <div class="verification-stack" ${this.testId('verification-incomplete')}>
-        <div class="card progress-card" ${this.testId('progress-card')}>
-          <div class="progress-head" ${this.testId('progress-head')}>
-            <span class="progress-label" ${this.testId('progress-label')}>Overall Progress</span>
-            <span class="progress-value ${isComplete ? 'progress-success' : 'progress-warning'}" ${this.testId('progress-value')}>
-              ${escapeHTML(String(progress))}% complete
-            </span>
+      <div class="verification-stack" ${this.testId(wrapperTestId)}>
+        <div
+          class="card progress-card verification-status-card"
+          data-status-stage="${escapeHTML(statusStage)}"
+          ${this.testId('progress-card')}
+        >
+          <div class="status-progress-block" ${this.testId('status-progress-block')}>
+            <div class="progress-head" ${this.testId('progress-head')}>
+              <span class="progress-label" ${this.testId('progress-label')}>Overall Progress</span>
+              <span class="progress-value ${isComplete ? 'progress-success' : 'progress-warning'}" ${this.testId('progress-value')}>
+                ${escapeHTML(String(progress))}% complete
+              </span>
+            </div>
+            <div class="progress-track" ${this.testId('progress-track')}>
+              <div class="progress-fill ${isComplete ? 'progress-success-bg' : 'progress-warning-bg'}" style="width: ${escapeHTML(
+        String(progress)
+      )}%;" ${this.testId('progress-fill')}></div>
+            </div>
+            <p class="progress-copy" ${this.testId('progress-copy')}>
+              Verification is automatic once all required info is submitted. Most accounts are verified within a minute.
+            </p>
           </div>
-          <div class="progress-track" ${this.testId('progress-track')}>
-            <div class="progress-fill ${isComplete ? 'progress-success-bg' : 'progress-warning-bg'}" style="width: ${escapeHTML(
-      String(progress)
-    )}%;" ${this.testId('progress-fill')}></div>
-          </div>
-          <p class="progress-copy" ${this.testId('progress-copy')}>
-            Verification is automatic once all required info is submitted. Most accounts are verified within a minute.
-          </p>
+
+          ${
+            isComplete
+              ? `<div class="status-loading-block" ${this.testId('status-loading-block')}>
+                  <div class="status-loading-shell" ${this.testId('status-loading-shell')}>
+                    <div class="status-loading-badge" ${this.testId('status-loading-badge')}>Final checks</div>
+                    <div class="status-loading-main" ${this.testId('status-loading-main')}>
+                      <div class="status-loading-icon-wrap" ${this.testId('status-loading-icon-wrap')}>
+                        ${this.icon('loader', 'icon-5 status-loading-spinner')}
+                      </div>
+                      <div class="status-loading-copy" ${this.testId('status-loading-copy')}>
+                        <p class="status-loading-title" ${this.testId('status-loading-title')}>Verifying your account</p>
+                        <p class="status-loading-body" ${this.testId('status-loading-body')}>
+                          Running final verification checks and confirming your banking setup.
+                        </p>
+                      </div>
+                    </div>
+                    <div class="status-loading-meter" ${this.testId('status-loading-meter')}>
+                      <span class="status-loading-meter-bar" ${this.testId('status-loading-meter-bar')}></span>
+                    </div>
+                    <div class="status-loading-steps" ${this.testId('status-loading-steps')}>
+                      <span class="status-loading-step" ${this.testId('status-loading-step-business')}>Business details</span>
+                      <span class="status-loading-step" ${this.testId('status-loading-step-identity')}>Identity</span>
+                      <span class="status-loading-step" ${this.testId('status-loading-step-banking')}>Banking setup</span>
+                    </div>
+                  </div>
+                </div>`
+              : ''
+          }
+
+          ${
+            isComplete
+              ? `<div class="verified-banner" ${this.testId('verified-banner')}>
+                  <div class="verified-icon-wrap" ${this.testId('verified-banner-icon-wrap')}>
+                    ${this.icon('check-circle', 'icon-5')}
+                  </div>
+                  <div class="verified-copy" ${this.testId('verified-banner-copy')}>
+                    <p class="verified-title" ${this.testId('verified-title')}>Account Verified</p>
+                    <p class="verified-date" ${this.testId('verified-date')}>Verified on Mar 3, 2026</p>
+                  </div>
+                </div>`
+              : ''
+          }
         </div>
 
-        <div class="section-list" ${this.testId('verification-sections')}>
-          ${SECTION_DEFS.map((section) => this.renderSection(section, false, statuses, statusMessages, true)).join('')}
+        <div class="section-list" ${this.testId(sectionListTestId)}>
+          ${SECTION_DEFS.map((section) => this.renderSection(section, isVerified, statuses, statusMessages, !isVerified)).join('')}
         </div>
       </div>
     `
@@ -3204,6 +3764,34 @@ export class BisonOperatorOnboarding extends HTMLElement {
           transform: translateY(0);
         }
 
+        .trigger-btn:disabled {
+          cursor: not-allowed;
+          background: #94a3ad;
+          box-shadow: none;
+          transform: none;
+        }
+
+        .trigger-wrap.is-disabled .trigger-btn:hover {
+          background: #94a3ad;
+          transform: none;
+        }
+
+        .trigger-tooltip {
+          position: absolute;
+          left: 50%;
+          top: calc(100% + 8px);
+          transform: translateX(-50%);
+          background: #0f2a39;
+          color: #fff;
+          border-radius: 6px;
+          padding: 0.35rem 0.5rem;
+          font-size: 0.74rem;
+          line-height: 1.2;
+          white-space: nowrap;
+          box-shadow: 0 8px 20px rgb(15 42 57 / 0.24);
+          z-index: 2;
+        }
+
         .bo-overlay {
           position: fixed;
           inset: 0;
@@ -3262,6 +3850,23 @@ export class BisonOperatorOnboarding extends HTMLElement {
           width: min(100%, 70rem);
         }
 
+        .bo-modal-measure-wrap {
+          position: fixed;
+          inset: 0;
+          padding: 1rem;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          visibility: hidden;
+          pointer-events: none;
+          z-index: -1;
+        }
+
+        .bo-modal-measure {
+          position: relative;
+          max-height: none;
+        }
+
         .bo-modal-transitioning {
           will-change: width, height;
         }
@@ -3302,6 +3907,15 @@ export class BisonOperatorOnboarding extends HTMLElement {
           color: var(--color-headline);
           font-size: 1rem;
           font-weight: 600;
+          will-change: transform, opacity;
+        }
+
+        .bo-modal-title[data-enter='forward'] {
+          animation: boTitleInForward 300ms cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+
+        .bo-modal-title[data-exit='forward'] {
+          animation: boTitleOutForward 220ms cubic-bezier(0.4, 0, 0.2, 1) both;
         }
 
         .bo-close-btn {
@@ -3342,7 +3956,7 @@ export class BisonOperatorOnboarding extends HTMLElement {
           position: relative;
         }
 
-        .bo-view[data-enter='forward'] {
+        .bo-view:not(.bo-view-setup)[data-enter='forward'] {
           animation: boViewInForward 300ms cubic-bezier(0.16, 1, 0.3, 1) both;
         }
 
@@ -3352,6 +3966,28 @@ export class BisonOperatorOnboarding extends HTMLElement {
 
         .bo-view[data-hold='true'] {
           opacity: 0;
+        }
+
+        .bo-view-setup[data-enter='forward'] .title,
+        .bo-view-setup[data-enter='forward'] .subtitle,
+        .bo-view-setup[data-enter='forward'] .demo-toggle,
+        .bo-view-setup[data-enter='forward'] .tabs-card {
+          opacity: 0;
+          will-change: opacity, transform;
+          animation: boSetupContentIn 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+
+        .bo-view-setup[data-enter='forward'] .title {
+          animation-delay: 0ms;
+        }
+
+        .bo-view-setup[data-enter='forward'] .subtitle {
+          animation-delay: 90ms;
+        }
+
+        .bo-view-setup[data-enter='forward'] .demo-toggle,
+        .bo-view-setup[data-enter='forward'] .tabs-card {
+          animation-delay: 180ms;
         }
 
         .root {
@@ -3719,14 +4355,222 @@ export class BisonOperatorOnboarding extends HTMLElement {
           gap: 1.5rem;
         }
 
+        .verification-status-card {
+          position: relative;
+          overflow: hidden;
+          padding: 1.5rem;
+          border: 1px solid var(--color-border);
+          background:
+            radial-gradient(circle at top right, rgb(74 222 128 / 0), transparent 46%),
+            linear-gradient(180deg, #ffffff 0%, #ffffff 100%);
+          transition:
+            padding 360ms cubic-bezier(0.22, 1, 0.36, 1),
+            background 360ms cubic-bezier(0.22, 1, 0.36, 1),
+            border-color 360ms cubic-bezier(0.22, 1, 0.36, 1),
+            box-shadow 360ms cubic-bezier(0.22, 1, 0.36, 1),
+            min-height 360ms cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        .verification-status-card[data-status-stage="complete"] {
+          padding: 1rem;
+          border-color: rgb(34 197 94 / 0.28);
+          background:
+            radial-gradient(circle at top right, rgb(74 222 128 / 0.18), transparent 46%),
+            linear-gradient(180deg, rgb(240 253 244 / 0.96) 0%, rgb(236 253 245 / 0.98) 100%);
+          box-shadow: 0 18px 36px rgb(34 197 94 / 0.12);
+        }
+
+        .verification-status-card[data-status-stage="loading"] {
+          border-color: rgb(76 123 99 / 0.22);
+          background:
+            radial-gradient(circle at top right, rgb(76 123 99 / 0.12), transparent 44%),
+            linear-gradient(180deg, rgb(248 251 249 / 0.98) 0%, rgb(242 248 244 / 0.98) 100%);
+          box-shadow: 0 16px 32px rgb(15 42 57 / 0.08);
+        }
+
+        .status-progress-block,
+        .status-loading-block {
+          position: relative;
+          z-index: 1;
+          transition:
+            opacity 240ms ease,
+            transform 240ms ease,
+            max-height 280ms ease,
+            margin 280ms ease;
+            max-height: 8rem;
+        }
+
+        .status-loading-block {
+          display: block;
+          max-height: 0;
+          opacity: 0;
+          transform: translateY(10px) scale(0.98);
+          overflow: hidden;
+          pointer-events: none;
+        }
+
+        .verification-status-card[data-status-stage="complete"] .status-progress-block {
+          opacity: 0;
+          transform: translateY(-10px);
+          max-height: 0;
+          margin: 0;
+          overflow: hidden;
+          pointer-events: none;
+        }
+
+        .verification-status-card[data-status-stage="loading"] .status-progress-block {
+          opacity: 0;
+          transform: translateY(-10px);
+          max-height: 0;
+          margin: 0;
+          overflow: hidden;
+          pointer-events: none;
+        }
+
+        .verification-status-card[data-status-stage="loading"] .status-loading-block {
+          max-height: 12rem;
+          opacity: 1;
+          transform: translateY(0) scale(1);
+          pointer-events: auto;
+        }
+
+        .status-loading-shell {
+          border: 1px solid rgb(76 123 99 / 0.14);
+          border-radius: 0.875rem;
+          background:
+            radial-gradient(circle at top right, rgb(76 123 99 / 0.1), transparent 42%),
+            linear-gradient(180deg, rgb(255 255 255 / 0.96) 0%, rgb(245 249 246 / 0.98) 100%);
+          padding: 1rem;
+          display: flex;
+          flex-direction: column;
+          gap: 0.875rem;
+        }
+
+        .status-loading-badge {
+          align-self: flex-start;
+          border-radius: 9999px;
+          background: rgb(76 123 99 / 0.1);
+          color: var(--color-primary);
+          font-size: 0.7rem;
+          font-weight: 700;
+          letter-spacing: 0.08em;
+          padding: 0.3rem 0.55rem;
+          text-transform: uppercase;
+        }
+
+        .status-loading-main {
+          display: flex;
+          align-items: center;
+          gap: 0.9rem;
+        }
+
+        .status-loading-icon-wrap {
+          width: 3rem;
+          height: 3rem;
+          border-radius: 9999px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background:
+            radial-gradient(circle at 30% 30%, rgb(255 255 255 / 0.92), rgb(230 240 233 / 0.9)),
+            rgb(76 123 99 / 0.08);
+          color: var(--color-primary);
+          flex-shrink: 0;
+          box-shadow:
+            inset 0 1px 0 rgb(255 255 255 / 0.75),
+            0 8px 18px rgb(76 123 99 / 0.14);
+        }
+
+        .status-loading-spinner {
+          display: block;
+          animation: spin 900ms linear infinite;
+          transform-origin: center;
+          transform-box: fill-box;
+        }
+
+        .status-loading-copy {
+          display: flex;
+          flex-direction: column;
+          gap: 0.25rem;
+        }
+
+        .status-loading-title {
+          margin: 0;
+          color: var(--color-headline);
+          font-weight: 600;
+        }
+
+        .status-loading-body {
+          margin: 0;
+          color: var(--color-secondary);
+          font-size: 0.875rem;
+        }
+
+        .status-loading-meter {
+          height: 0.4rem;
+          border-radius: 9999px;
+          overflow: hidden;
+          background: rgb(76 123 99 / 0.12);
+        }
+
+        .status-loading-meter-bar {
+          display: block;
+          width: 42%;
+          height: 100%;
+          border-radius: inherit;
+          background: linear-gradient(90deg, rgb(76 123 99 / 0.18), rgb(76 123 99 / 0.82), rgb(153 211 172 / 0.62));
+          background-size: 180% 100%;
+          animation: statusLoadingSweep 1.2s ease-in-out infinite;
+        }
+
+        .status-loading-steps {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.5rem;
+        }
+
+        .status-loading-step {
+          border-radius: 9999px;
+          background: rgb(255 255 255 / 0.9);
+          border: 1px solid rgb(76 123 99 / 0.14);
+          color: var(--color-secondary);
+          font-size: 0.75rem;
+          font-weight: 600;
+          padding: 0.35rem 0.6rem;
+          animation: statusLoadingPulse 1.4s ease-in-out infinite;
+        }
+
+        .status-loading-step:nth-child(2) {
+          animation-delay: 0.18s;
+        }
+
+        .status-loading-step:nth-child(3) {
+          animation-delay: 0.36s;
+        }
+
         .verified-banner {
           display: flex;
           align-items: center;
           gap: 1rem;
-          padding: 1rem;
-          border: 1px solid rgb(34 197 94 / 0.2);
-          border-radius: var(--radius-md);
-          background: rgb(34 197 94 / 0.05);
+          position: relative;
+          padding: 0;
+          border: 0;
+          background: transparent;
+          opacity: 0;
+          transform: translateY(16px) scale(0.98);
+          max-height: 0;
+          overflow: hidden;
+          transition:
+            max-height 320ms cubic-bezier(0.22, 1, 0.36, 1),
+            opacity 320ms cubic-bezier(0.22, 1, 0.36, 1),
+            transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+          pointer-events: none;
+        }
+
+        .verification-status-card[data-status-stage="complete"] .verified-banner {
+          max-height: 5rem;
+          opacity: 1;
+          transform: translateY(0) scale(1);
         }
 
         .verified-icon-wrap {
@@ -3739,6 +4583,18 @@ export class BisonOperatorOnboarding extends HTMLElement {
           background: rgb(34 197 94 / 0.1);
           color: var(--color-success);
           flex-shrink: 0;
+          transform: scale(0.84) rotate(-8deg);
+          transition: transform 360ms cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        .verification-status-card[data-status-stage="complete"] .verified-icon-wrap {
+          transform: scale(1) rotate(0deg);
+        }
+
+        .verified-copy {
+          display: flex;
+          flex-direction: column;
+          gap: 0.25rem;
         }
 
         .verified-title {
@@ -3751,10 +4607,6 @@ export class BisonOperatorOnboarding extends HTMLElement {
           margin: 0;
           color: var(--color-secondary);
           font-size: 0.875rem;
-        }
-
-        .progress-card {
-          padding: 1.5rem;
         }
 
         .progress-head {
@@ -3791,7 +4643,8 @@ export class BisonOperatorOnboarding extends HTMLElement {
         .progress-fill {
           height: 100%;
           border-radius: 9999px;
-          transition: width var(--duration-slow);
+          transition: width 420ms cubic-bezier(0.22, 1, 0.36, 1);
+          will-change: width;
         }
 
         .progress-warning-bg {
@@ -3989,8 +4842,15 @@ export class BisonOperatorOnboarding extends HTMLElement {
         }
 
         .accordion-grid {
-          display: grid;
-          transition: grid-template-rows var(--duration-normal);
+          height: 0;
+          overflow: hidden;
+          overflow-anchor: none;
+          will-change: height;
+          transition: height 360ms cubic-bezier(0.32, 0.72, 0, 1);
+        }
+
+        .accordion-grid[data-open='false'] {
+          pointer-events: none;
         }
 
         .accordion-inner {
@@ -4835,6 +5695,68 @@ export class BisonOperatorOnboarding extends HTMLElement {
           }
         }
 
+        @keyframes boTitleInForward {
+          from {
+            opacity: 0;
+            transform: translateX(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(0);
+          }
+        }
+
+        @keyframes boTitleOutForward {
+          from {
+            opacity: 1;
+            transform: translateX(0);
+          }
+          to {
+            opacity: 0;
+            transform: translateX(-18px);
+          }
+        }
+
+        @keyframes boSetupContentIn {
+          from {
+            opacity: 0;
+            transform: translateX(22px);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(0);
+          }
+        }
+
+        @keyframes statusLoadingSweep {
+          0% {
+            transform: translateX(-18%);
+            background-position: 100% 50%;
+          }
+          50% {
+            transform: translateX(28%);
+            background-position: 0% 50%;
+          }
+          100% {
+            transform: translateX(-18%);
+            background-position: 100% 50%;
+          }
+        }
+
+        @keyframes statusLoadingPulse {
+          0%,
+          100% {
+            transform: translateY(0);
+            border-color: rgb(76 123 99 / 0.14);
+            color: var(--color-secondary);
+          }
+          50% {
+            transform: translateY(-1px);
+            border-color: rgb(76 123 99 / 0.28);
+            color: var(--color-headline);
+          }
+        }
+
         @keyframes boBackdropIn {
           from {
             opacity: 0;
@@ -4967,13 +5889,126 @@ export class BisonOperatorOnboarding extends HTMLElement {
             flex-direction: column;
             align-items: flex-start;
           }
+
+          .status-loading-main {
+            align-items: flex-start;
+          }
+
+          .status-loading-shell {
+            padding: 0.875rem;
+          }
         }
       </style>
     `
   }
 
+  animateProgressBar(progress) {
+    const fill = this.shadowRoot.querySelector('[data-testid="progress-fill"]')
+    if (!(fill instanceof HTMLElement)) {
+      this._lastRenderedProgress = progress
+      return
+    }
+
+    const from = typeof this._lastRenderedProgress === 'number' ? this._lastRenderedProgress : progress
+    fill.style.width = `${from}%`
+    void fill.offsetWidth
+
+    if (this._progressAnimationFrame) {
+      cancelAnimationFrame(this._progressAnimationFrame)
+    }
+
+    this._progressAnimationFrame = requestAnimationFrame(() => {
+      fill.style.width = `${progress}%`
+      this._progressAnimationFrame = null
+    })
+
+    this._lastRenderedProgress = progress
+  }
+
+  clearVerificationStatusTimers() {
+    if (this._verificationLoadingTimer) {
+      clearTimeout(this._verificationLoadingTimer)
+      this._timers.delete(this._verificationLoadingTimer)
+      this._verificationLoadingTimer = null
+    }
+
+    if (!this._verificationCompletionTimer) return
+    clearTimeout(this._verificationCompletionTimer)
+    this._timers.delete(this._verificationCompletionTimer)
+    this._verificationCompletionTimer = null
+  }
+
+  syncVerificationStatusStage(progress, activeTab) {
+    if (progress < 100) {
+      this.clearVerificationStatusTimers()
+      this._verificationStatusStage = 'progress'
+      return
+    }
+
+    if (activeTab !== 'verification') {
+      this.clearVerificationStatusTimers()
+      this._verificationStatusStage = 'complete'
+      return
+    }
+
+    if (this._verificationStatusStage === 'loading' || this._verificationStatusStage === 'complete') return
+    if (this._verificationLoadingTimer || this._verificationCompletionTimer) return
+
+    const canAnimate =
+      this._verificationStatusStage !== 'complete' &&
+      typeof this._lastRenderedProgress === 'number' &&
+      this._lastRenderedProgress < 100
+
+    if (!canAnimate) {
+      this.clearVerificationStatusTimers()
+      this._verificationStatusStage = 'complete'
+      return
+    }
+
+    this._verificationStatusStage = 'progress'
+
+    const loadingTimer = setTimeout(() => {
+      this._timers.delete(loadingTimer)
+      this._verificationLoadingTimer = null
+
+      if (this.getVerificationProgress() < 100) {
+        this._verificationStatusStage = 'progress'
+        this.render()
+        return
+      }
+
+      this._verificationStatusStage = 'loading'
+      this.render()
+
+      const completionTimer = setTimeout(() => {
+        this._timers.delete(completionTimer)
+        this._verificationCompletionTimer = null
+
+        if (this.getVerificationProgress() < 100) {
+          this._verificationStatusStage = 'progress'
+          this.render()
+          return
+        }
+
+        this._verificationStatusStage = 'complete'
+        this.render()
+      }, 2000)
+
+      this._verificationCompletionTimer = completionTimer
+      this._timers.add(completionTimer)
+    }, 460)
+
+    this._verificationLoadingTimer = loadingTimer
+    this._timers.add(loadingTimer)
+  }
+
   render() {
+    const triggerDisabledReason = this._getTriggerDisabledReason()
+    const isTriggerDisabled = Boolean(triggerDisabledReason)
+
     let modalMarkup = ''
+    let renderedProgress = null
+    let shouldAnimateProgress = false
 
     if (this.isOpen) {
       const showingWelcome = this.state.ui.welcome.isOpen
@@ -4982,116 +6017,27 @@ export class BisonOperatorOnboarding extends HTMLElement {
       const modalClass = showingWelcome ? 'bo-modal bo-modal-welcome' : 'bo-modal bo-modal-setup'
       const bodyClass = showingWelcome ? 'bo-modal-body bo-modal-body-welcome' : 'bo-modal-body bo-modal-body-setup'
       const modalTitle = showingWelcome ? 'Accept Payments' : 'Operator Banking Setup'
+      let modalStyleAttr = ''
       let modalBodyContent = this.renderWelcomeModal()
 
       if (!showingWelcome) {
-        const statuses = this.getSectionStatuses()
-        const statusMessages = this.getStatusMessages()
-        const progress = this.getVerificationProgress()
-        const isComplete = progress >= 100
+        if (!this._setupModalHeight) {
+          const targetRect = this.measureSetupModalRect()
+          if (targetRect) this._setupModalHeight = targetRect.height
+        }
 
-        const desktopTabs = BANKING_TABS.map(
-          (tab) => `
-            <button
-              ${this.testId(`tab-button-${tab.id}`)}
-              type="button"
-              class="tab-btn ${this.state.activeTab === tab.id ? 'active' : ''}"
-              data-action="tab-switch"
-              data-tab="${escapeHTML(tab.id)}"
-            >
-              ${escapeHTML(tab.label)}
-            </button>
-          `
-        ).join('')
-
-        const mobileOptions = BANKING_TABS.map(
-          (tab) =>
-            `<option value="${escapeHTML(tab.id)}" ${this.state.activeTab === tab.id ? 'selected' : ''}>${escapeHTML(
-              tab.label
-            )}</option>`
-        ).join('')
-
-        const verificationView =
-          this.state.activeTab === 'verification'
-            ? this.renderVerificationTab(statuses, statusMessages, progress, isComplete)
-            : ''
-
-        const bankView = this.state.activeTab === 'bank-account' ? this.renderBankAccountTab(statuses) : ''
-
-        modalBodyContent = `
-          <div
-            class="bo-view"
-            data-bo-view="setup"
-            ${this.testId('bo-view-setup')}
-          >
-            <div class="root" ${this.testId('bison-operator-onboarding-root')}>
-              <div class="header" ${this.testId('page-header')}>
-                <div ${this.testId('page-title-wrap')}>
-                  <h1 class="title" ${this.testId('page-title')}>Banking</h1>
-                  <p class="subtitle" ${this.testId('page-subtitle')}>Account verification and payment setup</p>
-                </div>
-                <div class="demo-toggle" ${this.testId('demo-toggle')}>
-                  <button
-                    ${this.testId('demo-new-account')}
-                    type="button"
-                    class="demo-btn ${this.state.demoMode === 'new-account' ? 'active' : ''}"
-                    data-action="demo-toggle"
-                    data-mode="new-account"
-                  >
-                    New Account
-                  </button>
-                  <button
-                    ${this.testId('demo-mid-verification')}
-                    type="button"
-                    class="demo-btn ${this.state.demoMode === 'mid-verification' ? 'active' : ''}"
-                    data-action="demo-toggle"
-                    data-mode="mid-verification"
-                  >
-                    Mid-Verification
-                  </button>
-                  <button
-                    ${this.testId('demo-all-verified')}
-                    type="button"
-                    class="demo-btn ${this.state.demoMode === 'all-verified' ? 'active' : ''}"
-                    data-action="demo-toggle"
-                    data-mode="all-verified"
-                  >
-                    All Verified
-                  </button>
-                </div>
-              </div>
-
-              <div class="card tabs-card" ${this.testId('main-card')}>
-                <div class="tabs-mobile" ${this.testId('tabs-mobile')}>
-                  <select
-                    ${this.testId('tab-select-mobile')}
-                    class="tab-select"
-                    data-action="tab-select"
-                  >
-                    ${mobileOptions}
-                  </select>
-                </div>
-
-                <div class="tabs-desktop" ${this.testId('tabs-desktop')}>
-                  <nav class="tabs-desktop-nav" ${this.testId('tabs-desktop-nav')}>
-                    ${desktopTabs}
-                  </nav>
-                </div>
-
-                <div class="tab-panel" ${this.testId('tab-panel')}>
-                  ${verificationView}
-                  ${bankView}
-                </div>
-              </div>
-            </div>
-          </div>
-        `
+        modalStyleAttr = this.getSetupModalStyleAttr()
+        const { statuses, statusMessages, progress, isComplete } = this.getSetupRenderContext()
+        this.syncVerificationStatusStage(progress, this.state.activeTab)
+        renderedProgress = progress
+        shouldAnimateProgress = this.state.activeTab === 'verification' && (!isComplete || this._verificationStatusStage === 'progress')
+        modalBodyContent = this.renderSetupModalContent(statuses, statusMessages, progress, isComplete)
       }
 
       modalMarkup = `
         <dialog class="${overlayClass}" data-state="${overlayState}" ${this.testId('bo-overlay')}>
           <div class="bo-backdrop" ${this.testId('bo-backdrop')} data-action="close-modal"></div>
-          <div class="${modalClass}" ${this.testId('bo-modal')}>
+          <div class="${modalClass}" ${modalStyleAttr} ${this.testId('bo-modal')}>
             <div class="bo-modal-header" ${this.testId('bo-modal-header')}>
               <p class="bo-modal-title" ${this.testId('bo-modal-title')}>${escapeHTML(modalTitle)}</p>
               <button
@@ -5114,16 +6060,18 @@ export class BisonOperatorOnboarding extends HTMLElement {
 
     this.shadowRoot.innerHTML = `
       ${this.renderStyles()}
-      <div class="trigger-wrap" ${this.testId('onboarding-trigger-wrap')}>
+      <div class="trigger-wrap ${isTriggerDisabled ? 'is-disabled' : ''}" ${this.testId('onboarding-trigger-wrap')}>
         <button
           ${this.testId('onboarding-trigger-button')}
           class="trigger-btn"
           type="button"
           data-action="open-modal"
+          ${isTriggerDisabled ? 'disabled aria-disabled="true"' : ''}
         >
           ${this.icon('landmark', 'icon-4')}
-          <span>Open Banking Onboarding</span>
+          <span>Open Operator Onboarding</span>
         </button>
+        ${isTriggerDisabled ? `<span class="trigger-tooltip">${escapeHTML(triggerDisabledReason)}</span>` : ''}
       </div>
       ${modalMarkup}
     `
@@ -5138,6 +6086,19 @@ export class BisonOperatorOnboarding extends HTMLElement {
 
     if (this.isOpen) {
       this.wireModalOverlay()
+    }
+
+    if (this.isOpen && !this.state.ui.welcome.isOpen && this.state.activeTab === 'verification') {
+      this.syncAccordionHeights()
+    } else {
+      this.cancelAccordionHeightSync()
+    }
+
+    this._lastOpenSection = this.state.openSection
+
+    if (typeof renderedProgress === 'number') {
+      if (shouldAnimateProgress) this.animateProgressBar(renderedProgress)
+      else this._lastRenderedProgress = renderedProgress
     }
   }
 }
