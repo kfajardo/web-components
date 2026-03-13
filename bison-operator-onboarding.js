@@ -585,6 +585,7 @@ export class BisonOperatorOnboarding extends HTMLElement {
     this._isOperatorLookupPending = false
     this._operatorLookupData = null
     this._operatorLookupError = null
+    this._operatorId = null
 
     this.state = this.buildInitialState()
 
@@ -793,7 +794,43 @@ export class BisonOperatorOnboarding extends HTMLElement {
     if (api && typeof api.findOperatorFromEnverus === 'function') {
       return (opOrgId) => api.findOperatorFromEnverus(opOrgId, null)
     }
+    // Built-in fallback: call the Enverus lookup endpoint directly so the
+    // component works without importing api.js.
+    const embeddableKey = this._getResolvedEmbeddableKey()
+    if (embeddableKey) {
+      return (opOrgId) => this._fetchOperatorFromEnverusBuiltIn(opOrgId, embeddableKey)
+    }
     return null
+  }
+
+  async _fetchOperatorFromEnverusBuiltIn(opOrgId, embeddableKey) {
+    let baseUrl = (this.getAttribute('api-base-url') || '').trim()
+    if (!baseUrl && typeof window !== 'undefined' && window.BISON_JIB_PAY_CONFIG?.apiBaseURL) {
+      baseUrl = window.BISON_JIB_PAY_CONFIG.apiBaseURL
+    }
+    if (!baseUrl) {
+      baseUrl = 'https://bison-backend-development-hhgrdbhcbwhahdfk.southeastasia-01.azurewebsites.net'
+    }
+
+    const params = new URLSearchParams()
+    if (opOrgId) params.append('opOrgId', opOrgId)
+    const queryString = params.toString() ? `?${params.toString()}` : ''
+
+    const response = await fetch(`${baseUrl}/api/enverus/operators/lookup${queryString}`, {
+      method: 'GET',
+      headers: {
+        'X-Embeddable-Key': embeddableKey,
+        'Content-Type': 'application/json',
+      },
+    })
+
+    const data = await response.json()
+
+    if (!response.ok) {
+      throw { status: response.status, data }
+    }
+
+    return data
   }
 
   _evaluateOperatorAttributes() {
@@ -874,13 +911,13 @@ export class BisonOperatorOnboarding extends HTMLElement {
       changed = true
     }
 
-    applyIfEmpty('legalName', lookupData.legalName || lookupData.operatorName || lookupData.name || lookupData.companyName)
+    applyIfEmpty('legalName', lookupData.companyName || lookupData.legalName || lookupData.operatorName || lookupData.name)
     applyIfEmpty('dba', lookupData.dba || lookupData.doingBusinessAs)
-    applyIfEmpty('ein', lookupData.ein || lookupData.taxId || lookupData.taxIdentifier, formatEIN)
-    applyIfEmpty('address', lookupData.address1 || lookupData.address || lookupData.street || lookupData.mailingAddress1)
+    applyIfEmpty('ein', lookupData.taxId || lookupData.ein || lookupData.taxIdentifier, formatEIN)
+    applyIfEmpty('address', lookupData.address || lookupData.address1 || lookupData.street || lookupData.mailingAddress1)
     applyIfEmpty('city', lookupData.city || lookupData.mailingCity)
     applyIfEmpty('state', lookupData.state || lookupData.mailingState)
-    applyIfEmpty('zip', lookupData.zip || lookupData.postalCode || lookupData.mailingPostalCode, formatZip)
+    applyIfEmpty('zip', lookupData.zipCode || lookupData.zip || lookupData.postalCode || lookupData.mailingPostalCode, formatZip)
     applyIfEmpty('phone', lookupData.phone || lookupData.phoneNumber || lookupData.businessPhone, formatPhone)
     applyIfEmpty('website', lookupData.website || lookupData.webSite || lookupData.url)
 
@@ -920,6 +957,7 @@ export class BisonOperatorOnboarding extends HTMLElement {
       const data = result?.data || result || null
       this._operatorLookupData = data
       this._operatorLookupError = null
+      this._operatorId = data?.operatorId || null
       const didHydrateBusiness = this._applyLookupDataToBusiness(data)
       if (didHydrateBusiness) {
         this.persist()
