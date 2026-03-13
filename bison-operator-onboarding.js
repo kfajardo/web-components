@@ -63,40 +63,6 @@ const STATUS_CONFIG = {
   'document-requested': { label: 'Document Requested', tone: 'warning' },
 }
 
-const DEMO_STATUSES_LOOKUP = {
-  business: 'action-required',
-  officer: 'verified',
-  owners: 'verified',
-  volume: 'verified',
-  bank: 'pending-review',
-  docs: 'document-requested',
-}
-
-const DEMO_STATUS_MESSAGES = {
-  business: {
-    title: 'EIN could not be verified',
-    body: 'EIN could not be verified. Please check that your legal business name and EIN match your IRS records exactly.',
-    actionLabel: 'Edit & Resubmit',
-  },
-  bank: {
-    title: 'Bank account verification in progress',
-    body: 'Bank account verification in progress. Micro-deposits typically arrive in 1-2 business days.',
-  },
-  docs: {
-    title: 'IRS EIN Letter requested',
-    body: 'Upload a copy of your IRS EIN confirmation letter (CP 575 or 147C).',
-    actionLabel: 'Upload Document',
-  },
-}
-
-const VERIFIED_STATUSES = {
-  business: 'verified',
-  officer: 'verified',
-  owners: 'verified',
-  volume: 'verified',
-  bank: 'verified',
-  docs: 'not-required',
-}
 
 const PAYMENT_METHODS = [
   {
@@ -244,6 +210,13 @@ const INDUSTRIES = [
   { value: 'natural_gas_distribution', label: 'Natural Gas Distribution' },
   { value: 'other', label: 'Other' },
 ]
+
+const INDUSTRY_NAICS_MAP = {
+  oil_gas_extraction: '211120',
+  crude_petroleum: '211120',
+  natural_gas_distribution: '221210',
+  other: '999990',
+}
 
 const ACCOUNT_TYPES = [
   { value: 'checking', label: 'Checking' },
@@ -591,6 +564,11 @@ export class BisonOperatorOnboarding extends HTMLElement {
     this._plaidScriptPromise = null
     this._plaidLinkHandler = null
     this._linkedBankAccount = null
+    this._kybStatus = null
+    this._isStatusLoading = false
+    this._isProfileLocked = false
+    this._controlOfficerRepId = null
+    this._officerGovernmentIdProvided = false
 
     this.state = this.buildInitialState()
 
@@ -863,6 +841,70 @@ export class BisonOperatorOnboarding extends HTMLElement {
     const data = await response.json()
     if (!response.ok) throw { status: response.status, data }
     return data
+  }
+
+  async _kybGet(path) {
+    const baseUrl = this._getResolvedBaseUrl()
+    const embeddableKey = this._getResolvedEmbeddableKey()
+    const response = await fetch(`${baseUrl}/api/operators/${this._operatorId}/kyb/${path}`, {
+      method: 'GET',
+      headers: {
+        'X-Embeddable-Key': embeddableKey,
+        'Content-Type': 'application/json',
+      },
+    })
+    const data = await response.json()
+    if (!response.ok) throw { status: response.status, data }
+    return data
+  }
+
+  async _kybPost(path, body) {
+    const baseUrl = this._getResolvedBaseUrl()
+    const embeddableKey = this._getResolvedEmbeddableKey()
+    const response = await fetch(`${baseUrl}/api/operators/${this._operatorId}/kyb/${path}`, {
+      method: 'POST',
+      headers: {
+        'X-Embeddable-Key': embeddableKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    })
+    const data = await response.json()
+    if (!response.ok) throw { status: response.status, data }
+    return data
+  }
+
+  async _kybPostFormData(path, formData) {
+    const baseUrl = this._getResolvedBaseUrl()
+    const embeddableKey = this._getResolvedEmbeddableKey()
+    const response = await fetch(`${baseUrl}/api/operators/${this._operatorId}/kyb/${path}`, {
+      method: 'POST',
+      headers: {
+        'X-Embeddable-Key': embeddableKey,
+        // No Content-Type — browser sets multipart boundary automatically
+      },
+      body: formData,
+    })
+    const data = await response.json()
+    if (!response.ok) throw { status: response.status, data }
+    return data
+  }
+
+  async _fetchKybStatus() {
+    if (!this._operatorId) return
+    this._isStatusLoading = true
+    this.render()
+    try {
+      const response = await this._kybGet('status')
+      this._kybStatus = response?.data || response || null
+      this._isProfileLocked = !!(this._kybStatus?.isProfileLocked)
+    } catch (_err) {
+      this._kybStatus = null
+      this._isProfileLocked = false
+    } finally {
+      this._isStatusLoading = false
+      this.render()
+    }
   }
 
   async _generatePlaidLinkTokenBuiltIn(operatorId) {
@@ -1150,6 +1192,9 @@ export class BisonOperatorOnboarding extends HTMLElement {
       this._operatorLookupData = data
       this._operatorLookupError = null
       this._operatorId = data?.operatorId || null
+      if (this._operatorId) {
+        this._fetchKybStatus()
+      }
       const didHydrateBusiness = this._applyLookupDataToBusiness(data)
       if (didHydrateBusiness) {
         this.persist()
@@ -1213,7 +1258,6 @@ export class BisonOperatorOnboarding extends HTMLElement {
 
   buildInitialState() {
     const state = {
-      demoMode: 'new-account',
       activeTab: 'verification',
       openSection: null,
       data: {
@@ -1245,7 +1289,10 @@ export class BisonOperatorOnboarding extends HTMLElement {
         },
         docs: {
           fileName: '',
+          file: null,
           isDragging: false,
+          isUploading: false,
+          uploadError: null,
         },
         passwordVisibility: {
           officerSsn: false,
@@ -1498,35 +1545,6 @@ export class BisonOperatorOnboarding extends HTMLElement {
               <h1 class="title" ${this.testId('page-title')}>Banking</h1>
               <p class="subtitle" ${this.testId('page-subtitle')}>Account verification and payment setup</p>
             </div>
-            <div class="demo-toggle" ${this.testId('demo-toggle')}>
-              <button
-                ${this.testId('demo-new-account')}
-                type="button"
-                class="demo-btn ${this.state.demoMode === 'new-account' ? 'active' : ''}"
-                data-action="demo-toggle"
-                data-mode="new-account"
-              >
-                New Account
-              </button>
-              <button
-                ${this.testId('demo-mid-verification')}
-                type="button"
-                class="demo-btn ${this.state.demoMode === 'mid-verification' ? 'active' : ''}"
-                data-action="demo-toggle"
-                data-mode="mid-verification"
-              >
-                Mid-Verification
-              </button>
-              <button
-                ${this.testId('demo-all-verified')}
-                type="button"
-                class="demo-btn ${this.state.demoMode === 'all-verified' ? 'active' : ''}"
-                data-action="demo-toggle"
-                data-mode="all-verified"
-              >
-                All Verified
-              </button>
-            </div>
           </div>
 
           <div class="card tabs-card" ${this.testId('main-card')}>
@@ -1631,9 +1649,35 @@ export class BisonOperatorOnboarding extends HTMLElement {
   }
 
   getSectionStatusesFromState(state) {
-    if (state.demoMode === 'mid-verification') return DEMO_STATUSES_LOOKUP
-    if (state.demoMode === 'all-verified') return VERIFIED_STATUSES
-    return this.getRealStatusesFromState(state)
+    if (!this._kybStatus) return this.getRealStatusesFromState(state)
+
+    const mapStatus = (apiStatus) => {
+      if (apiStatus === 'Completed') return 'complete'
+      if (apiStatus === 'InProgress') return 'in-progress'
+      return 'not-started'
+    }
+
+    const ks = this._kybStatus
+    const capabilities = Array.isArray(ks.capabilities) ? ks.capabilities : []
+
+    const refineComplete = (baseStatus) => {
+      if (baseStatus !== 'complete') return baseStatus
+      if (capabilities.some((c) => c.status === 'enabled')) return 'verified'
+      if (capabilities.some((c) => c.status === 'pending')) return 'pending-review'
+      if (capabilities.some((c) => c.status === 'disabled' && c.disabledReason === 'requirements-not-met')) return 'action-required'
+      return 'complete'
+    }
+
+    return {
+      business: refineComplete(mapStatus(ks.businessProfileStatus)),
+      officer: refineComplete(mapStatus(ks.controlOfficerStatus)),
+      owners: refineComplete(mapStatus(ks.beneficialOwnersStatus)),
+      volume: refineComplete(mapStatus(ks.processingVolumeStatus)),
+      bank: this._linkedBankAccount || state.savedAt.bank ? 'complete' : 'not-started',
+      docs: capabilities.some((c) => c.currentlyDue?.includes('document.merchant-underwriting'))
+        ? 'document-requested'
+        : 'not-required',
+    }
   }
 
   getSectionStatuses() {
@@ -1641,7 +1685,6 @@ export class BisonOperatorOnboarding extends HTMLElement {
   }
 
   getStatusMessages() {
-    if (this.state.demoMode === 'mid-verification') return DEMO_STATUS_MESSAGES
     return {}
   }
 
@@ -1670,8 +1713,6 @@ export class BisonOperatorOnboarding extends HTMLElement {
   }
 
   maybeAutoAdvanceOpenSection(prevStatuses) {
-    if (this.state.demoMode !== 'new-account') return
-
     const statuses = this.getSectionStatuses()
     const justCompleted = SECTION_DEFS.find(
       (section) => statuses[section.key] === 'complete' && prevStatuses[section.key] !== 'complete'
@@ -1755,12 +1796,6 @@ export class BisonOperatorOnboarding extends HTMLElement {
     return meta.touched[field] || meta.submitAttempted ? meta.errors[field] || '' : ''
   }
 
-  setDemoMode(mode) {
-    this.state.demoMode = mode
-    this.state.activeTab = mode === 'all-verified' ? 'bank-account' : 'verification'
-    this.state.openSection = null
-  }
-
   startOwnerAdd() {
     this.state.ui.ownerEditor = {
       mode: 'add',
@@ -1799,7 +1834,95 @@ export class BisonOperatorOnboarding extends HTMLElement {
     }
   }
 
-  saveForm(formName, delayMs) {
+  _buildBusinessPayload() {
+    const b = this.state.data.business
+    const phoneDigits = b.phone.replace(/\D/g, '')
+    const einDigits = b.ein.replace(/\D/g, '')
+    const isUrl = /^https?:\/\//i.test(b.website.trim()) || /^www\./i.test(b.website.trim())
+    const payload = {
+      legalBusinessName: b.legalName.trim(),
+      businessType: b.businessType,
+      ein: einDigits,
+      addressLine1: b.address.trim(),
+      city: b.city.trim(),
+      state: b.state,
+      zipCode: b.zip.replace(/\D/g, ''),
+      phone: phoneDigits,
+      industryNaics: INDUSTRY_NAICS_MAP[b.industry] || '999990',
+    }
+    if (b.dba.trim()) payload.doingBusinessAs = b.dba.trim()
+    if (isUrl) payload.website = b.website.trim()
+    else if (b.website.trim()) payload.description = b.website.trim()
+    const selectedMethods = this.state.ui.welcome.selectedMethods
+    if (selectedMethods.length > 0) payload.selectedPaymentMethods = selectedMethods
+    return payload
+  }
+
+  _buildOfficerPayload() {
+    const o = this.state.data.officer
+    const parts = (o.dob || '').split('/')
+    const phoneDigits = o.phone.replace(/\D/g, '')
+    const payload = {
+      firstName: o.firstName.trim(),
+      lastName: o.lastName.trim(),
+      jobTitle: o.jobTitle.trim(),
+    }
+    if (o.email.trim()) payload.email = o.email.trim()
+    if (phoneDigits) payload.phone = phoneDigits
+    if (o.address.trim()) payload.addressLine1 = o.address.trim()
+    if (o.city.trim()) payload.city = o.city.trim()
+    if (o.state) payload.state = o.state
+    if (o.zip) payload.zipCode = o.zip.replace(/\D/g, '')
+    if (parts.length === 3) {
+      payload.birthMonth = parseInt(parts[0], 10)
+      payload.birthDay = parseInt(parts[1], 10)
+      payload.birthYear = parseInt(parts[2], 10)
+    }
+    const ssnDigits = o.ssn.replace(/\D/g, '')
+    if (ssnDigits) payload.ssn = ssnDigits
+    return payload
+  }
+
+  _buildOwnerPayload(owner) {
+    const parts = (owner.dob || '').split('/')
+    const phoneDigits = (owner.phone || '').replace(/\D/g, '')
+    const payload = {
+      firstName: owner.firstName.trim(),
+      lastName: owner.lastName.trim(),
+      ownershipPercentage: Number(owner.ownershipPercent) || 25,
+    }
+    if (owner.email.trim()) payload.email = owner.email.trim()
+    if (phoneDigits) payload.phone = phoneDigits
+    if (owner.address.trim()) payload.addressLine1 = owner.address.trim()
+    if (owner.city.trim()) payload.city = owner.city.trim()
+    if (owner.state) payload.state = owner.state
+    if (owner.zip) payload.zipCode = owner.zip.replace(/\D/g, '')
+    if (owner.jobTitle.trim()) payload.jobTitle = owner.jobTitle.trim()
+    if (parts.length === 3) {
+      payload.birthMonth = parseInt(parts[0], 10)
+      payload.birthDay = parseInt(parts[1], 10)
+      payload.birthYear = parseInt(parts[2], 10)
+    }
+    const ssnDigits = (owner.ssn || '').replace(/\D/g, '')
+    if (ssnDigits) payload.ssn = ssnDigits
+    return payload
+  }
+
+  _parseDollarsToCents(str) {
+    const cleaned = String(str).replace(/[^0-9.]/g, '')
+    return Math.round(parseFloat(cleaned || '0') * 100)
+  }
+
+  _buildVolumePayload() {
+    const v = this.state.data.volume
+    return {
+      averageMonthlyTransactionCount: parseInt(String(v.monthlyTransactionCount).replace(/\D/g, '') || '0', 10),
+      averageMonthlyDollarVolume: this._parseDollarsToCents(v.monthlyDollarVolume),
+      averageIndividualTransactionSize: this._parseDollarsToCents(v.avgTransactionSize),
+    }
+  }
+
+  saveForm(formName) {
     const meta = this.getFormMeta(formName)
     if (!meta) return
 
@@ -1813,28 +1936,43 @@ export class BisonOperatorOnboarding extends HTMLElement {
     }
 
     meta.isSaving = true
+    meta.saveError = null
     this.render()
 
-    const timer = setTimeout(() => {
-      const prevStatuses = this.getSectionStatuses()
+    this._saveFormAsync(formName, meta)
+  }
 
-      if (formName === 'business') this.state.savedAt.business = new Date().toISOString()
-      if (formName === 'officer') this.state.savedAt.officer = new Date().toISOString()
-      if (formName === 'volume') this.state.savedAt.volume = new Date().toISOString()
-      if (formName === 'bank') {
-        this.state.savedAt.bank = new Date().toISOString()
-        this.state.data.bank.connectedViaPlaid = false
+  async _saveFormAsync(formName, meta) {
+    try {
+      if (formName === 'business') {
+        const payload = this._buildBusinessPayload()
+        await this._kybPost('business-profile', payload)
+        this.state.savedAt.business = new Date().toISOString()
+      } else if (formName === 'officer') {
+        const payload = this._buildOfficerPayload()
+        await this._kybPost('control-officer', payload)
+        this.state.savedAt.officer = new Date().toISOString()
+        // Clear SSN from state after successful save
+        this.state.data.officer.ssn = ''
+        this._officerGovernmentIdProvided = true
+      } else if (formName === 'volume') {
+        const payload = this._buildVolumePayload()
+        await this._kybPost('processing-volume', payload)
+        this.state.savedAt.volume = new Date().toISOString()
       }
 
+      const prevStatuses = this.getSectionStatuses()
       meta.isSaving = false
+      meta.saveError = null
       this.persist()
       this.maybeAutoAdvanceOpenSection(prevStatuses)
       this.render()
-
-      this._timers.delete(timer)
-    }, delayMs)
-
-    this._timers.add(timer)
+      this._fetchKybStatus()
+    } catch (err) {
+      meta.isSaving = false
+      meta.saveError = err?.data?.message || err?.message || 'Save failed. Please try again.'
+      this.render()
+    }
   }
 
   saveOwner() {
@@ -1849,34 +1987,57 @@ export class BisonOperatorOnboarding extends HTMLElement {
     }
 
     meta.isSaving = true
+    meta.saveError = null
     this.render()
 
-    const timer = setTimeout(() => {
-      const prevStatuses = this.getSectionStatuses()
-      const owner = {
-        ...meta.form,
-        id: meta.form.id || makeId(),
-      }
+    this._saveOwnerAsync(meta)
+  }
 
+  async _saveOwnerAsync(meta) {
+    try {
+      // Commit owner to local state first (add or update)
+      const owner = { ...meta.form, id: meta.form.id || makeId() }
       const existingIndex = this.state.data.owners.owners.findIndex((item) => item.id === owner.id)
       if (existingIndex >= 0) {
-        this.state.data.owners.owners = this.state.data.owners.owners.map((item, index) =>
-          index === existingIndex ? owner : item
+        this.state.data.owners.owners = this.state.data.owners.owners.map((item, i) =>
+          i === existingIndex ? owner : item
         )
       } else {
         this.state.data.owners.owners = [...this.state.data.owners.owners, owner]
       }
-
       this.state.data.owners.noOwnersAbove25 = false
+
+      // POST full owners list to API
+      await this._submitOwnersToApi()
+
+      // Clear SSNs from local owner state after successful save
+      this.state.data.owners.owners = this.state.data.owners.owners.map((o) => ({ ...o, ssn: '' }))
+
+      const prevStatuses = this.getSectionStatuses()
+      meta.isSaving = false
+      meta.saveError = null
       this.stopOwnerEdit()
       this.persist()
       this.maybeAutoAdvanceOpenSection(prevStatuses)
       this.render()
+      this._fetchKybStatus()
+    } catch (err) {
+      // Roll back the owner we just added on failure
+      if (!meta.form.id) {
+        this.state.data.owners.owners = this.state.data.owners.owners.filter(
+          (o) => o.id !== meta.form.id
+        )
+      }
+      meta.isSaving = false
+      meta.saveError = err?.data?.message || err?.message || 'Save failed. Please try again.'
+      this.render()
+    }
+  }
 
-      this._timers.delete(timer)
-    }, 300)
-
-    this._timers.add(timer)
+  async _submitOwnersToApi() {
+    const { owners, noOwnersAbove25 } = this.state.data.owners
+    const body = noOwnersAbove25 ? [] : owners.map((o) => this._buildOwnerPayload(o))
+    await this._kybPost(`beneficial-owners?noOwnersAbove25=${noOwnersAbove25}`, body)
   }
 
   onClick(event) {
@@ -1932,14 +2093,6 @@ export class BisonOperatorOnboarding extends HTMLElement {
       return
     }
 
-    if (action === 'demo-toggle') {
-      const mode = target.getAttribute('data-mode')
-      if (!mode) return
-      this.setDemoMode(mode)
-      this.render()
-      return
-    }
-
     if (action === 'tab-switch') {
       const tab = target.getAttribute('data-tab')
       if (!tab) return
@@ -1968,7 +2121,7 @@ export class BisonOperatorOnboarding extends HTMLElement {
     if (action === 'save-form') {
       const form = target.getAttribute('data-form')
       if (!form) return
-      this.saveForm(form, 400)
+      this.saveForm(form)
       return
     }
 
@@ -1997,6 +2150,11 @@ export class BisonOperatorOnboarding extends HTMLElement {
       }
       this.persist()
       this.render()
+      if (this._operatorId) {
+        this._submitOwnersToApi()
+          .then(() => this._fetchKybStatus())
+          .catch(() => {})
+      }
       return
     }
 
@@ -2033,8 +2191,42 @@ export class BisonOperatorOnboarding extends HTMLElement {
 
     if (action === 'docs-clear-file') {
       this.state.ui.docs.fileName = ''
+      this.state.ui.docs.file = null
+      this.state.ui.docs.uploadError = null
       this.render()
       return
+    }
+
+    if (action === 'docs-upload') {
+      this._uploadDocument()
+      return
+    }
+  }
+
+  async _uploadDocument() {
+    const docs = this.state.ui.docs
+    if (!docs.file || !this._operatorId) return
+
+    docs.isUploading = true
+    docs.uploadError = null
+    this.render()
+
+    try {
+      const formData = new FormData()
+      formData.append('file', docs.file)
+      formData.append('purpose', 'merchant_underwriting')
+      await this._kybPostFormData('documents', formData)
+
+      docs.fileName = ''
+      docs.file = null
+      docs.isUploading = false
+      docs.uploadError = null
+      this.render()
+      this._fetchKybStatus()
+    } catch (err) {
+      docs.isUploading = false
+      docs.uploadError = err?.data?.message || err?.message || 'Upload failed. Please try again.'
+      this.render()
     }
   }
 
@@ -2075,11 +2267,20 @@ export class BisonOperatorOnboarding extends HTMLElement {
     }
 
     if (action === 'no-owners-checkbox') {
-      const prevStatuses = this.getSectionStatuses()
       this.state.data.owners.noOwnersAbove25 = target.checked
-      this.persist()
-      this.maybeAutoAdvanceOpenSection(prevStatuses)
       this.render()
+      if (this._operatorId) {
+        this._submitOwnersToApi()
+          .then(() => {
+            const prevStatuses = this.getSectionStatuses()
+            this.persist()
+            this.maybeAutoAdvanceOpenSection(prevStatuses)
+            this._fetchKybStatus()
+          })
+          .catch(() => {
+            this.render()
+          })
+      }
       return
     }
 
@@ -2087,6 +2288,7 @@ export class BisonOperatorOnboarding extends HTMLElement {
       const file = target.files && target.files[0]
       if (file) {
         this.state.ui.docs.fileName = file.name
+        this.state.ui.docs.file = file
         this.render()
       }
       return
@@ -2147,6 +2349,7 @@ export class BisonOperatorOnboarding extends HTMLElement {
     const file = event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files[0]
     if (file) {
       this.state.ui.docs.fileName = file.name
+      this.state.ui.docs.file = file
     }
     this.render()
   }
@@ -2666,6 +2869,7 @@ export class BisonOperatorOnboarding extends HTMLElement {
           readOnly
             ? ''
             : `<div class="save-row" ${this.testId('business-save-row')}>
+                ${this.state.ui.business.saveError ? `<p class="form-error" ${this.testId('business-save-error')}>${escapeHTML(this.state.ui.business.saveError)}</p>` : ''}
                 ${this.renderSaveButton({
                   form: 'business',
                   label: 'Save Business Profile',
@@ -2888,6 +3092,7 @@ export class BisonOperatorOnboarding extends HTMLElement {
           readOnly
             ? ''
             : `<div class="save-row" ${this.testId('officer-save-row')}>
+                ${this.state.ui.officer.saveError ? `<p class="form-error" ${this.testId('officer-save-error')}>${escapeHTML(this.state.ui.officer.saveError)}</p>` : ''}
                 ${this.renderSaveButton({
                   form: 'officer',
                   label: 'Save Representative Info',
@@ -3108,6 +3313,7 @@ export class BisonOperatorOnboarding extends HTMLElement {
           })}
         </div>
 
+        ${meta.saveError ? `<p class="form-error" ${this.testId('owner-save-error')}>${escapeHTML(meta.saveError)}</p>` : ''}
         <div class="inline-actions" ${this.testId('owner-inline-actions')}>
           <button
             ${this.testId('owner-cancel-button')}
@@ -3306,6 +3512,7 @@ export class BisonOperatorOnboarding extends HTMLElement {
           readOnly
             ? ''
             : `<div class="save-row" ${this.testId('volume-save-row')}>
+                ${this.state.ui.volume.saveError ? `<p class="form-error" ${this.testId('volume-save-error')}>${escapeHTML(this.state.ui.volume.saveError)}</p>` : ''}
                 ${this.renderSaveButton({
                   form: 'volume',
                   label: 'Save Volume Estimates',
@@ -3439,19 +3646,21 @@ export class BisonOperatorOnboarding extends HTMLElement {
 
   renderDocumentsSection(readOnly, statuses, statusMessages) {
     const docsStatus = statuses.docs
-    const docsMessage = statusMessages.docs
 
-    if (!readOnly && docsStatus === 'document-requested' && docsMessage) {
+    if (!readOnly && docsStatus === 'document-requested') {
       const fileName = this.state.ui.docs.fileName
       const isDragging = this.state.ui.docs.isDragging
+      const isUploading = this.state.ui.docs.isUploading
+      const uploadError = this.state.ui.docs.uploadError
       return `
         <div class="form-stack" ${this.testId('documents-upload-ui')}>
           <div class="info-box info-box-warning" ${this.testId('documents-need-box')}>
-            <p class="docs-title" ${this.testId('documents-title')}>IRS EIN Letter</p>
+            <p class="docs-title" ${this.testId('documents-title')}>Document Requested</p>
             <p class="docs-text" ${this.testId('documents-text')}>
-              Requested by Business Profile verification — ${escapeHTML(docsMessage.body)}
+              Additional documentation is required to complete verification. Please upload the requested document below.
             </p>
           </div>
+          ${uploadError ? `<p class="form-error" ${this.testId('documents-upload-error')}>${escapeHTML(uploadError)}</p>` : ''}
 
           ${
             fileName
@@ -3491,9 +3700,15 @@ export class BisonOperatorOnboarding extends HTMLElement {
 
           ${
             fileName
-              ? `<button class="btn btn-primary full-width" type="button" ${this.testId('documents-upload-button')}>
-                  ${this.icon('upload', 'icon-4')}
-                  <span>Upload Document</span>
+              ? `<button
+                  class="btn btn-primary full-width"
+                  type="button"
+                  data-action="docs-upload"
+                  ${isUploading ? 'disabled' : ''}
+                  ${this.testId('documents-upload-button')}
+                >
+                  ${isUploading ? this.icon('loader', 'icon-4 spin') : this.icon('upload', 'icon-4')}
+                  <span>${isUploading ? 'Uploading...' : 'Upload Document'}</span>
                 </button>`
               : ''
           }
@@ -3748,8 +3963,10 @@ export class BisonOperatorOnboarding extends HTMLElement {
           }
         </div>
 
+        ${this._isStatusLoading ? `<div class="kyb-status-loading">${this.icon('loader', 'icon-4 spin')} Loading verification status...</div>` : ''}
+
         <div class="section-list" ${this.testId(sectionListTestId)}>
-          ${SECTION_DEFS.map((section) => this.renderSection(section, isVerified, statuses, statusMessages, !isVerified)).join('')}
+          ${SECTION_DEFS.map((section) => this.renderSection(section, isVerified || this._isProfileLocked, statuses, statusMessages, isVerified || this._isStatusLoading)).join('')}
         </div>
       </div>
     `
@@ -3757,9 +3974,9 @@ export class BisonOperatorOnboarding extends HTMLElement {
 
   renderBankAccountTab(statuses) {
     const bankStatus = statuses.bank || 'not-started'
-    const hasBankConnected = !!(this._linkedBankAccount || (bankStatus !== 'not-started' && this.state.demoMode !== 'new-account'))
+    const hasBankConnected = !!this._linkedBankAccount
     const linked = this._linkedBankAccount
-    const paymentStatuses = PAYMENT_METHOD_STATUSES[this.state.demoMode]
+    const paymentStatuses = PAYMENT_METHOD_STATUSES['new-account']
     const paymentRows = PAYMENT_METHODS.map((method) => {
       const status = paymentStatuses[method.id]
       const badge = METHOD_STATUS_CONFIG[status]
@@ -3820,11 +4037,7 @@ export class BisonOperatorOnboarding extends HTMLElement {
             ${paymentRows}
           </div>
           <p class="help-text" ${this.testId('payment-methods-help')}>
-            ${
-              this.state.demoMode === 'new-account'
-                ? 'Payment method availability is determined during verification.'
-                : 'Payment method availability is determined by your account verification and business type.'
-            }
+            Payment method availability is determined during verification.
           </p>
         </div>
       </div>
@@ -4227,7 +4440,6 @@ export class BisonOperatorOnboarding extends HTMLElement {
 
         .bo-view-setup[data-enter='forward'] .title,
         .bo-view-setup[data-enter='forward'] .subtitle,
-        .bo-view-setup[data-enter='forward'] .demo-toggle,
         .bo-view-setup[data-enter='forward'] .tabs-card {
           opacity: 0;
           will-change: opacity, transform;
@@ -4242,7 +4454,6 @@ export class BisonOperatorOnboarding extends HTMLElement {
           animation-delay: 90ms;
         }
 
-        .bo-view-setup[data-enter='forward'] .demo-toggle,
         .bo-view-setup[data-enter='forward'] .tabs-card {
           animation-delay: 180ms;
         }
@@ -4501,37 +4712,13 @@ export class BisonOperatorOnboarding extends HTMLElement {
           color: var(--color-secondary);
         }
 
-        .demo-toggle {
+        .kyb-status-loading {
           display: flex;
           align-items: center;
-          background: var(--color-sidebar);
-          border: 1px solid var(--color-border);
-          border-radius: var(--radius-md);
-          padding: 0.25rem;
-          flex-shrink: 0;
-          gap: 0.125rem;
-        }
-
-        .demo-btn {
-          border: 0;
-          background: transparent;
+          gap: 0.5rem;
+          padding: 0.75rem 1rem;
           color: var(--color-secondary);
-          border-radius: 6px;
-          padding: 0.375rem 0.75rem;
-          font-size: 0.75rem;
-          font-weight: 500;
-          transition: color var(--duration-normal), background-color var(--duration-normal), box-shadow var(--duration-normal);
-          cursor: pointer;
-        }
-
-        .demo-btn:hover {
-          color: var(--color-headline);
-        }
-
-        .demo-btn.active {
-          background: #fff;
-          color: var(--color-headline);
-          box-shadow: var(--shadow-sm);
+          font-size: 0.875rem;
         }
 
         .card {
@@ -6122,15 +6309,6 @@ export class BisonOperatorOnboarding extends HTMLElement {
 
           .header {
             flex-direction: column;
-          }
-
-          .demo-toggle {
-            width: 100%;
-            overflow: auto;
-          }
-
-          .demo-btn {
-            white-space: nowrap;
           }
 
           .tab-panel {
