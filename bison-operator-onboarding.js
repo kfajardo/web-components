@@ -586,6 +586,11 @@ export class BisonOperatorOnboarding extends HTMLElement {
     this._operatorLookupData = null
     this._operatorLookupError = null
     this._operatorId = null
+    this._isPlaidLinkInProgress = false
+    this._plaidLinkToken = null
+    this._plaidScriptPromise = null
+    this._plaidLinkHandler = null
+    this._linkedBankAccount = null
 
     this.state = this.buildInitialState()
 
@@ -831,6 +836,193 @@ export class BisonOperatorOnboarding extends HTMLElement {
     }
 
     return data
+  }
+
+  _getResolvedBaseUrl() {
+    let baseUrl = (this.getAttribute('api-base-url') || '').trim()
+    if (!baseUrl && typeof window !== 'undefined' && window.BISON_JIB_PAY_CONFIG?.apiBaseURL) {
+      baseUrl = window.BISON_JIB_PAY_CONFIG.apiBaseURL
+    }
+    if (!baseUrl) {
+      baseUrl = 'https://bison-backend-development-hhgrdbhcbwhahdfk.southeastasia-01.azurewebsites.net'
+    }
+    return baseUrl
+  }
+
+  async _plaidApiRequest(path, body) {
+    const baseUrl = this._getResolvedBaseUrl()
+    const embeddableKey = this._getResolvedEmbeddableKey()
+    const response = await fetch(`${baseUrl}${path}`, {
+      method: 'POST',
+      headers: {
+        'X-Embeddable-Key': embeddableKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    })
+    const data = await response.json()
+    if (!response.ok) throw { status: response.status, data }
+    return data
+  }
+
+  async _generatePlaidLinkTokenBuiltIn(operatorId) {
+    const params = new URLSearchParams({ entityId: operatorId })
+    return this._plaidApiRequest(`/api/plaid/embeddable/create-token?${params.toString()}`, {
+      clientName: 'BisonJibPay',
+      language: 'en',
+      products: ['auth'],
+      countryCodes: ['US'],
+      user: { clientUserId: operatorId },
+    })
+  }
+
+  async _registerPlaidBankAccountBuiltIn(publicToken, accountId, accountType, companyName) {
+    const payload = {
+      publicToken,
+      accountId,
+      entityType: 1,
+      entityId: this._operatorId,
+      accountType,
+      description: 'Linked via Plaid Link',
+    }
+    if (companyName) payload.accountHolderName = companyName
+    return this._plaidApiRequest('/api/plaid/embeddable/register-bank-account', payload)
+  }
+
+  async _ensurePlaidLinkLoaded() {
+    if (typeof window !== 'undefined' && window.Plaid && typeof window.Plaid.create === 'function') {
+      return
+    }
+    if (!this._plaidScriptPromise) {
+      this._plaidScriptPromise = new Promise((resolve, reject) => {
+        const scriptSrc = 'https://cdn.plaid.com/link/v2/stable/link-initialize.js'
+        const existingScript = document.querySelector(`script[src="${scriptSrc}"]`)
+        const handleLoad = () => {
+          if (window.Plaid && typeof window.Plaid.create === 'function') {
+            resolve()
+          } else {
+            reject(new Error('Plaid Link script loaded but window.Plaid is not available.'))
+          }
+        }
+        const handleError = () => reject(new Error('Failed to load Plaid Link script.'))
+        const timeout = setTimeout(() => reject(new Error('Timed out while loading Plaid Link script.')), 10000)
+        const cleanup = () => clearTimeout(timeout)
+        if (existingScript) {
+          existingScript.addEventListener('load', () => { cleanup(); handleLoad() }, { once: true })
+          existingScript.addEventListener('error', () => { cleanup(); handleError() }, { once: true })
+          if (window.Plaid && typeof window.Plaid.create === 'function') {
+            cleanup(); resolve(); return
+          }
+        } else {
+          const script = document.createElement('script')
+          script.src = scriptSrc
+          script.onload = () => { cleanup(); handleLoad() }
+          script.onerror = () => { cleanup(); handleError() }
+          document.head.appendChild(script)
+        }
+      })
+    }
+    try {
+      await this._plaidScriptPromise
+    } catch (error) {
+      this._plaidScriptPromise = null
+      throw error
+    }
+    if (!window.Plaid || typeof window.Plaid.create !== 'function') {
+      throw new Error('Plaid Link is not available after script load.')
+    }
+  }
+
+  async _handlePlaidLinkClick() {
+    if (this._isPlaidLinkInProgress) return
+    if (!this._operatorId) {
+      alert('Operator account not found. Please complete the operator lookup first.')
+      return
+    }
+
+    this._isPlaidLinkInProgress = true
+    this.render()
+
+    try {
+      const tokenResponse = await this._generatePlaidLinkTokenBuiltIn(this._operatorId)
+      const tokenData = tokenResponse?.data || tokenResponse || {}
+      this._plaidLinkToken = tokenData.linkToken || tokenData.link_token || null
+
+      if (!this._plaidLinkToken) throw new Error('Failed to create Plaid Link token.')
+
+      await this._ensurePlaidLinkLoaded()
+
+      const linkResult = await new Promise((resolve, reject) => {
+        let settled = false
+        let successStarted = false
+        const resolveOnce = (val) => { if (settled) return; settled = true; resolve(val) }
+        const rejectOnce = (err) => { if (settled) return; settled = true; reject(err) }
+
+        try {
+          this._plaidLinkHandler = window.Plaid.create({
+            token: this._plaidLinkToken,
+            onSuccess: async (publicToken, metadata) => {
+              successStarted = true
+              try {
+                const plaidAccountId = metadata?.accounts?.[0]?.id
+                if (!plaidAccountId) throw new Error('Plaid did not return an accountId.')
+
+                const metadataAccount = metadata?.accounts?.[0] || {}
+                const subtype = (metadataAccount.subtype || '').toLowerCase()
+                const accountType = subtype.includes('savings') ? 'Savings' : 'Checking'
+                const companyName = (this._operatorLookupData?.companyName || this.state.data.business.legalName || '').trim()
+
+                const registerResponse = await this._registerPlaidBankAccountBuiltIn(
+                  publicToken,
+                  plaidAccountId,
+                  accountType,
+                  companyName
+                )
+                resolveOnce({ registerResponse, metadata, metadataAccount })
+              } catch (err) {
+                rejectOnce(err)
+              }
+            },
+            onExit: (error) => {
+              if (successStarted) return
+              if (error) { rejectOnce(error); return }
+              resolveOnce(null)
+            },
+          })
+          this._plaidLinkHandler.open()
+        } catch (err) {
+          rejectOnce(err)
+        }
+      })
+
+      // User exited without completing
+      if (!linkResult) return
+
+      const { metadata, metadataAccount } = linkResult
+      const account = metadata?.accounts?.[0] || {}
+      const institution = metadata?.institution || {}
+
+      this._linkedBankAccount = {
+        institutionName: institution.name || 'Bank Account',
+        accountName: account.name || metadataAccount.name || 'Account',
+        mask: account.mask || metadataAccount.mask || '',
+        subtype: account.subtype || metadataAccount.subtype || 'checking',
+        connectedAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      }
+
+      // Keep manual bank form in sync so savedAt-based status also works
+      this.state.savedAt.bank = new Date().toISOString()
+      this.state.data.bank.connectedViaPlaid = true
+      this.persist()
+
+      if (typeof this.onBankLinked === 'function') this.onBankLinked(this._linkedBankAccount)
+    } catch (err) {
+      const message = err?.data?.message || err?.message || 'Unable to link bank account.'
+      alert(message)
+    } finally {
+      this._isPlaidLinkInProgress = false
+      this.render()
+    }
   }
 
   _evaluateOperatorAttributes() {
@@ -1433,7 +1625,7 @@ export class BisonOperatorOnboarding extends HTMLElement {
       officer: state.savedAt.officer ? 'complete' : 'not-started',
       owners: state.data.owners.noOwnersAbove25 || state.data.owners.owners.length > 0 ? 'complete' : 'not-started',
       volume: state.savedAt.volume ? 'complete' : 'not-started',
-      bank: state.savedAt.bank ? 'complete' : 'not-started',
+      bank: this._linkedBankAccount || state.savedAt.bank ? 'complete' : 'not-started',
       docs: 'not-required',
     }
   }
@@ -1825,6 +2017,11 @@ export class BisonOperatorOnboarding extends HTMLElement {
       const current = this.state.ui.passwordVisibility[field]
       this.state.ui.passwordVisibility[field] = !current
       this.render()
+      return
+    }
+
+    if (action === 'connect-via-plaid') {
+      this._handlePlaidLinkClick()
       return
     }
 
@@ -3124,6 +3321,25 @@ export class BisonOperatorOnboarding extends HTMLElement {
     const form = this.state.data.bank
     const meta = this.state.ui.bank
     const error = (field) => this.getVisibleError(meta, field)
+    const linked = this._linkedBankAccount
+
+    if (linked) {
+      return `
+        <div class="form-stack bank-form-stack" ${this.testId('bank-form')}>
+          <div class="connected-card" ${this.testId('bank-connected-card-verification')}>
+            <div class="connected-main" ${this.testId('bank-connected-main-verification')}>
+              <div class="connected-icon" ${this.testId('bank-connected-icon-verification')}>${this.icon('landmark', 'icon-5')}</div>
+              <div class="connected-copy" ${this.testId('bank-connected-copy-verification')}>
+                <p class="connected-title" ${this.testId('bank-connected-title-verification')}>${escapeHTML(linked.institutionName)}</p>
+                <p class="connected-meta" ${this.testId('bank-connected-meta-verification')}>${escapeHTML(linked.accountName)}${linked.mask ? ` ••••${escapeHTML(linked.mask)}` : ''} · Connected via Plaid</p>
+                <p class="connected-date" ${this.testId('bank-connected-date-verification')}>Connected ${escapeHTML(linked.connectedAt)}</p>
+              </div>
+            </div>
+            ${readOnly ? '' : `<button class="btn btn-ghost btn-sm" type="button" data-action="connect-via-plaid" ${this.testId('bank-change-button-verification')}>Change</button>`}
+          </div>
+        </div>
+      `
+    }
 
     return `
       <div class="form-stack bank-form-stack" ${this.testId('bank-form')}>
@@ -3134,10 +3350,12 @@ export class BisonOperatorOnboarding extends HTMLElement {
                 ${this.testId('plaid-connect-button')}
                 type="button"
                 class="plaid-connect-btn"
+                data-action="connect-via-plaid"
+                ${this._isPlaidLinkInProgress ? 'disabled' : ''}
               >
-                <div class="plaid-icon-wrap" ${this.testId('plaid-icon-wrap')}>${this.icon('landmark', 'icon-6')}</div>
+                <div class="plaid-icon-wrap" ${this.testId('plaid-icon-wrap')}>${this._isPlaidLinkInProgress ? this.icon('loader', 'icon-6 spin') : this.icon('landmark', 'icon-6')}</div>
                 <div class="plaid-copy" ${this.testId('plaid-copy')}>
-                  <p class="plaid-title" ${this.testId('plaid-title')}>Connect bank via Plaid</p>
+                  <p class="plaid-title" ${this.testId('plaid-title')}>${this._isPlaidLinkInProgress ? 'Connecting...' : 'Connect bank via Plaid'}</p>
                   <p class="plaid-desc" ${this.testId('plaid-desc')}>Secure, instant verification</p>
                 </div>
               </button>
@@ -3539,7 +3757,8 @@ export class BisonOperatorOnboarding extends HTMLElement {
 
   renderBankAccountTab(statuses) {
     const bankStatus = statuses.bank || 'not-started'
-    const hasBankConnected = bankStatus !== 'not-started'
+    const hasBankConnected = !!(this._linkedBankAccount || (bankStatus !== 'not-started' && this.state.demoMode !== 'new-account'))
+    const linked = this._linkedBankAccount
     const paymentStatuses = PAYMENT_METHOD_STATUSES[this.state.demoMode]
     const paymentRows = PAYMENT_METHODS.map((method) => {
       const status = paymentStatuses[method.id]
@@ -3574,12 +3793,12 @@ export class BisonOperatorOnboarding extends HTMLElement {
                 <div class="connected-main" ${this.testId('bank-connected-main')}>
                   <div class="connected-icon" ${this.testId('bank-connected-icon')}>${this.icon('landmark', 'icon-5')}</div>
                   <div class="connected-copy" ${this.testId('bank-connected-copy')}>
-                    <p class="connected-title" ${this.testId('bank-connected-title')}>Chase Business Checking</p>
-                    <p class="connected-meta" ${this.testId('bank-connected-meta')}>••••4892 · Connected via Plaid</p>
-                    <p class="connected-date" ${this.testId('bank-connected-date')}>Connected Nov 15, 2025</p>
+                    <p class="connected-title" ${this.testId('bank-connected-title')}>${linked ? escapeHTML(linked.institutionName) : 'Bank Account'}</p>
+                    <p class="connected-meta" ${this.testId('bank-connected-meta')}>${linked ? `${escapeHTML(linked.accountName)}${linked.mask ? ` ••••${escapeHTML(linked.mask)}` : ''} · Connected via Plaid` : 'Connected via Plaid'}</p>
+                    <p class="connected-date" ${this.testId('bank-connected-date')}>${linked ? `Connected ${escapeHTML(linked.connectedAt)}` : ''}</p>
                   </div>
                 </div>
-                <button class="btn btn-ghost btn-sm" type="button" ${this.testId('bank-change-button')}>Change</button>
+                <button class="btn btn-ghost btn-sm" type="button" data-action="connect-via-plaid" ${this._isPlaidLinkInProgress ? 'disabled' : ''} ${this.testId('bank-change-button')}>${this._isPlaidLinkInProgress ? 'Connecting...' : 'Change'}</button>
               </div>
               <p class="help-text" ${this.testId('bank-connected-help')}>
                 Deposits from your working interest owners are sent to this account.
@@ -3590,8 +3809,8 @@ export class BisonOperatorOnboarding extends HTMLElement {
                 <p class="bank-empty-copy" ${this.testId('bank-empty-copy')}>
                   Connect a bank account to receive payments from your WIOs
                 </p>
-                <button class="btn btn-primary btn-sm" type="button" ${this.testId('bank-connect-plaid')}>Connect via Plaid</button>
-                <button class="text-link" type="button" ${this.testId('bank-enter-manually')}>Enter manually</button>
+                <button class="btn btn-primary btn-sm" type="button" data-action="connect-via-plaid" ${this._isPlaidLinkInProgress ? 'disabled' : ''} ${this.testId('bank-connect-plaid')}>${this._isPlaidLinkInProgress ? `${this.icon('loader', 'icon-4 spin')}<span>Connecting...</span>` : 'Connect via Plaid'}</button>
+                <button class="text-link" type="button" data-action="toggle-section" data-section="bank" ${this.testId('bank-enter-manually')}>Enter manually</button>
               </div>`
         }
 
