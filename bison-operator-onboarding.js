@@ -47,7 +47,7 @@ const SECTION_DEFS = [
     title: 'Documents',
     description: 'Additional documents if auto-verification needs help',
     icon: 'file-text',
-    required: false,
+    required: true,
   },
 ]
 
@@ -58,7 +58,7 @@ const STATUS_CONFIG = {
   'not-required': { label: 'Not Required Yet', tone: 'secondary' },
   submitted: { label: 'Submitted', tone: 'blue' },
   'pending-review': { label: 'Pending Review', tone: 'blue' },
-  verified: { label: 'Verified', tone: 'success', icon: 'check-circle' },
+  verified: { label: 'Completed', tone: 'success' },
   'action-required': { label: 'Action Required', tone: 'error', icon: 'alert-circle' },
   'document-requested': { label: 'Document Requested', tone: 'warning' },
 }
@@ -565,10 +565,12 @@ export class BisonOperatorOnboarding extends HTMLElement {
     this._plaidLinkHandler = null
     this._linkedBankAccount = null
     this._kybStatus = null
+    this._kybStatusPromise = null
     this._isStatusLoading = false
     this._isProfileLocked = false
     this._controlOfficerRepId = null
     this._officerGovernmentIdProvided = false
+    this._prefetchedDocs = null
 
     this.state = this.buildInitialState()
 
@@ -890,20 +892,214 @@ export class BisonOperatorOnboarding extends HTMLElement {
     return data
   }
 
-  async _fetchKybStatus() {
+  async _putOperatorPaymentMethods(methods) {
+    const baseUrl = this._getResolvedBaseUrl()
+    const embeddableKey = this._getResolvedEmbeddableKey()
+    const response = await fetch(`${baseUrl}/api/operators/${this._operatorId}`, {
+      method: 'PUT',
+      headers: {
+        'X-Embeddable-Key': embeddableKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ selectedPaymentMethods: methods }),
+    })
+    const data = await response.json()
+    if (!response.ok) throw { status: response.status, data }
+    return data
+  }
+
+  _fetchKybStatus() {
     if (!this._operatorId) return
+    this._kybStatusPromise = this._doFetchKybStatus()
+    return this._kybStatusPromise
+  }
+
+  async _doFetchKybStatus() {
     this._isStatusLoading = true
     this.render()
     try {
       const response = await this._kybGet('status')
       this._kybStatus = response?.data || response || null
       this._isProfileLocked = !!(this._kybStatus?.isProfileLocked)
+
+      if (this._kybStatus) {
+        this._prefillDocsFromStatus(this._kybStatus)
+        this._triggerSectionPrefills(this._kybStatus)
+
+        // If selectedPaymentMethods was already saved, never show the welcome screen again
+        const saved = this._kybStatus.selectedPaymentMethods
+        if (Array.isArray(saved) && saved.length > 0) {
+          this.state.ui.welcome.isOpen = false
+        }
+      }
     } catch (_err) {
       this._kybStatus = null
       this._isProfileLocked = false
     } finally {
       this._isStatusLoading = false
       this.render()
+    }
+  }
+
+  _prefillDocsFromStatus(kybStatus) {
+    const docs = Array.isArray(kybStatus?.documents) ? kybStatus.documents : []
+    this._prefetchedDocs = docs.length > 0 ? docs[0] : null
+  }
+
+  _triggerSectionPrefills(kybStatus) {
+    const ks = kybStatus
+    if (ks.businessProfileStatus === 'Completed') this._prefillBusinessFromApi()
+    if (ks.controlOfficerStatus === 'Completed') this._prefillOfficerFromApi()
+    if (ks.beneficialOwnersStatus === 'Completed') this._prefillOwnersFromApi()
+    if (ks.processingVolumeStatus === 'Completed') this._prefillVolumeFromApi()
+  }
+
+  async _prefillBusinessFromApi() {
+    if (!this._operatorId) return
+    try {
+      const response = await this._kybGet('business-profile')
+      const data = response?.data || response || {}
+      const b = this.state.data.business
+
+      const set = (field, value) => {
+        if (value == null || value === '') return
+        b[field] = String(value)
+      }
+
+      set('legalName', data.legalBusinessName || data.legalName)
+      set('dba', data.doingBusinessAs || data.dba)
+      set('businessType', data.businessType)
+      set('address', data.addressLine1 || data.address)
+      set('city', data.city)
+      set('state', data.state)
+      set('zip', formatZip(String(data.zipCode || data.zip || '')))
+      set('phone', formatPhone(String(data.phone || '')))
+      set('website', data.website || data.description)
+
+      if (data.ein) set('ein', formatEIN(String(data.ein)))
+
+      // Map NAICS code back to industry key
+      if (data.industryNaics) {
+        const industryEntry = Object.entries(INDUSTRY_NAICS_MAP).find(([, naics]) => naics === String(data.industryNaics))
+        if (industryEntry) b.industry = industryEntry[0]
+      }
+
+      this.state.savedAt.business = this.state.savedAt.business || new Date().toISOString()
+      this.render()
+    } catch (_err) {
+      // Prefill is best-effort; ignore failures
+    }
+  }
+
+  async _prefillOfficerFromApi() {
+    if (!this._operatorId) return
+    try {
+      const response = await this._kybGet('control-officer')
+      const data = response?.data || response || {}
+      const o = this.state.data.officer
+
+      const set = (field, value) => {
+        if (value == null || value === '') return
+        o[field] = String(value)
+      }
+
+      set('firstName', data.firstName)
+      set('lastName', data.lastName)
+      set('email', data.email)
+      set('phone', formatPhone(String(data.phone || '')))
+      set('address', data.addressLine1 || data.address)
+      set('city', data.city)
+      set('state', data.state)
+      set('zip', formatZip(String(data.zipCode || data.zip || '')))
+      set('jobTitle', data.jobTitle)
+
+      if (data.birthMonth && data.birthDay && data.birthYear) {
+        const mm = String(data.birthMonth).padStart(2, '0')
+        const dd = String(data.birthDay).padStart(2, '0')
+        o.dob = `${mm}/${dd}/${data.birthYear}`
+      }
+
+      this.state.savedAt.officer = this.state.savedAt.officer || new Date().toISOString()
+      this._officerGovernmentIdProvided = true
+      this.render()
+    } catch (_err) {
+      // Prefill is best-effort; ignore failures
+    }
+  }
+
+  async _prefillOwnersFromApi() {
+    if (!this._operatorId) return
+    try {
+      const response = await this._kybGet('beneficial-owners')
+      const raw = response?.data || response
+      const list = Array.isArray(raw) ? raw : []
+
+      if (list.length === 0) {
+        this.state.data.owners.noOwnersAbove25 = true
+      } else {
+        this.state.data.owners.owners = list.map((item) => {
+          const owner = emptyOwner()
+          const set = (field, value) => {
+            if (value == null || value === '') return
+            owner[field] = String(value)
+          }
+
+          set('firstName', item.firstName)
+          set('lastName', item.lastName)
+          set('email', item.email)
+          set('phone', formatPhone(String(item.phone || '')))
+          set('address', item.addressLine1 || item.address)
+          set('city', item.city)
+          set('state', item.state)
+          set('zip', formatZip(String(item.zipCode || item.zip || '')))
+          set('jobTitle', item.jobTitle)
+
+          if (item.ownershipPercentage != null) {
+            owner.ownershipPercent = Number(item.ownershipPercentage) || 25
+          }
+
+          if (item.birthMonth && item.birthDay && item.birthYear) {
+            const mm = String(item.birthMonth).padStart(2, '0')
+            const dd = String(item.birthDay).padStart(2, '0')
+            owner.dob = `${mm}/${dd}/${item.birthYear}`
+          }
+
+          owner.id = item.id || item.representativeId || makeId()
+          return owner
+        })
+        this.state.data.owners.noOwnersAbove25 = false
+      }
+
+      this.render()
+    } catch (_err) {
+      // Prefill is best-effort; ignore failures
+    }
+  }
+
+  async _prefillVolumeFromApi() {
+    if (!this._operatorId) return
+    try {
+      const response = await this._kybGet('processing-volume')
+      const data = response?.data || response || {}
+      const v = this.state.data.volume
+
+      if (data.averageMonthlyTransactionCount != null) {
+        v.monthlyTransactionCount = String(data.averageMonthlyTransactionCount)
+      }
+      if (data.averageMonthlyDollarVolume != null) {
+        // Convert cents back to dollars for display
+        const dollars = Math.round(data.averageMonthlyDollarVolume / 100)
+        v.monthlyDollarVolume = formatCurrencyInput(String(dollars))
+      }
+      if (data.averageIndividualTransactionSize != null) {
+        const dollars = Math.round(data.averageIndividualTransactionSize / 100)
+        v.avgTransactionSize = formatCurrencyInput(String(dollars))
+      }
+
+      this.state.savedAt.volume = this.state.savedAt.volume || new Date().toISOString()
+      this.render()
+    } catch (_err) {
+      // Prefill is best-effort; ignore failures
     }
   }
 
@@ -1103,6 +1299,7 @@ export class BisonOperatorOnboarding extends HTMLElement {
     const opOrgId = (this.getAttribute('op-org-id') || '').trim()
     if (!opOrgId) return 'Missing op-org-id'
     if (this._isOperatorLookupPending) return 'Initializing...'
+    if (this._isStatusLoading) return 'Initializing...'
 
     const lookupErrorMessage = this._getLookupErrorMessage(this._operatorLookupError)
     if (lookupErrorMessage) return lookupErrorMessage
@@ -1227,9 +1424,26 @@ export class BisonOperatorOnboarding extends HTMLElement {
     this._setupModalHeight = null
     this.cancelAccordionHeightSync()
     this.state.openSection = null
-    this.state.ui.welcome.isOpen = true
     this.state.ui.welcome.step = 1
     this.state.ui.welcome.direction = 1
+
+    if (this._kybStatusPromise && this._kybStatus === null && this._isStatusLoading) {
+      // KYB status is still loading — render without the modal content until
+      // the status resolves, then show the correct view with no flash.
+      this.state.ui.welcome.isOpen = false
+      this.render()
+      this._kybStatusPromise.then(() => {
+        if (!this._isOpen) return
+        const email = this.getUserEmailFromState(this.state)
+        this.state.ui.welcome.isOpen = this.shouldShowWelcome(email)
+        this.render()
+        if (typeof this.onOpen === 'function') this.onOpen()
+      })
+      return
+    }
+
+    const email = this.getUserEmailFromState(this.state)
+    this.state.ui.welcome.isOpen = this.shouldShowWelcome(email)
     this.render()
     if (typeof this.onOpen === 'function') this.onOpen()
   }
@@ -1307,19 +1521,6 @@ export class BisonOperatorOnboarding extends HTMLElement {
       },
     }
 
-    try {
-      const signupRaw = localStorage.getItem('jibpay_signup_data')
-      if (signupRaw) {
-        const signup = JSON.parse(signupRaw)
-        const nameParts = String(signup.fullName || '').split(' ')
-        state.data.officer.firstName = nameParts[0] || ''
-        state.data.officer.lastName = nameParts.slice(1).join(' ') || ''
-        state.data.officer.email = signup.email || ''
-      }
-    } catch (_err) {
-      // ignore localStorage parse issues
-    }
-
     const progress = this.getVerificationProgressFromState(state)
     state.activeTab = progress >= 100 ? 'bank-account' : 'verification'
     state.openSection = null
@@ -1345,6 +1546,10 @@ export class BisonOperatorOnboarding extends HTMLElement {
   }
 
   shouldShowWelcome(email) {
+    // If the operator has already saved payment methods, never show the welcome screen
+    const savedMethods = this._kybStatus?.selectedPaymentMethods
+    if (Array.isArray(savedMethods) && savedMethods.length > 0) return false
+
     try {
       return localStorage.getItem(this.getWelcomeStorageKey(email)) !== 'true'
     } catch (_err) {
@@ -1644,7 +1849,7 @@ export class BisonOperatorOnboarding extends HTMLElement {
       owners: state.data.owners.noOwnersAbove25 || state.data.owners.owners.length > 0 ? 'complete' : 'not-started',
       volume: state.savedAt.volume ? 'complete' : 'not-started',
       bank: this._linkedBankAccount || state.savedAt.bank ? 'complete' : 'not-started',
-      docs: 'not-required',
+      docs: 'not-started',
     }
   }
 
@@ -1676,7 +1881,7 @@ export class BisonOperatorOnboarding extends HTMLElement {
       bank: this._linkedBankAccount || state.savedAt.bank ? 'complete' : 'not-started',
       docs: capabilities.some((c) => c.currentlyDue?.includes('document.merchant-underwriting'))
         ? 'document-requested'
-        : 'not-required',
+        : (this._prefetchedDocs ? 'complete' : 'not-started'),
     }
   }
 
@@ -1922,7 +2127,16 @@ export class BisonOperatorOnboarding extends HTMLElement {
     }
   }
 
+  _isSectionLocked(sectionKey) {
+    if (!this._isProfileLocked) return false
+    const statuses = this.getSectionStatuses()
+    const s = statuses[sectionKey]
+    return s === 'complete' || s === 'verified'
+  }
+
   saveForm(formName) {
+    if (this._isSectionLocked(formName)) return
+
     const meta = this.getFormMeta(formName)
     if (!meta) return
 
@@ -1937,6 +2151,11 @@ export class BisonOperatorOnboarding extends HTMLElement {
 
     meta.isSaving = true
     meta.saveError = null
+
+    // Capture the open accordion height before innerHTML replacement so the
+    // section doesn't jump to 0 and re-animate while the request is in-flight.
+    this.captureOpenAccordionHeight(this.state.openSection)
+
     this.render()
 
     this._saveFormAsync(formName, meta)
@@ -1968,14 +2187,15 @@ export class BisonOperatorOnboarding extends HTMLElement {
       this.maybeAutoAdvanceOpenSection(prevStatuses)
       this.render()
       this._fetchKybStatus()
-    } catch (err) {
+    } catch (_err) {
       meta.isSaving = false
-      meta.saveError = err?.data?.message || err?.message || 'Save failed. Please try again.'
       this.render()
     }
   }
 
   saveOwner() {
+    if (this._isSectionLocked('owners')) return
+
     const meta = this.state.ui.ownerEditor
     meta.submitAttempted = true
 
@@ -1988,6 +2208,7 @@ export class BisonOperatorOnboarding extends HTMLElement {
 
     meta.isSaving = true
     meta.saveError = null
+    this.captureOpenAccordionHeight(this.state.openSection)
     this.render()
 
     this._saveOwnerAsync(meta)
@@ -2029,7 +2250,6 @@ export class BisonOperatorOnboarding extends HTMLElement {
         )
       }
       meta.isSaving = false
-      meta.saveError = err?.data?.message || err?.message || 'Save failed. Please try again.'
       this.render()
     }
   }
@@ -2075,7 +2295,13 @@ export class BisonOperatorOnboarding extends HTMLElement {
     }
 
     if (action === 'welcome-continue') {
-      if (this.state.ui.welcome.selectedMethods.length === 0) return
+      const methods = this.state.ui.welcome.selectedMethods
+      if (methods.length === 0) return
+      if (this._operatorId) {
+        this._putOperatorPaymentMethods(methods).catch(() => {
+          // Best-effort — don't block the transition on failure
+        })
+      }
       this.transitionWelcomeToSetup()
       return
     }
@@ -2869,7 +3095,6 @@ export class BisonOperatorOnboarding extends HTMLElement {
           readOnly
             ? ''
             : `<div class="save-row" ${this.testId('business-save-row')}>
-                ${this.state.ui.business.saveError ? `<p class="form-error" ${this.testId('business-save-error')}>${escapeHTML(this.state.ui.business.saveError)}</p>` : ''}
                 ${this.renderSaveButton({
                   form: 'business',
                   label: 'Save Business Profile',
@@ -3092,7 +3317,6 @@ export class BisonOperatorOnboarding extends HTMLElement {
           readOnly
             ? ''
             : `<div class="save-row" ${this.testId('officer-save-row')}>
-                ${this.state.ui.officer.saveError ? `<p class="form-error" ${this.testId('officer-save-error')}>${escapeHTML(this.state.ui.officer.saveError)}</p>` : ''}
                 ${this.renderSaveButton({
                   form: 'officer',
                   label: 'Save Representative Info',
@@ -3313,7 +3537,6 @@ export class BisonOperatorOnboarding extends HTMLElement {
           })}
         </div>
 
-        ${meta.saveError ? `<p class="form-error" ${this.testId('owner-save-error')}>${escapeHTML(meta.saveError)}</p>` : ''}
         <div class="inline-actions" ${this.testId('owner-inline-actions')}>
           <button
             ${this.testId('owner-cancel-button')}
@@ -3512,7 +3735,6 @@ export class BisonOperatorOnboarding extends HTMLElement {
           readOnly
             ? ''
             : `<div class="save-row" ${this.testId('volume-save-row')}>
-                ${this.state.ui.volume.saveError ? `<p class="form-error" ${this.testId('volume-save-error')}>${escapeHTML(this.state.ui.volume.saveError)}</p>` : ''}
                 ${this.renderSaveButton({
                   form: 'volume',
                   label: 'Save Volume Estimates',
@@ -3647,71 +3869,103 @@ export class BisonOperatorOnboarding extends HTMLElement {
   renderDocumentsSection(readOnly, statuses, statusMessages) {
     const docsStatus = statuses.docs
 
-    if (!readOnly && docsStatus === 'document-requested') {
+    // Show prefetched document from API
+    if (this._prefetchedDocs) {
+      const doc = this._prefetchedDocs
+      const docName = doc.filename || doc.fileName || doc.name || 'Document'
+      const docSize = doc.size ? this._formatFileSize(doc.size) : null
+      const docStatus = doc.status || doc.purpose || null
+      return `
+        <div class="form-stack" ${this.testId('documents-prefetched-ui')}>
+          <div class="file-preview" ${this.testId('documents-prefetched-preview')}>
+            <div class="file-preview-icon" ${this.testId('documents-prefetched-icon')}>${this.icon('file-text', 'icon-5')}</div>
+            <div class="file-preview-copy" ${this.testId('documents-prefetched-copy')}>
+              <p class="file-name" ${this.testId('documents-prefetched-name')}>${escapeHTML(docName)}</p>
+              <p class="file-status" ${this.testId('documents-prefetched-meta')}>
+                ${docSize ? escapeHTML(docSize) : ''}${docSize && docStatus ? ' · ' : ''}${docStatus ? escapeHTML(docStatus) : 'Submitted'}
+              </p>
+            </div>
+          </div>
+        </div>
+      `
+    }
+
+    if (!readOnly) {
       const fileName = this.state.ui.docs.fileName
       const isDragging = this.state.ui.docs.isDragging
       const isUploading = this.state.ui.docs.isUploading
       const uploadError = this.state.ui.docs.uploadError
       return `
         <div class="form-stack" ${this.testId('documents-upload-ui')}>
+          ${docsStatus === 'document-requested' ? `
           <div class="info-box info-box-warning" ${this.testId('documents-need-box')}>
-            <p class="docs-title" ${this.testId('documents-title')}>Document Requested</p>
-            <p class="docs-text" ${this.testId('documents-text')}>
-              Additional documentation is required to complete verification. Please upload the requested document below.
+            ${this.icon('clock', 'icon-4')}
+            <div>
+              <p class="docs-title" ${this.testId('documents-title')}>Missing Information</p>
+              <p class="docs-text" ${this.testId('documents-text')}>Business Verification Documents</p>
+            </div>
+          </div>` : ''}
+
+          <div class="docs-subsection" ${this.testId('documents-verification-section')}>
+            <div class="docs-subsection-header">
+              <p class="docs-subsection-title" ${this.testId('documents-verification-title')}>Business Verification</p>
+              <span class="badge badge-warning" ${this.testId('documents-verification-badge')}>Required</span>
+            </div>
+            <p class="docs-subsection-desc" ${this.testId('documents-verification-desc')}>
+              Upload business verification documents required by Moov to verify your business. Accepted formats: PDF, PNG, JPG, CSV (max 20MB each).
             </p>
-          </div>
-          ${uploadError ? `<p class="form-error" ${this.testId('documents-upload-error')}>${escapeHTML(uploadError)}</p>` : ''}
 
-          ${
-            fileName
-              ? `<div class="file-preview" ${this.testId('documents-file-preview')}>
-                  <div class="file-preview-icon" ${this.testId('documents-file-icon')}>${this.icon('file-text', 'icon-5')}</div>
-                  <div class="file-preview-copy" ${this.testId('documents-file-copy')}>
-                    <p class="file-name" ${this.testId('documents-file-name')}>${escapeHTML(fileName)}</p>
-                    <p class="file-status" ${this.testId('documents-file-status')}>Ready to upload</p>
-                  </div>
-                  <button
-                    ${this.testId('documents-file-clear')}
-                    type="button"
-                    class="icon-btn icon-btn-ghost"
-                    data-action="docs-clear-file"
+            ${uploadError ? `<p class="form-error" ${this.testId('documents-upload-error')}>${escapeHTML(uploadError)}</p>` : ''}
+
+            ${
+              fileName
+                ? `<div class="file-preview" ${this.testId('documents-file-preview')}>
+                    <div class="file-preview-icon" ${this.testId('documents-file-icon')}>${this.icon('file-text', 'icon-5')}</div>
+                    <div class="file-preview-copy" ${this.testId('documents-file-copy')}>
+                      <p class="file-name" ${this.testId('documents-file-name')}>${escapeHTML(fileName)}</p>
+                      <p class="file-status" ${this.testId('documents-file-status')}>Ready to upload</p>
+                    </div>
+                    <button
+                      ${this.testId('documents-file-clear')}
+                      type="button"
+                      class="icon-btn icon-btn-ghost"
+                      data-action="docs-clear-file"
+                    >
+                      ${this.icon('x', 'icon-4')}
+                    </button>
+                  </div>`
+                : `<div
+                    class="dropzone ${isDragging ? 'dragging' : ''}"
+                    ${this.testId('documents-dropzone')}
+                    data-action="docs-open-file"
+                    data-dropzone="docs"
                   >
-                    ${this.icon('x', 'icon-4')}
-                  </button>
-                </div>`
-              : `<div
-                  class="dropzone ${isDragging ? 'dragging' : ''}"
-                  ${this.testId('documents-dropzone')}
-                  data-action="docs-open-file"
-                  data-dropzone="docs"
-                >
-                  ${this.icon('upload', 'icon-8')}
-                  <p class="dropzone-title" ${this.testId('documents-dropzone-title')}>Drop your file here or click to browse</p>
-                  <p class="dropzone-subtitle" ${this.testId('documents-dropzone-subtitle')}>PDF, JPG, or PNG up to 10MB</p>
-                  <input
-                    ${this.testId('documents-file-input')}
-                    id="docs-file-input"
-                    type="file"
-                    accept=".pdf,.jpg,.jpeg,.png"
-                    class="hidden"
-                  />
-                </div>`
-          }
+                    ${this.icon('upload', 'icon-8')}
+                    <p class="dropzone-title" ${this.testId('documents-dropzone-title')}>Select file or drop here</p>
+                    <p class="dropzone-subtitle" ${this.testId('documents-dropzone-subtitle')}>PDF, CSV, JPEG, PNG accepted (20MB max)</p>
+                    <input
+                      ${this.testId('documents-file-input')}
+                      id="docs-file-input"
+                      type="file"
+                      accept=".pdf,.csv,.jpg,.jpeg,.png"
+                      class="hidden"
+                    />
+                  </div>`
+            }
+          </div>
 
-          ${
-            fileName
-              ? `<button
-                  class="btn btn-primary full-width"
-                  type="button"
-                  data-action="docs-upload"
-                  ${isUploading ? 'disabled' : ''}
-                  ${this.testId('documents-upload-button')}
-                >
-                  ${isUploading ? this.icon('loader', 'icon-4 spin') : this.icon('upload', 'icon-4')}
-                  <span>${isUploading ? 'Uploading...' : 'Upload Document'}</span>
-                </button>`
-              : ''
-          }
+          <div class="docs-submit-row" ${this.testId('documents-submit-row')}>
+            <button
+              class="btn btn-primary"
+              type="button"
+              data-action="docs-upload"
+              ${!fileName || isUploading ? 'disabled' : ''}
+              ${this.testId('documents-upload-button')}
+            >
+              ${isUploading ? this.icon('loader', 'icon-4 spin') : ''}
+              <span>${isUploading ? 'Uploading...' : 'Submit Documents'}</span>
+            </button>
+          </div>
         </div>
       `
     }
@@ -3728,6 +3982,14 @@ export class BisonOperatorOnboarding extends HTMLElement {
         </p>
       </div>
     `
+  }
+
+  _formatFileSize(bytes) {
+    const n = Number(bytes)
+    if (!n || !Number.isFinite(n)) return ''
+    if (n < 1024) return `${n} B`
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
+    return `${(n / (1024 * 1024)).toFixed(1)} MB`
   }
 
   renderSectionContent(sectionKey, readOnly, statuses, statusMessages) {
@@ -3766,6 +4028,12 @@ export class BisonOperatorOnboarding extends HTMLElement {
 
         const sectionKey = accordion.dataset.accordionSection
         if (!sectionKey) return
+
+        // Don't resize while a save is in-flight — the content height may
+        // temporarily differ (spinner vs. submit button) and would cause a jump.
+        const formMeta = this.getFormMeta(sectionKey)
+        if (formMeta && formMeta.isSaving) return
+        if (sectionKey === 'owners' && this.state.ui.ownerEditor.isSaving) return
 
         const inner = accordion.querySelector('.accordion-inner')
         if (!(inner instanceof HTMLElement)) return
@@ -3844,14 +4112,18 @@ export class BisonOperatorOnboarding extends HTMLElement {
     const badgeIcon = badge.icon ? this.icon(badge.icon, 'icon-3') : ''
     const accordionHeight = this.getAccordionRenderHeight(section.key, isOpen)
 
+    const formMeta = this.getFormMeta(section.key)
+    const isSaving = !!(formMeta && formMeta.isSaving)
+
     return `
-      <div class="section-card" ${this.testId(`section-${section.key}`)}>
+      <div class="section-card ${isSaving ? 'section-card--saving' : ''}" ${this.testId(`section-${section.key}`)}>
         <button
           ${this.testId(`section-toggle-${section.key}`)}
           type="button"
           data-action="toggle-section"
           data-section="${escapeHTML(section.key)}"
           class="section-toggle"
+          ${isSaving ? 'disabled' : ''}
         >
           <div class="section-leading-icon" ${this.testId(`section-icon-wrap-${section.key}`)}>
             ${this.icon(section.icon, 'icon-5')}
@@ -3864,9 +4136,10 @@ export class BisonOperatorOnboarding extends HTMLElement {
             ${badgeIcon}
             ${escapeHTML(badge.label)}
           </span>
-          <span class="chevron ${isOpen ? 'open' : ''}" ${this.testId(`section-chevron-${section.key}`)}>
-            ${this.icon('chevron-down', 'icon-5')}
-          </span>
+          ${isSaving
+            ? `<span class="section-saving-spinner" ${this.testId(`section-saving-spinner-${section.key}`)}>${this.icon('loader', 'icon-5 spin')}</span>`
+            : `<span class="chevron ${isOpen ? 'open' : ''}" ${this.testId(`section-chevron-${section.key}`)}>${this.icon('chevron-down', 'icon-5')}</span>`
+          }
         </button>
 
         ${showMessages && statusMessage ? this.renderStatusMessage(section.key, status, statusMessage, isOpen) : ''}
@@ -3926,7 +4199,7 @@ export class BisonOperatorOnboarding extends HTMLElement {
                     <div class="status-loading-badge" ${this.testId('status-loading-badge')}>Final checks</div>
                     <div class="status-loading-main" ${this.testId('status-loading-main')}>
                       <div class="status-loading-icon-wrap" ${this.testId('status-loading-icon-wrap')}>
-                        ${this.icon('loader', 'icon-5 status-loading-spinner')}
+                        ${this.icon('loader', 'icon-5 spin status-loading-spinner')}
                       </div>
                       <div class="status-loading-copy" ${this.testId('status-loading-copy')}>
                         <p class="status-loading-title" ${this.testId('status-loading-title')}>Verifying your account</p>
@@ -3963,10 +4236,17 @@ export class BisonOperatorOnboarding extends HTMLElement {
           }
         </div>
 
-        ${this._isStatusLoading ? `<div class="kyb-status-loading">${this.icon('loader', 'icon-4 spin')} Loading verification status...</div>` : ''}
+        ${this._isStatusLoading ? `<div class="kyb-status-loading kyb-status-loading--visible" aria-live="polite" ${this.testId('kyb-status-loading')}>
+          ${this.icon('loader', 'icon-4 spin')} Loading verification status...
+        </div>` : ''}
 
         <div class="section-list" ${this.testId(sectionListTestId)}>
-          ${SECTION_DEFS.map((section) => this.renderSection(section, isVerified || this._isProfileLocked, statuses, statusMessages, isVerified || this._isStatusLoading)).join('')}
+          ${SECTION_DEFS.map((section) => {
+            const sectionStatus = statuses[section.key] || 'not-started'
+            const lockedByProfile = this._isProfileLocked && (sectionStatus === 'complete' || sectionStatus === 'verified')
+            const sectionReadOnly = isVerified || lockedByProfile
+            return this.renderSection(section, sectionReadOnly, statuses, statusMessages, isVerified || this._isStatusLoading)
+          }).join('')}
         </div>
       </div>
     `
@@ -3976,8 +4256,11 @@ export class BisonOperatorOnboarding extends HTMLElement {
     const bankStatus = statuses.bank || 'not-started'
     const hasBankConnected = !!this._linkedBankAccount
     const linked = this._linkedBankAccount
+    const savedMethods = this._kybStatus?.selectedPaymentMethods
     const paymentStatuses = PAYMENT_METHOD_STATUSES['new-account']
-    const paymentRows = PAYMENT_METHODS.map((method) => {
+    const paymentRows = PAYMENT_METHODS.filter((method) =>
+      !Array.isArray(savedMethods) || savedMethods.length === 0 || savedMethods.includes(method.id)
+    ).map((method) => {
       const status = paymentStatuses[method.id]
       const badge = METHOD_STATUS_CONFIG[status]
       const dotClass =
@@ -4719,6 +5002,14 @@ export class BisonOperatorOnboarding extends HTMLElement {
           padding: 0.75rem 1rem;
           color: var(--color-secondary);
           font-size: 0.875rem;
+          opacity: 0;
+          pointer-events: none;
+          transition: opacity var(--duration-normal);
+        }
+
+        .kyb-status-loading--visible {
+          opacity: 1;
+          pointer-events: auto;
         }
 
         .card {
@@ -4796,7 +5087,7 @@ export class BisonOperatorOnboarding extends HTMLElement {
         .bank-tab-stack {
           display: flex;
           flex-direction: column;
-          gap: 1.5rem;
+          gap: 0.75rem;
         }
 
         .verification-status-card {
@@ -4927,9 +5218,7 @@ export class BisonOperatorOnboarding extends HTMLElement {
 
         .status-loading-spinner {
           display: block;
-          animation: spin 900ms linear infinite;
-          transform-origin: center;
-          transform-box: fill-box;
+          animation-duration: 1.2s;
         }
 
         .status-loading-copy {
@@ -5134,6 +5423,27 @@ export class BisonOperatorOnboarding extends HTMLElement {
           background: rgb(250 250 250 / 0.7);
         }
 
+        .section-toggle:disabled {
+          cursor: default;
+        }
+
+        .section-card--saving {
+          opacity: 0.85;
+          transition: opacity var(--duration-normal);
+        }
+
+        .section-card--saving .accordion-grid {
+          transition: none;
+        }
+
+        .section-saving-spinner {
+          color: var(--color-primary);
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+        }
+
         .section-leading-icon {
           width: 2.5rem;
           height: 2.5rem;
@@ -5171,6 +5481,11 @@ export class BisonOperatorOnboarding extends HTMLElement {
           font-weight: 500;
           flex-shrink: 0;
           white-space: nowrap;
+        }
+
+        .badge .icon-3 {
+          width: 0.625rem;
+          height: 0.625rem;
         }
 
         .badge-success {
@@ -5412,6 +5727,9 @@ export class BisonOperatorOnboarding extends HTMLElement {
         }
 
         .info-box {
+          display: flex;
+          align-items: flex-start;
+          gap: 0.625rem;
           border-radius: var(--radius-md);
           border: 1px solid;
           padding: 1rem;
@@ -5779,6 +6097,44 @@ export class BisonOperatorOnboarding extends HTMLElement {
           font-size: 0.875rem;
         }
 
+        .docs-subsection {
+          display: flex;
+          flex-direction: column;
+          gap: 0.75rem;
+          padding-top: 0.25rem;
+        }
+
+        .docs-subsection-header {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+        }
+
+        .docs-subsection-title {
+          margin: 0;
+          font-size: 0.9375rem;
+          font-weight: 600;
+          color: var(--color-headline);
+        }
+
+        .docs-subsection-desc {
+          margin: 0;
+          font-size: 0.875rem;
+          color: var(--color-secondary);
+        }
+
+        .badge-warning {
+          background: #fff7ed;
+          color: #c2410c;
+          border: 1px solid #fed7aa;
+        }
+
+        .docs-submit-row {
+          display: flex;
+          justify-content: flex-end;
+          padding-top: 0.25rem;
+        }
+
         .dropzone {
           border: 2px dashed var(--color-border);
           border-radius: 0.75rem;
@@ -6022,6 +6378,7 @@ export class BisonOperatorOnboarding extends HTMLElement {
         }
 
         .icon {
+          display: block;
           width: 1rem;
           height: 1rem;
           flex-shrink: 0;
@@ -6059,7 +6416,9 @@ export class BisonOperatorOnboarding extends HTMLElement {
         }
 
         .spin {
+          display: block;
           animation: spin 1s linear infinite;
+          transform-origin: center;
         }
 
         .hidden {
@@ -6493,6 +6852,10 @@ export class BisonOperatorOnboarding extends HTMLElement {
       `
     }
 
+    // Preserve scroll position across innerHTML replacement so the modal body
+    // doesn't jump back to the top on every render (e.g. after _fetchKybStatus).
+    const prevScrollTop = this.shadowRoot.querySelector('.bo-modal-body-setup')?.scrollTop ?? 0
+
     this.shadowRoot.innerHTML = `
       ${this.renderStyles()}
       <div class="trigger-wrap ${isTriggerDisabled ? 'is-disabled' : ''}" ${this.testId('onboarding-trigger-wrap')}>
@@ -6510,6 +6873,11 @@ export class BisonOperatorOnboarding extends HTMLElement {
       </div>
       ${modalMarkup}
     `
+
+    if (prevScrollTop > 0) {
+      const newBody = this.shadowRoot.querySelector('.bo-modal-body-setup')
+      if (newBody) newBody.scrollTop = prevScrollTop
+    }
 
     if (this.isOpen && this.state.ui.welcome.isOpen) {
       this._welcomeAnimateIn = false
