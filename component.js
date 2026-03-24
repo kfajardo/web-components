@@ -38,6 +38,7 @@ import "./wio-payment-linking.js";
 import "./operator-bank-account.js";
 import "./wio-bank-account.js";
 import "./bison-operator-payments.js";
+import "./bison-wio-invoices.js";
 
 // Re-export the API class for programmatic access
 export { BisonJibPayAPI };
