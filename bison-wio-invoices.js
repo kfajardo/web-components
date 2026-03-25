@@ -32,19 +32,19 @@ const BWI_ICONS = {
 };
 
 const BWI_MODAL_SIZES = {
-  invoices: { width: 880, height: 760 },
-  invoice: { width: 760, height: 728 },
-  "bulk-pay": { width: 760, height: 620 },
-  "bulk-delete": { width: 760, height: 620 },
-  "payment-loading": { width: 860, height: 520 },
-  "delete-loading": { width: 860, height: 520 },
-  "payment-success": { width: 720, height: 420 },
-  "delete-success": { width: 720, height: 420 },
+  invoices: { width: 840, height: 720 },
+  invoice: { width: 720, height: 680 },
+  "bulk-pay": { width: 520, height: 640 },
+  "bulk-delete": { width: 520, height: 640 },
+  "payment-loading": { width: 460, height: 560 },
+  "delete-loading": { width: 460, height: 560 },
+  "payment-success": { width: 400, height: 480 },
+  "delete-success": { width: 400, height: 480 },
 };
 
 const BWI_CONFIRM_SIZES = {
-  pay: { width: 440, height: 320 },
-  delete: { width: 440, height: 320 },
+  pay: { width: 420, height: 400 },
+  delete: { width: 420, height: 400 },
 };
 
 const BWI_STATUS_META = {
@@ -59,7 +59,7 @@ const BWI_MOCK_INVOICES = [
   {
     id: "WIO-41028",
     invoiceNumber: "INV-41028",
-    operatorName: "Mason Ortega",
+    operatorName: "Red Mesa Water Services LLC",
     date: "2026-03-05",
     status: "pending",
     subtotal: 1380,
@@ -74,7 +74,7 @@ const BWI_MOCK_INVOICES = [
   {
     id: "WIO-41031",
     invoiceNumber: "INV-41031",
-    operatorName: "Ava Delaney",
+    operatorName: "Northline Site Services Inc.",
     date: "2026-03-07",
     status: "draft",
     subtotal: 760,
@@ -89,7 +89,7 @@ const BWI_MOCK_INVOICES = [
   {
     id: "WIO-41034",
     invoiceNumber: "INV-41034",
-    operatorName: "Luca Bennett",
+    operatorName: "Iron Creek Equipment Co.",
     date: "2026-03-08",
     status: "processing",
     subtotal: 1125,
@@ -104,7 +104,7 @@ const BWI_MOCK_INVOICES = [
   {
     id: "WIO-41039",
     invoiceNumber: "INV-41039",
-    operatorName: "Jules Navarro",
+    operatorName: "Blue Prairie Logistics Group",
     date: "2026-03-09",
     status: "pending",
     subtotal: 1740,
@@ -119,7 +119,7 @@ const BWI_MOCK_INVOICES = [
   {
     id: "WIO-41042",
     invoiceNumber: "INV-41042",
-    operatorName: "Sage Holloway",
+    operatorName: "High Desert Field Operations Ltd.",
     date: "2026-03-10",
     status: "paid",
     subtotal: 980,
@@ -134,7 +134,7 @@ const BWI_MOCK_INVOICES = [
   {
     id: "WIO-41044",
     invoiceNumber: "INV-41044",
-    operatorName: "Maren Cole",
+    operatorName: "Clearspan Washout & Recovery LLC",
     date: "2026-03-12",
     status: "draft",
     subtotal: 610,
@@ -149,7 +149,7 @@ const BWI_MOCK_INVOICES = [
   {
     id: "WIO-41049",
     invoiceNumber: "INV-41049",
-    operatorName: "Niko Alvarez",
+    operatorName: "West Basin Power Rental Co.",
     date: "2026-03-14",
     status: "overdue",
     subtotal: 1230,
@@ -207,8 +207,6 @@ class BisonWioInvoices extends HTMLElement {
     this._stageEl = null;
     this._confirmLayerEl = null;
     this._currentScreenEl = null;
-    this._headerTitleEl = null;
-    this._headerEyebrowEl = null;
     this._backButtonEl = null;
     this._closeButtonEl = null;
 
@@ -217,11 +215,12 @@ class BisonWioInvoices extends HTMLElement {
     this._bulkDockEl = null;
     this._searchInputEl = null;
     this._progressFillEl = null;
-    this._progressValueEl = null;
+    this._invoiceCardMap = new Map();
 
     this._pendingProgress = null;
     this._progressToken = 0;
     this._transitionToken = 0;
+    this._bulkDockTransitionToken = 0;
     this._timeoutIds = new Set();
     this._rafIds = new Set();
 
@@ -288,6 +287,10 @@ class BisonWioInvoices extends HTMLElement {
 
   _renderShell() {
     this.shadowRoot.innerHTML = `
+      <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      />
       <style>
         :host{
           --bwi-green:#2f7a4b;
@@ -484,11 +487,6 @@ class BisonWioInvoices extends HTMLElement {
           left:-50px;
         }
 
-        .bwi-modal.is-blurred{
-          filter:blur(2px) saturate(.92);
-          transform:scale(.985);
-        }
-
         .bwi-header{
           position:relative;
           z-index:1;
@@ -508,28 +506,6 @@ class BisonWioInvoices extends HTMLElement {
           align-items:center;
           gap:12px;
           min-width:0;
-        }
-
-        .bwi-header-copy{min-width:0}
-
-        .bwi-header-eyebrow{
-          margin:0 0 4px;
-          font-size:11px;
-          font-weight:700;
-          letter-spacing:.14em;
-          text-transform:uppercase;
-          color:var(--bwi-green);
-        }
-
-        .bwi-header-title{
-          margin:0;
-          font-family:"Iowan Old Style","Palatino Linotype",Georgia,serif;
-          font-size:20px;
-          line-height:1.1;
-          color:#162018;
-          white-space:nowrap;
-          overflow:hidden;
-          text-overflow:ellipsis;
         }
 
         .bwi-header .bwi-btn-secondary{color:#1b2620}
@@ -745,48 +721,64 @@ class BisonWioInvoices extends HTMLElement {
           min-width:0;
           display:flex;
           flex-direction:column;
-          gap:12px;
+          gap:.75rem;
         }
 
         .bwi-card-top{
           display:flex;
           align-items:flex-start;
           justify-content:space-between;
-          gap:16px;
+          gap:1rem;
         }
 
         .bwi-card-label{
-          margin:0 0 8px;
-          font-size:12px;
-          letter-spacing:.12em;
+          margin:0;
+          font-size:11px;
+          font-weight:700;
+          letter-spacing:.14em;
           text-transform:uppercase;
           color:var(--bwi-muted-soft);
         }
 
         .bwi-card-name{
           margin:0;
-          font-size:20px;
+          font-size:21px;
           font-weight:700;
-          line-height:1.05;
+          line-height:1.12;
           color:#152018;
+        }
+
+        .bwi-card-total-label{
+          margin:0;
+          font-size:11px;
+          font-weight:700;
+          letter-spacing:.14em;
+          text-transform:uppercase;
+          color:var(--bwi-muted-soft);
         }
 
         .bwi-card-total{
           margin:0;
-          font-size:24px;
+          font-size:28px;
           font-weight:800;
-          line-height:1;
-          color:#1d2c23;
+          line-height:.96;
+          color:#152018;
           text-align:right;
         }
 
         .bwi-card-meta{
           display:flex;
           flex-wrap:wrap;
-          gap:8px;
+          gap:6px 14px;
           align-items:center;
           color:var(--bwi-muted);
           font-size:13px;
+        }
+
+        .bwi-card-meta-text{
+          margin:0;
+          color:var(--bwi-muted);
+          white-space:nowrap;
         }
 
         .bwi-meta-chip{
@@ -815,33 +807,74 @@ class BisonWioInvoices extends HTMLElement {
 
         .bwi-card-actions{
           display:flex;
-          align-items:center;
-          gap:8px;
-          align-self:center;
+          align-items:flex-start;
+          justify-content:flex-end;
+          align-self:flex-start;
         }
 
         .bwi-card-actions .bwi-btn{min-height:36px}
+
+        .bwi-card-top-main{
+          min-width:0;
+          display:flex;
+          flex-direction:column;
+          gap:.5rem;
+          flex:1;
+        }
+
+        .bwi-card-top-side{
+          display:flex;
+          flex-direction:column;
+          align-items:flex-end;
+          gap:.625rem;
+          flex-shrink:0;
+        }
+
+        .bwi-card-total-block{
+          display:flex;
+          flex-direction:column;
+          align-items:flex-end;
+          gap:.3rem;
+        }
 
         .bwi-bulk-dock{
           display:flex;
           align-items:center;
           justify-content:space-between;
           gap:16px;
-          padding:16px 20px;
-          border-radius:24px;
+          max-height:0;
+          padding:0 .25rem;
+          overflow:hidden;
+          border-radius:0;
           background:rgba(22,32,24,.96);
           color:#fff;
-          box-shadow:0 22px 42px rgba(10,16,12,.28);
-          transform:translateY(18px);
+          box-shadow:none;
+          border-top:0 solid rgba(232,232,232,.5);
+          transform:translateY(8px);
           opacity:0;
           pointer-events:none;
-          transition:opacity .26s ease, transform .26s var(--bwi-ease);
+          transition:
+            max-height .18s var(--bwi-ease),
+            padding .18s var(--bwi-ease),
+            border-top-width 0s linear .18s,
+            opacity .18s var(--bwi-ease),
+            transform .18s var(--bwi-ease);
         }
 
         .bwi-bulk-dock.is-visible{
+          max-height:88px;
+          padding:1rem .25rem .5rem;
+          overflow:visible;
+          border-top-width:1px;
           transform:translateY(0);
           opacity:1;
           pointer-events:auto;
+          transition:
+            max-height .18s var(--bwi-ease),
+            padding .18s var(--bwi-ease),
+            border-top-width 0s linear 0s,
+            opacity .18s var(--bwi-ease),
+            transform .18s var(--bwi-ease);
         }
 
         .bwi-bulk-copy{
@@ -1163,7 +1196,7 @@ class BisonWioInvoices extends HTMLElement {
         .bwi-progress-meta{
           display:flex;
           align-items:center;
-          justify-content:space-between;
+          justify-content:flex-start;
           gap:8px;
         }
 
@@ -1174,12 +1207,6 @@ class BisonWioInvoices extends HTMLElement {
           letter-spacing:.12em;
           text-transform:uppercase;
           color:var(--bwi-muted-soft);
-        }
-
-        .bwi-progress-value{
-          font-size:15px;
-          font-weight:800;
-          color:#1b2920;
         }
 
         .bwi-progress-track{
@@ -1247,7 +1274,6 @@ class BisonWioInvoices extends HTMLElement {
           position:absolute;
           inset:0;
           background:rgba(13,20,16,.24);
-          backdrop-filter:blur(4px);
         }
 
         .bwi-confirm{
@@ -1256,6 +1282,7 @@ class BisonWioInvoices extends HTMLElement {
           position:relative;
           width:min(calc(100vw - 48px), var(--bwi-confirm-width));
           min-height:min(calc(100vh - 48px), var(--bwi-confirm-height));
+          max-height:calc(100vh - 48px);
           border-radius:28px;
           padding:24px;
           background:linear-gradient(180deg,#fffefb 0%,#f6f0e5 100%);
@@ -1264,6 +1291,7 @@ class BisonWioInvoices extends HTMLElement {
           display:flex;
           flex-direction:column;
           gap:16px;
+          overflow:auto;
           transform:translateY(20px) scale(.94);
           opacity:0;
           animation:bwiConfirmIn .26s var(--bwi-ease) forwards;
@@ -1362,6 +1390,713 @@ class BisonWioInvoices extends HTMLElement {
           color:#1b2720;
         }
 
+        /* BOP-aligned visual overrides */
+        :host{
+          --bwi-primary:#4c7b63;
+          --bwi-primary-light:#e8f0eb;
+          --bwi-headline:#0f2a39;
+          --bwi-secondary:#5f6e78;
+          --bwi-success:#22c55e;
+          --bwi-error:#dd524b;
+          --bwi-sidebar:#fafafa;
+          --bwi-border:#e8e8e8;
+          --bwi-radius-sm:0.25rem;
+          --bwi-radius-md:0.5rem;
+          --bwi-radius-lg:0.75rem;
+          --bwi-radius-xl:1rem;
+          --bwi-radius-full:9999px;
+          --bwi-shadow-sm:0 1px 2px 0 rgb(0 0 0 / 0.05);
+          --bwi-shadow-md:0 4px 6px -1px rgb(0 0 0 / 0.1);
+          --bwi-shadow-2xl:0 25px 50px -12px rgb(0 0 0 / 0.25);
+          --bwi-dur-fast:150ms;
+          --bwi-dur-norm:200ms;
+          --bwi-dur-slow:300ms;
+          --bwi-ease:cubic-bezier(0.4,0,0.2,1);
+          --bwi-ease-spring:cubic-bezier(0.16,1,0.3,1);
+          --bwi-font:var(--font-sans,"Inter",system-ui,sans-serif);
+          --bwi-mono:var(--font-mono,ui-monospace,"SF Mono","Menlo",monospace);
+          --bwi-xs:0.75rem;
+          --bwi-sm:0.875rem;
+          --bwi-base:1rem;
+          --bwi-lg:1.125rem;
+          --bwi-2xl:1.5rem;
+          font-family:var(--bwi-font);
+        }
+
+        .bwi-btn{
+          border-radius:var(--bwi-radius-xl);
+          font-size:var(--bwi-sm);
+          font-weight:600;
+          font-family:var(--bwi-font);
+          transition:all var(--bwi-dur-norm) var(--bwi-ease);
+        }
+
+        .bwi-btn-primary{
+          background:var(--bwi-primary);
+          box-shadow:0 4px 12px rgba(76,123,99,.3);
+        }
+
+        .bwi-btn-primary:not(:disabled):hover{
+          background:rgba(76,123,99,.9);
+          box-shadow:0 6px 16px rgba(76,123,99,.4);
+        }
+
+        .bwi-btn-secondary{
+          color:var(--bwi-secondary);
+          background:transparent;
+          box-shadow:none;
+        }
+
+        .bwi-btn-secondary:not(:disabled):hover{
+          color:var(--bwi-headline);
+          background:var(--bwi-sidebar);
+        }
+
+        .bwi-btn-error{
+          background:var(--bwi-error);
+          box-shadow:0 4px 12px rgba(221,82,75,.3);
+        }
+
+        .bwi-btn-error:not(:disabled):hover{
+          background:#c9403a;
+          box-shadow:0 6px 16px rgba(221,82,75,.4);
+        }
+
+        .bwi-icon-btn{
+          border-radius:var(--bwi-radius-md);
+          min-width:2rem;
+          width:2rem;
+          height:2rem;
+          padding:.375rem;
+        }
+
+        .bwi-trigger{
+          height:40px;
+          min-height:40px;
+          padding:12px 24px;
+          border-radius:var(--bwi-radius-xl);
+          box-shadow:0 4px 12px rgba(76,123,99,.3);
+        }
+
+        .bwi-overlay{
+          padding:1rem;
+        }
+
+        .bwi-backdrop{
+          background:rgba(0,0,0,.4);
+          backdrop-filter:blur(12px);
+          -webkit-backdrop-filter:blur(12px);
+        }
+
+        .bwi-modal{
+          background:#fff;
+          border:1px solid var(--bwi-border);
+          border-radius:var(--bwi-radius-xl);
+          box-shadow:var(--bwi-shadow-2xl);
+          transform:translateY(20px) scale(.95);
+          transition:
+            width .4s var(--bwi-ease-spring),
+            height .4s var(--bwi-ease-spring),
+            transform .28s var(--bwi-ease-spring),
+            filter .2s var(--bwi-ease);
+        }
+
+        .bwi-overlay[data-state="open"] .bwi-modal{
+          transform:translateY(0) scale(1);
+        }
+
+        .bwi-modal::before,
+        .bwi-modal::after{
+          display:none;
+        }
+
+        .bwi-header{
+          min-height:auto;
+          padding:1rem 1.5rem;
+          border-bottom:1px solid rgba(250,250,250,.5);
+          background:rgba(255,255,255,.5);
+          backdrop-filter:blur(8px);
+          -webkit-backdrop-filter:blur(8px);
+        }
+
+        .bwi-header-left{
+          gap:.75rem;
+          height:2rem;
+        }
+
+        .bwi-stage{
+          background:rgba(248,250,252,.3);
+        }
+
+        .bwi-screen{
+          gap:1rem;
+          padding:0 1.5rem 1.5rem;
+        }
+
+        .bwi-screen-head{
+          gap:.5rem;
+        }
+
+        .bwi-kicker{
+          font-size:var(--bwi-xs);
+          font-weight:600;
+          letter-spacing:.05em;
+          color:var(--bwi-secondary);
+        }
+
+        .bwi-screen-title,
+        .bwi-review-title,
+        .bwi-loading-title,
+        .bwi-success-title{
+          font-family:var(--bwi-font);
+          font-size:var(--bwi-2xl);
+          font-weight:700;
+          line-height:1.2;
+          letter-spacing:0;
+          color:var(--bwi-headline);
+        }
+
+        .bwi-screen-title--invoices{
+          font-size:2.125rem;
+          line-height:1.05;
+        }
+
+        .bwi-screen-copy,
+        .bwi-empty-copy,
+        .bwi-detail-note,
+        .bwi-review-copy,
+        .bwi-loading-copy,
+        .bwi-success-copy,
+        .bwi-panel-copy{
+          font-size:var(--bwi-sm);
+          color:var(--bwi-secondary);
+        }
+
+        .bwi-search-shell{
+          margin-top:0;
+        }
+
+        .bwi-search-shell svg{
+          left:.875rem;
+          color:var(--bwi-secondary);
+        }
+
+        .bwi-search-input{
+          padding:.75rem 1rem .75rem 2.5rem;
+          border:1px solid var(--bwi-border);
+          border-radius:var(--bwi-radius-xl);
+          font-size:var(--bwi-sm);
+          font-family:var(--bwi-font);
+          color:var(--bwi-headline);
+          background:#fff;
+          box-shadow:var(--bwi-shadow-sm);
+          transition:all var(--bwi-dur-norm) var(--bwi-ease);
+        }
+
+        .bwi-search-input::placeholder{
+          color:rgba(95,110,120,.6);
+        }
+
+        .bwi-search-input:focus{
+          border-color:var(--bwi-primary);
+          box-shadow:0 0 0 3px rgba(76,123,99,.2);
+        }
+
+        .bwi-invoice-meta{
+          padding:0 .25rem;
+          font-size:var(--bwi-xs);
+          color:var(--bwi-secondary);
+        }
+
+        .bwi-meta-count{
+          color:var(--bwi-headline);
+        }
+
+        .bwi-invoice-list{
+          gap:.75rem;
+          padding:0 .25rem 1rem;
+          scrollbar-width:none;
+          -ms-overflow-style:none;
+          mask-image:none;
+        }
+
+        .bwi-invoice-list::-webkit-scrollbar{
+          display:none;
+        }
+
+        .bwi-invoice-card{
+          padding:1rem;
+          border-radius:var(--bwi-radius-xl);
+          border:2px solid transparent;
+          background:#fff;
+          box-shadow:var(--bwi-shadow-sm);
+          transition:all var(--bwi-dur-norm) var(--bwi-ease);
+        }
+
+        .bwi-invoice-card:hover{
+          border-color:rgba(76,123,99,.2);
+          box-shadow:var(--bwi-shadow-md);
+          transform:none;
+        }
+
+        .bwi-invoice-card.is-selected{
+          border-color:var(--bwi-primary);
+          background:rgba(76,123,99,.05);
+          box-shadow:var(--bwi-shadow-sm);
+        }
+
+        .bwi-select-mark{
+          width:1.5rem;
+          height:1.5rem;
+          border:2px solid var(--bwi-border);
+          background:#fff;
+        }
+
+        .bwi-invoice-card.is-selected .bwi-select-mark{
+          background:var(--bwi-primary);
+          border-color:var(--bwi-primary);
+        }
+
+        .bwi-card-main{
+          gap:.5rem;
+        }
+
+        .bwi-card-label,
+        .bwi-detail-overline,
+        .bwi-stat-label,
+        .bwi-review-stat-label,
+        .bwi-strip-number,
+        .bwi-progress-label{
+          font-size:var(--bwi-xs);
+          font-weight:600;
+          letter-spacing:.05em;
+          text-transform:uppercase;
+          color:var(--bwi-secondary);
+        }
+
+        .bwi-card-name,
+        .bwi-detail-title,
+        .bwi-strip-name{
+          font-size:var(--bwi-base);
+          font-weight:600;
+          color:var(--bwi-headline);
+        }
+
+        .bwi-card-total,
+        .bwi-stat-value,
+        .bwi-review-stat-value,
+        .bwi-strip-amount{
+          font-size:var(--bwi-lg);
+          font-weight:600;
+          color:var(--bwi-headline);
+        }
+
+        .bwi-card-meta,
+        .bwi-detail-subline,
+        .bwi-strip-meta,
+        .bwi-line-subtitle,
+        .bwi-progress-copy{
+          font-size:var(--bwi-xs);
+          color:var(--bwi-secondary);
+        }
+
+        .bwi-card-name{
+          font-size:1.125rem;
+          line-height:1.2;
+        }
+
+        .bwi-card-total-label{
+          font-size:.6875rem;
+          font-weight:600;
+          letter-spacing:.08em;
+          text-transform:uppercase;
+          color:var(--bwi-secondary);
+        }
+
+        .bwi-card-total{
+          font-size:1.5rem;
+          font-weight:700;
+          line-height:1;
+        }
+
+        .bwi-card-meta,
+        .bwi-card-meta-text{
+          font-size:.8125rem;
+        }
+
+        .bwi-card-top-side{
+          gap:.5rem;
+        }
+
+        .bwi-meta-chip{
+          gap:.375rem;
+        }
+
+        .bwi-status-pill{
+          padding:.25rem .625rem;
+          border-radius:var(--bwi-radius-full);
+          font-size:.6875rem;
+          font-weight:600;
+          letter-spacing:.05em;
+        }
+
+        .bwi-status-pill.is-draft{
+          background:#f3f4f6;
+          color:#6b7280;
+        }
+
+        .bwi-status-pill.is-paid{
+          background:#dcfce7;
+          color:#16a34a;
+        }
+
+        .bwi-status-pill.is-pending{
+          background:#fffbeb;
+          color:#d97706;
+        }
+
+        .bwi-status-pill.is-processing{
+          background:#eff6ff;
+          color:#2563eb;
+        }
+
+        .bwi-status-pill.is-overdue{
+          background:#fef2f2;
+          color:#dc2626;
+        }
+
+        .bwi-bulk-dock{
+          background:rgba(255,255,255,.5);
+          backdrop-filter:blur(8px);
+          -webkit-backdrop-filter:blur(8px);
+          box-shadow:none;
+          color:var(--bwi-headline);
+        }
+
+        .bwi-bulk-title{
+          color:var(--bwi-headline);
+          font-size:var(--bwi-sm);
+        }
+
+        .bwi-bulk-note{
+          color:var(--bwi-secondary);
+          font-size:var(--bwi-xs);
+        }
+
+        .bwi-detail-shell,
+        .bwi-review-shell{
+          gap:1.25rem;
+        }
+
+        .bwi-detail-head{
+          padding:0;
+        }
+
+        .bwi-detail-title{
+          font-size:var(--bwi-2xl);
+        }
+
+        .bwi-detail-grid,
+        .bwi-review-stats{
+          gap:.75rem;
+        }
+
+        .bwi-stat-card,
+        .bwi-review-stat,
+        .bwi-line-item,
+        .bwi-total-row,
+        .bwi-strip-card,
+        .bwi-progress-card,
+        .bwi-success-badge{
+          background:#fff;
+          border:1px solid var(--bwi-border);
+          border-radius:var(--bwi-radius-xl);
+          box-shadow:var(--bwi-shadow-sm);
+        }
+
+        .bwi-stat-card,
+        .bwi-review-stat,
+        .bwi-progress-card{
+          padding:.875rem;
+        }
+
+        .bwi-line-item,
+        .bwi-total-row{
+          padding:.875rem;
+          border-radius:var(--bwi-radius-xl);
+        }
+
+        .bwi-total-row.is-grand{
+          background:rgba(76,123,99,.05);
+          border-color:rgba(76,123,99,.2);
+        }
+
+        .bwi-line-title,
+        .bwi-total-title{
+          font-size:var(--bwi-sm);
+          font-weight:600;
+          color:var(--bwi-headline);
+        }
+
+        .bwi-line-qty,
+        .bwi-total-qty,
+        .bwi-line-total,
+        .bwi-total-value,
+        .bwi-confirm-chip{
+          font-size:var(--bwi-sm);
+          font-weight:600;
+          color:var(--bwi-headline);
+        }
+
+        .bwi-review-strip{
+          gap:.75rem;
+          padding:0 .25rem 1rem;
+          scrollbar-width:none;
+        }
+
+        .bwi-review-strip::-webkit-scrollbar{
+          display:none;
+        }
+
+        .bwi-strip-card{
+          min-width:82%;
+          padding:.875rem;
+          border-radius:var(--bwi-radius-xl);
+        }
+
+        .bwi-review-actions{
+          gap:.625rem;
+        }
+
+        .bwi-loading-shell,
+        .bwi-success-shell{
+          justify-content:center;
+          gap:1.5rem;
+          background:#fff;
+        }
+
+        .bwi-loading-shell{
+          gap:1rem;
+          align-items:stretch;
+          text-align:center;
+        }
+
+        .bwi-success-shell{
+          gap:1rem;
+          align-items:center;
+          justify-content:center;
+          text-align:center;
+          overflow:auto;
+          padding:.25rem 0;
+        }
+
+        .bwi-loading-head,
+        .bwi-success-head{
+          gap:1rem;
+        }
+
+        .bwi-loading-head{
+          flex-direction:column;
+          align-items:center;
+          text-align:center;
+          gap:.75rem;
+        }
+
+        .bwi-success-head{
+          flex-direction:column;
+          align-items:center;
+          text-align:center;
+          gap:.75rem;
+        }
+
+        .bwi-loading-orb,
+        .bwi-success-orb{
+          width:4.5rem;
+          height:4.5rem;
+          border-radius:1.25rem;
+          background:var(--bwi-primary);
+          box-shadow:var(--bwi-shadow-md);
+        }
+
+        .bwi-loading-orb{
+          width:3.5rem;
+          height:3.5rem;
+          border-radius:1rem;
+        }
+
+        .bwi-success-orb{
+          width:3.75rem;
+          height:3.75rem;
+          border-radius:1rem;
+        }
+
+        .bwi-loading-title{
+          font-size:1.25rem;
+          margin:0 0 .375rem;
+          line-height:1.1;
+        }
+
+        .bwi-loading-copy{
+          font-size:var(--bwi-xs);
+          line-height:1.45;
+        }
+
+        .bwi-success-title{
+          font-size:1.25rem;
+          margin:0 0 .375rem;
+          line-height:1.1;
+        }
+
+        .bwi-success-copy{
+          font-size:var(--bwi-xs);
+          line-height:1.45;
+        }
+
+        .bwi-loading-shell .bwi-review-strip{
+          width:100%;
+          gap:.5rem;
+          padding:0 0 .25rem;
+          overflow-x:auto;
+          overflow-y:hidden;
+        }
+
+        .bwi-loading-shell .bwi-strip-card{
+          min-width:88%;
+          padding:.75rem;
+        }
+
+        .bwi-loading-shell .bwi-strip-name{
+          font-size:var(--bwi-sm);
+        }
+
+        .bwi-loading-shell .bwi-strip-amount{
+          font-size:1rem;
+        }
+
+        .bwi-loading-shell .bwi-strip-meta{
+          font-size:.6875rem;
+        }
+
+        .bwi-loading-shell .bwi-progress-card{
+          gap:.625rem;
+          padding:.75rem;
+          width:100%;
+        }
+
+        .bwi-confirm .bwi-review-strip{
+          width:100%;
+          gap:.5rem;
+          padding:0 0 .125rem;
+          overflow-x:auto;
+          overflow-y:hidden;
+        }
+
+        .bwi-confirm .bwi-strip-card{
+          min-width:84%;
+          padding:.625rem;
+        }
+
+        .bwi-confirm .bwi-strip-name{
+          font-size:var(--bwi-sm);
+        }
+
+        .bwi-confirm .bwi-strip-amount{
+          font-size:1rem;
+        }
+
+        .bwi-confirm .bwi-strip-meta{
+          font-size:.6875rem;
+        }
+
+        .bwi-success-badges{
+          width:100%;
+          max-width:18rem;
+          flex-direction:column;
+          flex-wrap:nowrap;
+          align-items:stretch;
+          gap:.5rem;
+          overflow:auto;
+          padding-right:.125rem;
+        }
+
+        .bwi-success-badge{
+          width:100%;
+          justify-content:center;
+          padding:.625rem .75rem;
+          font-size:var(--bwi-xs);
+        }
+
+        .bwi-progress-track{
+          height:.75rem;
+          background:var(--bwi-sidebar);
+        }
+
+        .bwi-loading-shell .bwi-progress-track{
+          height:.5rem;
+        }
+
+        .bwi-loading-shell .bwi-progress-copy{
+          font-size:.6875rem;
+          line-height:1.4;
+        }
+
+        .bwi-progress-fill{
+          background:linear-gradient(90deg,var(--bwi-primary),rgba(76,123,99,.7));
+        }
+
+        .bwi-confirm{
+          background:#fff;
+          border:1px solid var(--bwi-border);
+          border-radius:var(--bwi-radius-xl);
+          box-shadow:0 20px 60px rgba(0,0,0,.25);
+          padding:1rem;
+          gap:.75rem;
+        }
+
+        .bwi-confirm-icon{
+          width:3rem;
+          height:3rem;
+          border-radius:var(--bwi-radius-full);
+        }
+
+        .bwi-confirm-icon.is-pay{
+          background:rgba(76,123,99,.12);
+          color:var(--bwi-primary);
+        }
+
+        .bwi-confirm-icon.is-delete{
+          background:#fef2f2;
+          color:var(--bwi-error);
+        }
+
+        .bwi-confirm-title{
+          font-family:var(--bwi-font);
+          font-size:1rem;
+          font-weight:700;
+          line-height:1.25;
+          color:var(--bwi-headline);
+        }
+
+        .bwi-confirm-copy{
+          font-size:var(--bwi-xs);
+          line-height:1.45;
+          color:var(--bwi-secondary);
+        }
+
+        .bwi-confirm-meta{
+          gap:.375rem;
+        }
+
+        .bwi-confirm-chip{
+          padding:.5rem .625rem;
+          font-size:var(--bwi-xs);
+        }
+
+        .bwi-confirm-actions{
+          margin-top:.25rem;
+          gap:.5rem;
+        }
+
         @keyframes bwiTriggerSweep{
           0%{transform:translateX(0) skewX(-18deg)}
           22%{transform:translateX(260%) skewX(-18deg)}
@@ -1384,8 +2119,9 @@ class BisonWioInvoices extends HTMLElement {
         }
 
         @media (max-width: 900px){
-          .bwi-screen{padding:20px}
+          .bwi-screen{padding:0 20px 20px}
           .bwi-screen-title{font-size:38px}
+          .bwi-screen-title--invoices{font-size:2rem}
           .bwi-review-title,
           .bwi-loading-title,
           .bwi-success-title{font-size:32px}
@@ -1399,11 +2135,18 @@ class BisonWioInvoices extends HTMLElement {
 
         @media (max-width: 640px){
           .bwi-header{padding:16px}
-          .bwi-header-title{font-size:18px}
-          .bwi-screen{padding:16px}
+          .bwi-screen{padding:0 16px 16px}
           .bwi-screen-title{font-size:34px}
+          .bwi-screen-title--invoices{font-size:1.875rem}
           .bwi-invoice-card{padding:16px;border-radius:20px}
           .bwi-card-top{flex-direction:column}
+          .bwi-card-top-side{
+            width:100%;
+            flex-direction:row;
+            align-items:flex-end;
+            justify-content:space-between;
+          }
+          .bwi-card-total-block{align-items:flex-start}
           .bwi-card-total{text-align:left}
           .bwi-bulk-dock,
           .bwi-review-actions,
@@ -1527,8 +2270,6 @@ class BisonWioInvoices extends HTMLElement {
     this._stageEl = null;
     this._confirmLayerEl = null;
     this._currentScreenEl = null;
-    this._headerTitleEl = null;
-    this._headerEyebrowEl = null;
     this._backButtonEl = null;
     this._closeButtonEl = null;
     this._clearScreenRefs();
@@ -1561,10 +2302,6 @@ class BisonWioInvoices extends HTMLElement {
               <button class="bwi-btn bwi-btn-secondary bwi-icon-btn bwi-back-btn" type="button" aria-label="Go back">
                 ${BWI_ICONS.arrowLeft}
               </button>
-              <div class="bwi-header-copy">
-                <p class="bwi-header-eyebrow"></p>
-                <h2 class="bwi-header-title"></h2>
-              </div>
             </div>
             <button class="bwi-btn bwi-btn-secondary bwi-icon-btn bwi-close-btn" type="button" aria-label="Close invoices">
               ${BWI_ICONS.x}
@@ -1582,8 +2319,6 @@ class BisonWioInvoices extends HTMLElement {
     this._modalEl = overlay.querySelector(".bwi-modal");
     this._stageEl = overlay.querySelector(".bwi-stage");
     this._confirmLayerEl = overlay.querySelector(".bwi-confirm-layer");
-    this._headerTitleEl = overlay.querySelector(".bwi-header-title");
-    this._headerEyebrowEl = overlay.querySelector(".bwi-header-eyebrow");
     this._backButtonEl = overlay.querySelector(".bwi-back-btn");
     this._closeButtonEl = overlay.querySelector(".bwi-close-btn");
 
@@ -1610,7 +2345,8 @@ class BisonWioInvoices extends HTMLElement {
     this._bulkDockEl = null;
     this._searchInputEl = null;
     this._progressFillEl = null;
-    this._progressValueEl = null;
+    this._invoiceCardMap = new Map();
+    this._bulkDockTransitionToken++;
   }
 
   _setScreen(screen, data = {}, options = {}) {
@@ -1701,35 +2437,12 @@ class BisonWioInvoices extends HTMLElement {
   }
 
   _renderHeader() {
-    if (!this._headerTitleEl || !this._headerEyebrowEl) return;
-
-    this._headerEyebrowEl.textContent = "Bison WIO Invoices";
-    this._headerTitleEl.textContent = this._getHeaderTitle();
+    if (!this._backButtonEl || !this._closeButtonEl) return;
 
     const canGoBack = this._history.length > 0 && !this._isBusyScreen();
     this._backButtonEl.style.visibility = canGoBack ? "visible" : "hidden";
     this._backButtonEl.disabled = !canGoBack;
     this._closeButtonEl.disabled = this._isBusyScreen();
-  }
-
-  _getHeaderTitle() {
-    switch (this._screen) {
-      case "invoice":
-        return "Invoice Detail";
-      case "bulk-pay":
-        return "Bulk Pay";
-      case "bulk-delete":
-        return "Bulk Delete";
-      case "payment-loading":
-        return "Payment Processing";
-      case "delete-loading":
-        return "Deletion Processing";
-      case "payment-success":
-      case "delete-success":
-        return "Complete";
-      default:
-        return "Invoice Studio";
-    }
   }
 
   _buildScreen(screen) {
@@ -1761,8 +2474,7 @@ class BisonWioInvoices extends HTMLElement {
 
     screen.innerHTML = `
       <div class="bwi-screen-head">
-        <p class="bwi-kicker">${BWI_ICONS.spark}<span>WIO Billing Workspace</span></p>
-        <h1 class="bwi-screen-title">Invoices</h1>
+        <h1 class="bwi-screen-title bwi-screen-title--invoices">Invoices</h1>
         <p class="bwi-screen-copy">Search, inspect, and batch-process invoice records with a fixed animated modal frame.</p>
       </div>
       <label class="bwi-search-shell">
@@ -1804,6 +2516,7 @@ class BisonWioInvoices extends HTMLElement {
     `;
 
     this._invoiceListEl.innerHTML = "";
+    this._invoiceCardMap = new Map();
 
     if (!invoices.length) {
       this._invoiceListEl.innerHTML = `
@@ -1821,12 +2534,12 @@ class BisonWioInvoices extends HTMLElement {
     invoices.forEach((invoice, index) => {
       const card = document.createElement("article");
       const isSelected = this._selectedIds.has(invoice.id);
-      const quickAction = this._getQuickAction(invoice);
 
       card.className = `bwi-invoice-card${isSelected ? " is-selected" : ""}`;
       card.style.animationDelay = `${index * 48}ms`;
       card.tabIndex = 0;
       card.setAttribute("data-id", invoice.id);
+      card.setAttribute("aria-pressed", String(isSelected));
 
       card.innerHTML = `
         <div class="bwi-select-indicator">
@@ -1834,20 +2547,25 @@ class BisonWioInvoices extends HTMLElement {
         </div>
         <div class="bwi-card-main">
           <div class="bwi-card-top">
-            <div>
+            <div class="bwi-card-top-main">
               <p class="bwi-card-label">${invoice.invoiceNumber}</p>
               <h3 class="bwi-card-name">${invoice.operatorName}</h3>
+              <div class="bwi-card-meta">
+                <span class="bwi-meta-chip">${BWI_ICONS.invoice}<span>${invoice.id}</span></span>
+                <span class="bwi-meta-chip">${BWI_ICONS.calendar}<span>${formatDate(invoice.date)}</span></span>
+                <span class="bwi-card-meta-text">${invoice.items.length} line item${invoice.items.length !== 1 ? "s" : ""}</span>
+              </div>
             </div>
-            <p class="bwi-card-total">${formatCurrency(invoice.amount)}</p>
-          </div>
-          <div class="bwi-card-meta">
-            <span class="bwi-meta-chip">${BWI_ICONS.invoice}<span>${invoice.id}</span></span>
-            <span class="bwi-meta-chip">${BWI_ICONS.calendar}<span>${formatDate(invoice.date)}</span></span>
-            <span class="bwi-status-pill is-${invoice.status}">${BWI_STATUS_META[invoice.status].label}</span>
+            <div class="bwi-card-top-side">
+              <div class="bwi-card-total-block">
+                <p class="bwi-card-total-label">Outstanding</p>
+                <p class="bwi-card-total">${formatCurrency(invoice.amount)}</p>
+              </div>
+              <span class="bwi-status-pill is-${invoice.status}">${BWI_STATUS_META[invoice.status].label}</span>
+            </div>
           </div>
         </div>
         <div class="bwi-card-actions">
-          <button class="bwi-btn bwi-btn-secondary" type="button" data-action="quick">${quickAction}</button>
           <button class="bwi-btn bwi-btn-secondary bwi-icon-btn" type="button" data-action="view" aria-label="View invoice">
             ${BWI_ICONS.eye}
           </button>
@@ -1866,11 +2584,7 @@ class BisonWioInvoices extends HTMLElement {
         this._openInvoice(invoice.id);
       });
 
-      card.querySelector('[data-action="quick"]').addEventListener("click", (event) => {
-        event.stopPropagation();
-        this._handleQuickAction(invoice);
-      });
-
+      this._invoiceCardMap.set(invoice.id, card);
       fragment.appendChild(card);
     });
 
@@ -1886,11 +2600,25 @@ class BisonWioInvoices extends HTMLElement {
     const canPay = count > 0 && selectedInvoices.every((invoice) => invoice.status === "pending");
 
     if (!count) {
+      if (
+        !this._bulkDockEl.innerHTML.trim() &&
+        !this._bulkDockEl.classList.contains("is-visible")
+      ) {
+        return;
+      }
+
+      const transitionToken = ++this._bulkDockTransitionToken;
       this._bulkDockEl.className = "bwi-bulk-dock";
-      this._bulkDockEl.innerHTML = "";
+      this._bulkDockEl.setAttribute("aria-hidden", "true");
+      this._scheduleTimeout(() => {
+        if (transitionToken !== this._bulkDockTransitionToken) return;
+        if (this._selectedIds.size > 0 || !this._bulkDockEl) return;
+        this._bulkDockEl.innerHTML = "";
+      }, 180);
       return;
     }
 
+    ++this._bulkDockTransitionToken;
     let note = "Selection active.";
     if (canDelete) {
       note = "Every selected invoice is draft and can be deleted.";
@@ -1901,6 +2629,7 @@ class BisonWioInvoices extends HTMLElement {
     }
 
     this._bulkDockEl.className = "bwi-bulk-dock is-visible";
+    this._bulkDockEl.setAttribute("aria-hidden", "false");
     this._bulkDockEl.innerHTML = `
       <div class="bwi-bulk-copy">
         <p class="bwi-bulk-title">${count} invoice${count !== 1 ? "s" : ""} selected</p>
@@ -1915,7 +2644,7 @@ class BisonWioInvoices extends HTMLElement {
 
     this._bulkDockEl.querySelector('[data-action="clear"]').addEventListener("click", () => {
       this._selectedIds.clear();
-      this._renderInvoiceList();
+      this._syncInvoiceSelectionState();
       this._renderBulkDock();
     });
 
@@ -2094,7 +2823,6 @@ class BisonWioInvoices extends HTMLElement {
         <div class="bwi-progress-card">
           <div class="bwi-progress-meta">
             <p class="bwi-progress-label">${isPay ? "Payment Progress" : "Deletion Progress"}</p>
-            <span class="bwi-progress-value">0%</span>
           </div>
           <div class="bwi-progress-track">
             <div class="bwi-progress-fill"></div>
@@ -2105,7 +2833,6 @@ class BisonWioInvoices extends HTMLElement {
     `;
 
     this._progressFillEl = screen.querySelector(".bwi-progress-fill");
-    this._progressValueEl = screen.querySelector(".bwi-progress-value");
     return screen;
   }
 
@@ -2120,7 +2847,7 @@ class BisonWioInvoices extends HTMLElement {
         <div class="bwi-success-head">
           <div class="bwi-success-orb">${BWI_ICONS.check}</div>
           <div>
-            <h1 class="bwi-success-title">${isPay ? "Payment Queue Updated" : "Drafts Deleted"}</h1>
+            <h1 class="bwi-success-title">${isPay ? "Payment Queue Updated" : "Invoices Deleted"}</h1>
             <p class="bwi-success-copy">${isPay ? "Selected invoices are now marked as processing." : "Selected draft invoices have been removed from the invoice list."}</p>
           </div>
         </div>
@@ -2169,41 +2896,47 @@ class BisonWioInvoices extends HTMLElement {
       this._selectedIds.add(invoiceId);
     }
 
-    this._renderInvoiceList();
+    this._syncInvoiceSelectionState(invoiceId);
     this._renderBulkDock();
+  }
+
+  _syncInvoiceSelectionState(invoiceId = null) {
+    if (!this._invoiceCardMap.size) return;
+
+    if (invoiceId) {
+      const card = this._invoiceCardMap.get(invoiceId);
+      if (!card) return;
+      const isSelected = this._selectedIds.has(invoiceId);
+      card.classList.toggle("is-selected", isSelected);
+      card.setAttribute("aria-pressed", String(isSelected));
+      return;
+    }
+
+    for (const [id, card] of this._invoiceCardMap.entries()) {
+      const isSelected = this._selectedIds.has(id);
+      card.classList.toggle("is-selected", isSelected);
+      card.setAttribute("aria-pressed", String(isSelected));
+    }
   }
 
   _openInvoice(invoiceId) {
     this._setScreen("invoice", { invoiceId }, { direction: 1, pushHistory: true });
   }
 
-  _handleQuickAction(invoice) {
-    if (invoice.status === "pending") {
-      this._startActionReview("pay", [invoice.id]);
-      return;
-    }
-
-    if (invoice.status === "draft") {
-      this._startActionReview("delete", [invoice.id]);
-      return;
-    }
-
-    this._openInvoice(invoice.id);
-  }
-
   _startActionReview(type, invoiceIds) {
     const uniqueIds = [...new Set(invoiceIds)];
     if (!uniqueIds.length) return;
 
-    const screen = type === "pay" ? "bulk-pay" : "bulk-delete";
-    this._setScreen(screen, { invoiceIds: uniqueIds }, { direction: 1, pushHistory: true });
-    this._openConfirm(type);
+    this._openConfirm(type, { invoiceIds: uniqueIds });
   }
 
-  _openConfirm(type) {
-    const invoiceIds = this._getActionInvoiceIds();
+  _openConfirm(type, options = {}) {
+    const invoiceIds = options.invoiceIds || this._getActionInvoiceIds();
     if (!invoiceIds.length || !this._confirmLayerEl) return;
-    this._confirmState = { type, invoiceIds };
+    this._confirmState = {
+      type,
+      invoiceIds,
+    };
     this._renderConfirm();
   }
 
@@ -2217,18 +2950,35 @@ class BisonWioInvoices extends HTMLElement {
 
     this._confirmLayerEl.innerHTML = "";
 
-    if (!this._confirmState) {
-      this._modalEl.classList.remove("is-blurred");
-      return;
-    }
+    if (!this._confirmState) return;
 
     const { type, invoiceIds } = this._confirmState;
     const invoices = this._getInvoicesByIds(invoiceIds);
     const total = invoices.reduce((sum, invoice) => sum + invoice.amount, 0);
     const isPay = type === "pay";
+    const isBulk = invoiceIds.length > 1;
     const size = BWI_CONFIRM_SIZES[type];
-
-    this._modalEl.classList.add("is-blurred");
+    const title = isPay
+      ? isBulk
+        ? "Confirm Bulk Pay Invoices"
+        : "Confirm Pay Invoice"
+      : isBulk
+        ? "Confirm Bulk Delete Invoices"
+        : "Confirm Delete Invoice";
+    const copy = isPay
+      ? isBulk
+        ? "These pending invoices will move into processing after the fixed loading run."
+        : "This pending invoice will move into processing after the fixed loading run."
+      : isBulk
+        ? "These draft invoices will be removed from the queue after the fixed loading run."
+        : "This draft invoice will be removed from the queue after the fixed loading run.";
+    const confirmLabel = isPay
+      ? isBulk
+        ? "Confirm Bulk Pay Invoices"
+        : "Confirm Pay Invoice"
+      : isBulk
+        ? "Confirm Bulk Delete Invoices"
+        : "Confirm Delete Invoice";
 
     const layer = document.createElement("div");
     layer.className = "bwi-confirm-wrap";
@@ -2238,16 +2988,19 @@ class BisonWioInvoices extends HTMLElement {
         <div class="bwi-confirm-icon ${isPay ? "is-pay" : "is-delete"}">
           ${isPay ? BWI_ICONS.wallet : BWI_ICONS.trash}
         </div>
-        <h3 class="bwi-confirm-title">${isPay ? `Confirm ${invoiceIds.length > 1 ? "bulk pay invoices" : "pay invoice"}` : `Confirm ${invoiceIds.length > 1 ? "bulk delete invoices" : "delete invoice"}`}</h3>
-        <p class="bwi-confirm-copy">${isPay ? "The selected pending invoices will move into processing after the fixed loading run." : "The selected draft invoices will be removed from the queue after the fixed loading run."}</p>
+        <h3 class="bwi-confirm-title">${title}</h3>
+        <p class="bwi-confirm-copy">${copy}</p>
         <div class="bwi-confirm-meta">
           <span class="bwi-confirm-chip">${BWI_ICONS.invoice}<span>${invoiceIds.length} invoice${invoiceIds.length !== 1 ? "s" : ""}</span></span>
           <span class="bwi-confirm-chip">${isPay ? BWI_ICONS.wallet : BWI_ICONS.trash}<span>${isPay ? formatCurrency(total) : "Draft only"}</span></span>
         </div>
+        <div class="bwi-review-strip">
+          ${this._getStripCardsMarkup(invoices)}
+        </div>
         <div class="bwi-confirm-actions">
           <button class="bwi-btn bwi-btn-secondary" type="button" data-action="cancel">Cancel</button>
           <button class="bwi-btn ${isPay ? "bwi-btn-primary" : "bwi-btn-error"}" type="button" data-action="confirm">
-            ${isPay ? "Confirm Pay" : "Confirm Delete"}
+            ${confirmLabel}
           </button>
         </div>
       </div>
@@ -2282,10 +3035,11 @@ class BisonWioInvoices extends HTMLElement {
 
     const tick = (now) => {
       if (token !== this._progressToken) return;
-      const progress = Math.min(1, (now - startedAt) / duration);
+      const elapsed = Math.min(duration, now - startedAt);
+      const progress = this._getArbitraryProgress(elapsed, duration);
       this._syncProgress(progress);
 
-      if (progress < 1) {
+      if (elapsed < duration) {
         this._scheduleAnimationFrame(tick);
         return;
       }
@@ -2304,10 +3058,38 @@ class BisonWioInvoices extends HTMLElement {
     if (this._progressFillEl) {
       this._progressFillEl.style.transform = `scaleX(${progress})`;
     }
+  }
 
-    if (this._progressValueEl) {
-      this._progressValueEl.textContent = `${Math.round(progress * 100)}%`;
+  _getArbitraryProgress(elapsed, duration) {
+    const progressStops = [
+      { at: 0, value: 0 },
+      { at: 0.08, value: 0.04 },
+      { at: 0.18, value: 0.11 },
+      { at: 0.31, value: 0.21 },
+      { at: 0.44, value: 0.49 },
+      { at: 0.58, value: 0.58 },
+      { at: 0.7, value: 0.79 },
+      { at: 0.82, value: 0.86 },
+      { at: 0.91, value: 0.94 },
+      { at: 0.97, value: 0.97 },
+      { at: 1, value: 1 },
+    ];
+    const normalizedElapsed = duration ? elapsed / duration : 1;
+
+    for (let index = 1; index < progressStops.length; index++) {
+      const previousStop = progressStops[index - 1];
+      const currentStop = progressStops[index];
+
+      if (normalizedElapsed > currentStop.at) continue;
+
+      const segmentSpan = currentStop.at - previousStop.at || 1;
+      const segmentProgress = (normalizedElapsed - previousStop.at) / segmentSpan;
+      const easedSegmentProgress = 1 - (1 - segmentProgress) ** 3;
+
+      return previousStop.value + (currentStop.value - previousStop.value) * easedSegmentProgress;
     }
+
+    return 1;
   }
 
   _applyActionResult(type, invoiceIds) {
@@ -2346,12 +3128,6 @@ class BisonWioInvoices extends HTMLElement {
       "payment-success",
       "delete-success",
     ].includes(this._screen);
-  }
-
-  _getQuickAction(invoice) {
-    if (invoice.status === "pending") return "Pay";
-    if (invoice.status === "draft") return "Delete";
-    return "View";
   }
 
   _getInvoiceById(invoiceId) {

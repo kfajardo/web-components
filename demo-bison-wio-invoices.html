@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bison WIO Invoices - Demo</title>
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&amp;family=Inter:wght@400;500;600;700;800&amp;display=swap"
+    />
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+      }
+
+      body {
+        font-family: "Inter", system-ui, sans-serif;
+        color: #172117;
+        background:
+          radial-gradient(circle at top left, rgba(80, 142, 102, 0.2), transparent 28%),
+          radial-gradient(circle at right center, rgba(226, 197, 109, 0.18), transparent 24%),
+          linear-gradient(180deg, #f5efe3 0%, #eef4ef 52%, #f8faf8 100%);
+      }
+
+      .page {
+        width: min(1180px, 100%);
+        margin: 0 auto;
+        padding: 40px 20px 56px;
+        display: grid;
+        gap: 20px;
+      }
+
+      .hero {
+        position: relative;
+        overflow: hidden;
+        padding: 32px;
+        border-radius: 32px;
+        background:
+          radial-gradient(circle at top right, rgba(86, 150, 109, 0.18), transparent 30%),
+          linear-gradient(135deg, rgba(255, 255, 255, 0.88), rgba(248, 243, 233, 0.92));
+        border: 1px solid rgba(26, 42, 33, 0.08);
+        box-shadow: 0 24px 56px rgba(20, 30, 24, 0.08);
+      }
+
+      .hero::before,
+      .hero::after {
+        content: "";
+        position: absolute;
+        border-radius: 999px;
+        pointer-events: none;
+      }
+
+      .hero::before {
+        width: 220px;
+        height: 220px;
+        top: -110px;
+        right: -70px;
+        background: radial-gradient(circle, rgba(76, 123, 99, 0.18), transparent 72%);
+      }
+
+      .hero::after {
+        width: 180px;
+        height: 180px;
+        left: -40px;
+        bottom: -70px;
+        background: radial-gradient(circle, rgba(232, 197, 92, 0.18), transparent 70%);
+      }
+
+      .hero-grid {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        grid-template-columns: minmax(0, 1.2fr) minmax(320px, 420px);
+        gap: 20px;
+        align-items: end;
+      }
+
+      .eyebrow {
+        margin: 0 0 10px;
+        font-size: 0.74rem;
+        line-height: 1;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        font-weight: 800;
+        color: #2f7a4b;
+      }
+
+      h1 {
+        margin: 0;
+        font-family: "Fraunces", Georgia, serif;
+        font-size: clamp(2.3rem, 5vw, 4.4rem);
+        line-height: 0.94;
+        letter-spacing: -0.04em;
+      }
+
+      .hero-copy {
+        margin: 16px 0 0;
+        max-width: 680px;
+        color: #536159;
+        font-size: 0.98rem;
+        line-height: 1.7;
+      }
+
+      .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 24px;
+      }
+
+      .toolbar button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        min-height: 42px;
+        padding: 10px 16px;
+        border-radius: 16px;
+        border: 1px solid rgba(26, 42, 33, 0.1);
+        background: rgba(255, 255, 255, 0.72);
+        color: #172117;
+        font: inherit;
+        font-weight: 700;
+        cursor: pointer;
+        transition:
+          transform 0.2s ease,
+          border-color 0.2s ease,
+          box-shadow 0.2s ease,
+          background 0.2s ease;
+      }
+
+      .toolbar button:hover {
+        transform: translateY(-1px);
+        border-color: rgba(47, 122, 75, 0.24);
+        box-shadow: 0 16px 28px rgba(17, 29, 22, 0.08);
+      }
+
+      .toolbar .primary {
+        color: #fff;
+        border-color: #2f7a4b;
+        background: linear-gradient(135deg, #2f7a4b 0%, #205836 100%);
+        box-shadow: 0 14px 24px rgba(47, 122, 75, 0.22);
+      }
+
+      .toolbar .primary:hover {
+        box-shadow: 0 18px 30px rgba(47, 122, 75, 0.25);
+      }
+
+      .preview-card {
+        padding: 24px;
+        border-radius: 28px;
+        background: linear-gradient(180deg, rgba(23, 33, 23, 0.98), rgba(31, 49, 36, 0.96));
+        color: #f7f8f2;
+        box-shadow: 0 24px 50px rgba(16, 24, 18, 0.2);
+      }
+
+      .preview-label {
+        margin: 0 0 12px;
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 0.72rem;
+        font-weight: 800;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      .preview-window {
+        border-radius: 24px;
+        background:
+          radial-gradient(circle at top right, rgba(96, 164, 120, 0.18), transparent 34%),
+          linear-gradient(180deg, #fffdf8 0%, #f5ecde 100%);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        min-height: 220px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 22px;
+        color: #172117;
+      }
+
+      .preview-window h2 {
+        margin: 0;
+        font-family: "Fraunces", Georgia, serif;
+        font-size: 1.7rem;
+        line-height: 0.98;
+      }
+
+      .preview-window p {
+        margin: 10px 0 0;
+        color: #57665e;
+        font-size: 0.92rem;
+        line-height: 1.6;
+      }
+
+      .preview-pills {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 18px;
+      }
+
+      .preview-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.82);
+        border: 1px solid rgba(26, 42, 33, 0.08);
+        font-size: 0.78rem;
+        font-weight: 700;
+      }
+
+      .content-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
+        gap: 20px;
+      }
+
+      .panel {
+        padding: 24px;
+        border-radius: 28px;
+        background: rgba(255, 255, 255, 0.76);
+        border: 1px solid rgba(24, 38, 30, 0.08);
+        box-shadow: 0 22px 46px rgba(21, 31, 24, 0.06);
+      }
+
+      .panel h2 {
+        margin: 0 0 8px;
+        font-family: "Fraunces", Georgia, serif;
+        font-size: 1.6rem;
+        line-height: 1;
+      }
+
+      .panel-copy {
+        margin: 0;
+        color: #5d6a63;
+        font-size: 0.92rem;
+        line-height: 1.65;
+      }
+
+      .component-stage {
+        margin-top: 20px;
+        min-height: 170px;
+        border-radius: 24px;
+        border: 1px dashed rgba(47, 122, 75, 0.22);
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(242, 248, 243, 0.9));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+      }
+
+      .size-list {
+        display: grid;
+        gap: 10px;
+        margin-top: 20px;
+      }
+
+      .size-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 14px 16px;
+        border-radius: 18px;
+        background: rgba(249, 250, 247, 0.92);
+        border: 1px solid rgba(24, 38, 30, 0.07);
+      }
+
+      .size-item strong {
+        font-size: 0.9rem;
+      }
+
+      .size-item span {
+        color: #607067;
+        font-size: 0.84rem;
+        text-align: right;
+      }
+
+      .notes {
+        margin-top: 18px;
+        display: grid;
+        gap: 8px;
+      }
+
+      .note {
+        margin: 0;
+        color: #607067;
+        font-size: 0.84rem;
+        line-height: 1.55;
+      }
+
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.92em;
+      }
+
+      @media (max-width: 960px) {
+        .hero-grid,
+        .content-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 640px) {
+        .page {
+          padding: 20px 14px 36px;
+        }
+
+        .hero,
+        .panel,
+        .preview-card {
+          padding: 20px;
+          border-radius: 24px;
+        }
+
+        .toolbar {
+          flex-direction: column;
+        }
+
+        .toolbar button {
+          width: 100%;
+        }
+
+        .size-item {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+
+        .size-item span {
+          text-align: left;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="hero">
+        <div class="hero-grid">
+          <div>
+            <p class="eyebrow">UI Sandbox</p>
+            <h1>Bison WIO Invoices Demo</h1>
+            <p class="hero-copy">
+              Preview the UI-only invoice flow for <code>bison-wio-invoices.js</code>.
+              The component ships with mocked invoice data, animated screen transitions,
+              fixed modal dimensions, batch actions, and confirmation layers.
+            </p>
+            <div class="toolbar">
+              <button id="open-invoices" type="button" class="primary">Open Invoice Modal</button>
+              <button id="close-invoices" type="button">Close Modal</button>
+              <button id="remount-component" type="button">Remount Component</button>
+            </div>
+          </div>
+
+          <div class="preview-card">
+            <p class="preview-label">Flow Preview</p>
+            <div class="preview-window">
+              <div>
+                <h2>Invoices, detail, bulk actions, fixed loading, success.</h2>
+                <p>
+                  Use the embedded trigger below or the external controls on the left.
+                  This demo only showcases front-end behavior.
+                </p>
+              </div>
+              <div class="preview-pills">
+                <span class="preview-pill">3s loading states</span>
+                <span class="preview-pill">1s success states</span>
+                <span class="preview-pill">Mock data only</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="content-grid">
+        <div class="panel">
+          <h2>Component Stage</h2>
+          <p class="panel-copy">
+            This mounts the component directly from <code>./bison-wio-invoices.js</code>.
+            Click the green trigger or use the external “Open Invoice Modal” button.
+          </p>
+
+          <div class="component-stage" id="component-stage"></div>
+
+          <div class="notes">
+            <p class="note">
+              Serve this folder over HTTP if you want browser-consistent module loading.
+              Example: <code>npx serve .</code>
+            </p>
+            <p class="note">
+              The component is UI-only right now, so all invoice changes reset if you refresh the page.
+            </p>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>Fixed Modal Sizes</h2>
+          <p class="panel-copy">
+            These match the current component configuration so screen-to-screen resizing stays predictable.
+          </p>
+
+          <div class="size-list">
+            <div class="size-item">
+              <strong>Invoices Screen</strong>
+              <span>880 × 760</span>
+            </div>
+            <div class="size-item">
+              <strong>Specific Invoice Screen</strong>
+              <span>760 × 728</span>
+            </div>
+            <div class="size-item">
+              <strong>Bulk Pay Screen</strong>
+              <span>760 × 620</span>
+            </div>
+            <div class="size-item">
+              <strong>Bulk Delete Screen</strong>
+              <span>760 × 620</span>
+            </div>
+            <div class="size-item">
+              <strong>Payment Loading Screen</strong>
+              <span>860 × 520</span>
+            </div>
+            <div class="size-item">
+              <strong>Delete Loading Screen</strong>
+              <span>860 × 520</span>
+            </div>
+            <div class="size-item">
+              <strong>Success Screens</strong>
+              <span>720 × 420</span>
+            </div>
+            <div class="size-item">
+              <strong>Confirm Modals</strong>
+              <span>440 × 320</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="./bison-wio-invoices.js"></script>
+    <script type="module">
+      const stage = document.getElementById("component-stage");
+      const openButton = document.getElementById("open-invoices");
+      const closeButton = document.getElementById("close-invoices");
+      const remountButton = document.getElementById("remount-component");
+
+      function mountComponent() {
+        const next = document.createElement("bison-wio-invoices");
+        next.id = "invoice-demo";
+        stage.appendChild(next);
+        return next;
+      }
+
+      function getComponent() {
+        return document.getElementById("invoice-demo");
+      }
+
+      mountComponent();
+
+      openButton.addEventListener("click", () => {
+        const component = getComponent();
+        if (component) component.open = true;
+      });
+
+      closeButton.addEventListener("click", () => {
+        const component = getComponent();
+        if (component) component.open = false;
+      });
+
+      remountButton.addEventListener("click", () => {
+        const current = getComponent();
+        if (current) current.remove();
+
+        mountComponent();
+      });
+    </script>
+  </body>
+</html>
