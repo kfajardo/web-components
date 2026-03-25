@@ -199,6 +199,7 @@ class BisonWioInvoices extends HTMLElement {
     this._history = [];
     this._searchQuery = "";
     this._selectedIds = new Set();
+    this._selectionAnchorId = null;
     this._invoices = BWI_MOCK_INVOICES.map(cloneInvoice);
     this._confirmState = null;
 
@@ -662,6 +663,15 @@ class BisonWioInvoices extends HTMLElement {
           border-radius:999px;
           border:2px solid transparent;
           background-clip:padding-box;
+        }
+
+        .bwi-invoice-meta,
+        .bwi-invoice-list,
+        .bwi-invoice-list *,
+        .bwi-bulk-dock,
+        .bwi-bulk-dock *{
+          -webkit-user-select:none;
+          user-select:none;
         }
 
         .bwi-invoice-card{
@@ -2282,6 +2292,7 @@ class BisonWioInvoices extends HTMLElement {
     this._direction = 1;
     this._searchQuery = "";
     this._selectedIds.clear();
+    this._selectionAnchorId = null;
     this._confirmState = null;
   }
 
@@ -2572,11 +2583,13 @@ class BisonWioInvoices extends HTMLElement {
         </div>
       `;
 
-      card.addEventListener("click", () => this._toggleSelection(invoice.id));
+      card.addEventListener("click", (event) => {
+        this._handleInvoiceSelection(invoice.id, { shiftKey: event.shiftKey });
+      });
       card.addEventListener("keydown", (event) => {
         if (event.key !== "Enter" && event.key !== " ") return;
         event.preventDefault();
-        this._toggleSelection(invoice.id);
+        this._handleInvoiceSelection(invoice.id, { shiftKey: event.shiftKey });
       });
 
       card.querySelector('[data-action="view"]').addEventListener("click", (event) => {
@@ -2644,6 +2657,7 @@ class BisonWioInvoices extends HTMLElement {
 
     this._bulkDockEl.querySelector('[data-action="clear"]').addEventListener("click", () => {
       this._selectedIds.clear();
+      this._selectionAnchorId = null;
       this._syncInvoiceSelectionState();
       this._renderBulkDock();
     });
@@ -2677,7 +2691,7 @@ class BisonWioInvoices extends HTMLElement {
         ? '<button class="bwi-btn bwi-btn-primary" type="button" data-action="pay">Pay Now</button>'
         : invoice.status === "draft"
           ? '<button class="bwi-btn bwi-btn-error" type="button" data-action="delete">Delete</button>'
-          : `<p class="bwi-detail-note">This invoice is currently <strong>${BWI_STATUS_META[invoice.status].label.toLowerCase()}</strong>, so no direct action is shown on this screen.</p>`;
+          : "";
 
     screen.innerHTML = `
       <div class="bwi-detail-shell">
@@ -2889,6 +2903,16 @@ class BisonWioInvoices extends HTMLElement {
       .join("");
   }
 
+  _handleInvoiceSelection(invoiceId, options = {}) {
+    const { shiftKey = false } = options;
+
+    if (shiftKey && this._selectionAnchorId && this._selectInvoiceRange(invoiceId)) {
+      return;
+    }
+
+    this._toggleSelection(invoiceId);
+  }
+
   _toggleSelection(invoiceId) {
     if (this._selectedIds.has(invoiceId)) {
       this._selectedIds.delete(invoiceId);
@@ -2896,8 +2920,35 @@ class BisonWioInvoices extends HTMLElement {
       this._selectedIds.add(invoiceId);
     }
 
+    if (this._selectedIds.has(invoiceId)) {
+      this._selectionAnchorId = invoiceId;
+    } else {
+      const selectedIds = [...this._selectedIds];
+      this._selectionAnchorId = selectedIds.length ? selectedIds[selectedIds.length - 1] : null;
+    }
+
     this._syncInvoiceSelectionState(invoiceId);
     this._renderBulkDock();
+  }
+
+  _selectInvoiceRange(invoiceId) {
+    const visibleInvoiceIds = this._getFilteredInvoices().map((invoice) => invoice.id);
+    const anchorIndex = visibleInvoiceIds.indexOf(this._selectionAnchorId);
+    const targetIndex = visibleInvoiceIds.indexOf(invoiceId);
+
+    if (anchorIndex === -1 || targetIndex === -1) return false;
+
+    const [startIndex, endIndex] =
+      anchorIndex < targetIndex ? [anchorIndex, targetIndex] : [targetIndex, anchorIndex];
+
+    for (let index = startIndex; index <= endIndex; index++) {
+      this._selectedIds.add(visibleInvoiceIds[index]);
+    }
+
+    this._selectionAnchorId = invoiceId;
+    this._syncInvoiceSelectionState();
+    this._renderBulkDock();
+    return true;
   }
 
   _syncInvoiceSelectionState(invoiceId = null) {
@@ -3102,6 +3153,16 @@ class BisonWioInvoices extends HTMLElement {
     }
 
     invoiceIds.forEach((invoiceId) => this._selectedIds.delete(invoiceId));
+    const selectedIds = [...this._selectedIds];
+    if (!selectedIds.length) {
+      this._selectionAnchorId = null;
+    } else if (
+      !this._selectionAnchorId ||
+      !this._selectedIds.has(this._selectionAnchorId) ||
+      !this._getInvoiceById(this._selectionAnchorId)
+    ) {
+      this._selectionAnchorId = selectedIds[selectedIds.length - 1];
+    }
   }
 
   _goBack() {
