@@ -34,6 +34,79 @@ class BisonJibPayAPI {
     this.embeddableKey = embeddableKey;
   }
 
+  async parseResponseData(response) {
+    if (!response || response.status === 204) return null;
+
+    const text = await response.text();
+    if (!text) return null;
+
+    try {
+      return JSON.parse(text);
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  buildManualBankAccountPayload(manualBankAccountData = {}) {
+    if (!manualBankAccountData || typeof manualBankAccountData !== "object" || Array.isArray(manualBankAccountData)) {
+      throw {
+        status: 400,
+        data: {
+          success: false,
+          message: "Manual bank account details are required",
+          errors: ["manualBankAccountData must be an object"],
+        },
+      };
+    }
+
+    const holderName = String(
+      manualBankAccountData.holderName ?? manualBankAccountData.accountHolderName ?? ""
+    ).trim();
+    const holderType = String(
+      manualBankAccountData.holderType ?? manualBankAccountData.accountHolderType ?? ""
+    ).trim();
+    const routingNumber = String(manualBankAccountData.routingNumber ?? "").replace(/\D/g, "");
+    const accountNumber = String(manualBankAccountData.accountNumber ?? "").replace(/\s+/g, "");
+    const bankAccountType = String(
+      manualBankAccountData.bankAccountType ?? manualBankAccountData.accountType ?? ""
+    ).trim();
+    const initiateVerification =
+      typeof manualBankAccountData.initiateVerification === "boolean"
+        ? manualBankAccountData.initiateVerification
+        : undefined;
+
+    const errors = [];
+    if (!holderName) errors.push("holderName is required");
+    if (!routingNumber) errors.push("routingNumber is required");
+    else if (!/^\d{9}$/.test(routingNumber)) errors.push("routingNumber must be 9 digits");
+    if (!accountNumber) errors.push("accountNumber is required");
+
+    if (errors.length > 0) {
+      throw {
+        status: 400,
+        data: {
+          success: false,
+          message: "Manual bank account details are invalid",
+          errors,
+        },
+      };
+    }
+
+    const payload = {
+      holderName,
+      routingNumber,
+      accountNumber,
+    };
+
+    if (holderType) payload.holderType = holderType;
+    if (bankAccountType) payload.bankAccountType = bankAccountType;
+    if (typeof initiateVerification === "boolean") {
+      payload.initiateVerification = initiateVerification;
+    }
+
+    return payload;
+  }
+
   /**
    * Make authenticated API request
    * @private
@@ -60,7 +133,7 @@ class BisonJibPayAPI {
         headers,
       });
 
-      const data = await response.json();
+      const data = await this.parseResponseData(response);
 
       if (!response.ok) {
         throw {
@@ -890,6 +963,36 @@ class BisonJibPayAPI {
   }
 
   /**
+   * Add a manual-entry bank account for an operator
+   *
+   * Accepts either the API field names (`holderName`, `holderType`, `bankAccountType`)
+   * or the onboarding UI field names (`accountHolderName`, `accountHolderType`, `accountType`).
+   *
+   * @param {string} operatorId - The internal GUID of the operator
+   * @param {Object} manualBankAccountData - Manual bank account details
+   * @returns {Promise<any>}
+   */
+  async addOperatorManualBankAccount(operatorId, manualBankAccountData) {
+    if (!operatorId) {
+      throw {
+        status: 400,
+        data: {
+          success: false,
+          message: "Operator ID is required",
+          errors: ["operatorId parameter is missing"],
+        },
+      };
+    }
+
+    const payload = this.buildManualBankAccountPayload(manualBankAccountData);
+
+    return this.request(`/api/operators/${operatorId}/bank-accounts/manual`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  /**
    * Delete/unlink a bank account for an operator
    *
    * @param {string} operatorId - The internal GUID of the operator
@@ -910,6 +1013,41 @@ class BisonJibPayAPI {
 
     return this.request(`/api/operators/${operatorId}/bank-accounts/${bankAccountId}`, {
       method: "DELETE",
+    });
+  }
+
+  /**
+   * Unlink a bank account from an operator
+   *
+   * @param {string} operatorId - The internal GUID of the operator
+   * @param {string} bankAccountId - The ID of the bank account to unlink
+   * @returns {Promise<any>}
+   */
+  async unlinkOperatorBankAccount(operatorId, bankAccountId) {
+    return this.deleteOperatorBankAccount(operatorId, bankAccountId);
+  }
+
+  /**
+   * Set the default bank account for an operator
+   *
+   * @param {string} operatorId - The internal GUID of the operator
+   * @param {string} bankAccountId - The ID of the bank account to set as default
+   * @returns {Promise<any>}
+   */
+  async setOperatorBankAccountDefault(operatorId, bankAccountId) {
+    if (!operatorId || !bankAccountId) {
+      throw {
+        status: 400,
+        data: {
+          success: false,
+          message: "Operator ID and Bank Account ID are required",
+          errors: ["operatorId or bankAccountId parameter is missing"],
+        },
+      };
+    }
+
+    return this.request(`/api/operators/${operatorId}/bank-accounts/${bankAccountId}/set-default`, {
+      method: "PUT",
     });
   }
 }

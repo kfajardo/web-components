@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bank Verification Dialog Husk</title>
+  <link rel="stylesheet" href="./bank_verification_dialog.css">
+</head>
+<body>
+  <!--
+    Static visual husk only.
+    Change data-state to "form", "verifying", or "success" to preview each modal state.
+    Remove the "is-hidden" class on .error-banner if you want to preview an error treatment.
+  -->
+  <div class="demo-shell">
+    <main class="demo-page" aria-hidden="true">
+      <section class="page-card">
+        <div class="page-card__header">
+          <div>
+            <p class="eyebrow">Banking</p>
+            <h2>Account verification and payment setup</h2>
+          </div>
+          <span class="status-pill">Pending verification</span>
+        </div>
+
+        <div class="account-list">
+          <article class="account-row">
+            <div class="account-row__icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3.75 8.25 12 3.75l8.25 4.5v1.5H3.75v-1.5Zm1.5 3h1.5v6H5.25v-6Zm4.5 0h1.5v6h-1.5v-6Zm4.5 0h1.5v6h-1.5v-6Zm4.5 0h1.5v6h-1.5v-6ZM3.75 18.75h16.5v1.5H3.75v-1.5Z" />
+              </svg>
+            </div>
+            <div class="account-row__content">
+              <p class="account-row__title">Chase Bank ending in 4182</p>
+              <p class="account-row__meta">Micro-deposits sent. Verification required.</p>
+            </div>
+            <button class="row-button" type="button">Verify</button>
+          </article>
+
+          <article class="account-row account-row--muted">
+            <div class="account-row__icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3.75 8.25 12 3.75l8.25 4.5v1.5H3.75v-1.5Zm1.5 3h1.5v6H5.25v-6Zm4.5 0h1.5v6h-1.5v-6Zm4.5 0h1.5v6h-1.5v-6Zm4.5 0h1.5v6h-1.5v-6ZM3.75 18.75h16.5v1.5H3.75v-1.5Z" />
+              </svg>
+            </div>
+            <div class="account-row__content">
+              <p class="account-row__title">Wells Fargo ending in 2210</p>
+              <p class="account-row__meta">Verified and ready for ACH payouts.</p>
+            </div>
+            <span class="verified-pill">Verified</span>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <div class="modal-backdrop"></div>
+
+    <section class="verification-modal" data-state="form" aria-label="Bank verification dialog">
+      <header class="modal-header">
+        <h1 class="modal-title modal-title--form">Verify Bank Account</h1>
+        <h1 class="modal-title modal-title--verifying">Verifying Account</h1>
+        <h1 class="modal-title modal-title--success">Account Verified</h1>
+
+        <button class="close-button" type="button" aria-label="Close dialog">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m6 6 12 12M18 6 6 18" />
+          </svg>
+        </button>
+      </header>
+
+      <div class="modal-body">
+        <div class="modal-state modal-state--form">
+          <section class="info-panel">
+            <div class="info-panel__icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 3.75 5.25 6.75v4.5c0 4.14 2.67 7.86 6.75 9 4.08-1.14 6.75-4.86 6.75-9v-4.5L12 3.75Zm0 3.18 4.5 2v2.32c0 2.95-1.77 5.69-4.5 6.71-2.73-1.02-4.5-3.76-4.5-6.71V8.93l4.5-2Zm-1.13 7.94 4.96-4.97 1.06 1.06-6.02 6.01-2.72-2.72 1.06-1.06 1.66 1.68Z" />
+              </svg>
+            </div>
+            <div class="info-panel__content">
+              <p>Check your bank statement for two small deposits from Moov. The verification code is formed from the deposit amounts.</p>
+              <p class="info-example">
+                Example:
+                <span class="code-chip">MV1234</span>
+              </p>
+            </div>
+          </section>
+
+          <p class="account-label">
+            Verifying:
+            <strong>Chase Bank ••••4182</strong>
+          </p>
+
+          <div class="error-banner is-hidden">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 8.25v4.5m0 3h.01M12 3.75a8.25 8.25 0 1 0 0 16.5 8.25 8.25 0 0 0 0-16.5Z" />
+            </svg>
+            <p>Code must be in format MV followed by 4 digits.</p>
+          </div>
+
+          <label class="field">
+            <span class="field__label">Verification Code</span>
+            <input class="field__input" type="text" value="MV1234" readonly>
+          </label>
+
+          <p class="attempts-note">2 verification attempts remaining</p>
+        </div>
+
+        <div class="modal-state modal-state--verifying">
+          <div class="status-hero">
+            <div class="status-hero__icon status-hero__icon--loading">
+              <span class="spinner"></span>
+            </div>
+            <div class="status-copy">
+              <h2>Verifying bank account</h2>
+              <p>We're confirming Chase Bank ••••4182 and refreshing your bank accounts.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-state modal-state--success">
+          <div class="status-hero">
+            <div class="status-hero__icon status-hero__icon--success">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m7.5 12.75 3 3 6-7.5" />
+                <path d="M12 3.75a8.25 8.25 0 1 0 0 16.5 8.25 8.25 0 0 0 0-16.5Z" />
+              </svg>
+            </div>
+            <div class="status-copy">
+              <h2>Bank Account Verified!</h2>
+              <p>Chase Bank ••••4182 has been successfully verified.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <footer class="modal-footer">
+        <div class="footer-set footer-set--form">
+          <button class="button button--ghost" type="button">Cancel</button>
+          <button class="button button--primary" type="button">Verify</button>
+        </div>
+
+        <div class="footer-set footer-set--verifying">
+          <button class="button button--primary button--busy" type="button" disabled>
+            <span class="button-spinner"></span>
+            Verifying
+          </button>
+        </div>
+
+        <div class="footer-set footer-set--success">
+          <button class="button button--primary" type="button">Done</button>
+        </div>
+      </footer>
+    </section>
+  </div>
+</body>
+</html>

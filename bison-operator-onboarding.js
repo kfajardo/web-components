@@ -115,7 +115,9 @@ const ICON_CDN_MAP = {
   'file-text': 'file-text',
   'chevron-down': 'chevron-down',
   'check-circle': 'check-circle',
+  'shield-check': 'shield-check',
   check: 'check',
+  star: 'star',
   'alert-circle': 'alert-circle',
   clock: 'clock-3',
   'credit-card': 'credit-card',
@@ -274,9 +276,12 @@ function defaultVolume() {
 
 function defaultBank() {
   return {
+    accountHolderName: '',
+    accountHolderType: 'business',
     routingNumber: '',
     accountNumber: '',
-    accountType: '',
+    confirmAccountNumber: '',
+    accountType: 'checking',
     connectedViaPlaid: false,
   }
 }
@@ -315,6 +320,19 @@ function escapeHTML(value) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;')
+}
+
+async function readJsonResponse(response) {
+  if (!response || response.status === 204) return null
+
+  const text = await response.text()
+  if (!text) return null
+
+  try {
+    return JSON.parse(text)
+  } catch (_error) {
+    return null
+  }
 }
 
 function formatPhone(value) {
@@ -521,11 +539,20 @@ function validateVolume(form) {
 function validateBank(form) {
   const errors = {}
 
+  if (!String(form.accountHolderName || '').trim()) {
+    errors.accountHolderName = 'Account holder name is required'
+  }
+
   const routingDigits = form.routingNumber.replace(/\D/g, '')
   if (!routingDigits) errors.routingNumber = 'Routing number is required'
   else if (routingDigits.length !== 9) errors.routingNumber = 'Routing number must be 9 digits'
 
   if (!form.accountNumber.trim()) errors.accountNumber = 'Account number is required'
+  if (!String(form.confirmAccountNumber || '').trim()) {
+    errors.confirmAccountNumber = 'Please confirm the account number'
+  } else if (String(form.confirmAccountNumber) !== String(form.accountNumber)) {
+    errors.confirmAccountNumber = 'Account numbers do not match'
+  }
   if (!form.accountType) errors.accountType = 'Account type is required'
 
   return errors
@@ -575,6 +602,12 @@ export class BisonOperatorOnboarding extends HTMLElement {
     this._kybStatusPromise = null
     this._isStatusLoading = false
     this._isProfileLocked = false
+    this._welcomeSaveRequestId = 0
+    this._welcomeToastTimer = null
+    this._welcomeAdvanceTimer = null
+    this._bankDefaultActionSeq = 0
+    this._bankToastTimer = null
+    this._bankDeleteSeq = 0
     this._controlOfficerRepId = null
     this._officerGovernmentIdProvided = false
     this._prefetchedDocs = null
@@ -738,6 +771,8 @@ export class BisonOperatorOnboarding extends HTMLElement {
     this.clearVerificationStatusTimers()
     this._activeLookupRequestId = ++this._lookupRequestId
     this._isOperatorLookupPending = false
+    this.resetBankDefaultActionState()
+    this.resetBankDeleteModalState()
   }
 
   async _getApi() {
@@ -862,11 +897,22 @@ export class BisonOperatorOnboarding extends HTMLElement {
 
     if (this.state?.savedAt) this.state.savedAt.bank = null
     if (this.state?.data?.bank) this.state.data.bank.connectedViaPlaid = false
+    if (this.state?.ui?.bank) {
+      this.state.ui.bank.entryMode = 'choices'
+      this.state.ui.bank.saveError = null
+    }
+    this.resetBankDefaultActionState()
+    this.resetBankDeleteModalState()
   }
 
   _extractOperatorBankAccounts(response) {
     const data = response?.data || response
     return Array.isArray(data) ? data : []
+  }
+
+  _extractOperatorBankAccount(response) {
+    const data = response?.data || response
+    return data && typeof data === 'object' && !Array.isArray(data) ? data : null
   }
 
   _getBankAccountTypeLabel(accountType) {
@@ -898,6 +944,32 @@ export class BisonOperatorOnboarding extends HTMLElement {
     })
   }
 
+  _getBankAccountFlag(value) {
+    return value === true || value === 'true' || value === 1 || value === '1'
+  }
+
+  _getPreferredOperatorBankAccount(accounts) {
+    const normalizedAccounts = Array.isArray(accounts) ? accounts : []
+    return normalizedAccounts.find((account) => this._getBankAccountFlag(account?.isDefault)) || normalizedAccounts[0] || null
+  }
+
+  _getOperatorBankAccountId(account) {
+    if (!account || typeof account !== 'object') return ''
+    return String(account.id || account.externalId || '').trim()
+  }
+
+  _applyOperatorBankAccounts(accounts) {
+    this._operatorBankAccounts = Array.isArray(accounts) ? accounts : []
+
+    const preferredAccount = this._getPreferredOperatorBankAccount(this._operatorBankAccounts)
+    this._linkedBankAccount = this._mapOperatorBankAccount(preferredAccount)
+    this.state.savedAt.bank = preferredAccount ? (preferredAccount.createdAt || new Date().toISOString()) : null
+    this.state.data.bank.connectedViaPlaid = Boolean(preferredAccount)
+    if (!preferredAccount && this.state?.ui?.bank) {
+      this.state.ui.bank.entryMode = 'choices'
+    }
+  }
+
   _mapOperatorBankAccount(account) {
     if (!account || typeof account !== 'object') return null
 
@@ -906,13 +978,14 @@ export class BisonOperatorOnboarding extends HTMLElement {
     const mask = this._getBankAccountMask(account.accountNumber)
 
     return {
-      id: account.id || account.externalId || '',
+      id: this._getOperatorBankAccountId(account),
       institutionName: String(account.bankName || '').trim() || 'Bank Account',
       accountName: accountName || accountTypeLabel,
       mask,
       subtype: String(account.accountType || '').trim().toLowerCase() || 'checking',
       connectedAt: this._formatBankAccountConnectedDate(account.createdAt || account.updatedAt),
-      isVerified: Boolean(account.isVerified),
+      isVerified: this._getBankAccountFlag(account.isVerified),
+      isDefault: this._getBankAccountFlag(account.isDefault),
     }
   }
 
@@ -935,6 +1008,149 @@ export class BisonOperatorOnboarding extends HTMLElement {
     return data
   }
 
+  _buildOperatorManualBankAccountPayload(manualBankAccountData = {}) {
+    if (!manualBankAccountData || typeof manualBankAccountData !== 'object' || Array.isArray(manualBankAccountData)) {
+      throw {
+        status: 400,
+        data: {
+          success: false,
+          message: 'Manual bank account details are required.',
+          errors: ['manualBankAccountData must be an object'],
+        },
+      }
+    }
+
+    const holderName = String(
+      manualBankAccountData.holderName ?? manualBankAccountData.accountHolderName ?? ''
+    ).trim()
+    const holderType = String(
+      manualBankAccountData.holderType ?? manualBankAccountData.accountHolderType ?? ''
+    ).trim().toLowerCase()
+    const routingNumber = String(manualBankAccountData.routingNumber ?? '').replace(/\D/g, '')
+    const accountNumber = String(manualBankAccountData.accountNumber ?? '').replace(/\s+/g, '').trim()
+    const bankAccountType = String(
+      manualBankAccountData.bankAccountType ?? manualBankAccountData.accountType ?? ''
+    ).trim().toLowerCase()
+    const initiateVerification =
+      typeof manualBankAccountData.initiateVerification === 'boolean'
+        ? manualBankAccountData.initiateVerification
+        : undefined
+
+    const errors = []
+    if (!holderName) errors.push('holderName is required')
+    if (!routingNumber) errors.push('routingNumber is required')
+    else if (!/^\d{9}$/.test(routingNumber)) errors.push('routingNumber must be 9 digits')
+    if (!accountNumber) errors.push('accountNumber is required')
+
+    if (errors.length > 0) {
+      throw {
+        status: 400,
+        data: {
+          success: false,
+          message: 'Manual bank account details are invalid.',
+          errors,
+        },
+      }
+    }
+
+    const payload = {
+      holderName,
+      routingNumber,
+      accountNumber,
+    }
+
+    if (holderType) payload.holderType = holderType
+    if (bankAccountType) payload.bankAccountType = bankAccountType
+    if (typeof initiateVerification === 'boolean') payload.initiateVerification = initiateVerification
+
+    return payload
+  }
+
+  _buildOptimisticManualBankAccount(manualBankAccountData = {}, createdBankAccount = null) {
+    const holderName = String(manualBankAccountData.accountHolderName ?? manualBankAccountData.holderName ?? '').trim()
+    const accountNumber = String(
+      manualBankAccountData.accountNumber ?? createdBankAccount?.accountNumber ?? ''
+    ).replace(/\s+/g, '').trim()
+    const accountType = String(
+      manualBankAccountData.accountType ?? manualBankAccountData.bankAccountType ?? createdBankAccount?.accountType ?? ''
+    ).trim().toLowerCase() || 'checking'
+    const now = new Date().toISOString()
+    const optimisticAccount = createdBankAccount && typeof createdBankAccount === 'object'
+      ? { ...createdBankAccount }
+      : {}
+
+    optimisticAccount.bankName = holderName || String(optimisticAccount.bankName || '').trim() || 'Bank Account'
+    optimisticAccount.accountName = this._getBankAccountTypeLabel(accountType)
+    optimisticAccount.accountNumber = accountNumber
+    optimisticAccount.accountType = accountType
+    optimisticAccount.createdAt = now
+    optimisticAccount.updatedAt = now
+
+    return optimisticAccount
+  }
+
+  async _addOperatorManualBankAccountBuiltIn(operatorId, manualBankAccountData) {
+    const normalizedOperatorId = String(operatorId || '').trim()
+    if (!normalizedOperatorId) {
+      throw {
+        status: 400,
+        data: {
+          success: false,
+          message: 'Operator ID is required.',
+          errors: ['operatorId parameter is missing'],
+        },
+      }
+    }
+
+    const payload = this._buildOperatorManualBankAccountPayload(manualBankAccountData)
+    const baseUrl = this._getResolvedBaseUrl()
+    const embeddableKey = this._getResolvedEmbeddableKey()
+    const response = await fetch(`${baseUrl}/api/operators/${normalizedOperatorId}/bank-accounts/manual`, {
+      method: 'POST',
+      headers: {
+        'X-Embeddable-Key': embeddableKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    })
+
+    const data = await readJsonResponse(response)
+    if (!response.ok) throw { status: response.status, data }
+    return data
+  }
+
+  async _setOperatorBankAccountDefaultBuiltIn(operatorId, bankAccountId) {
+    const baseUrl = this._getResolvedBaseUrl()
+    const embeddableKey = this._getResolvedEmbeddableKey()
+    const response = await fetch(`${baseUrl}/api/operators/${operatorId}/bank-accounts/${bankAccountId}/set-default`, {
+      method: 'PUT',
+      headers: {
+        'X-Embeddable-Key': embeddableKey,
+        'Content-Type': 'application/json',
+      },
+    })
+
+    const data = await response.json()
+    if (!response.ok) throw { status: response.status, data }
+    return data
+  }
+
+  async _unlinkOperatorBankAccountBuiltIn(operatorId, bankAccountId) {
+    const baseUrl = this._getResolvedBaseUrl()
+    const embeddableKey = this._getResolvedEmbeddableKey()
+    const response = await fetch(`${baseUrl}/api/operators/${operatorId}/bank-accounts/${bankAccountId}`, {
+      method: 'DELETE',
+      headers: {
+        'X-Embeddable-Key': embeddableKey,
+        'Content-Type': 'application/json',
+      },
+    })
+
+    const data = await readJsonResponse(response)
+    if (!response.ok) throw { status: response.status, data }
+    return data
+  }
+
   async _listOperatorBankAccounts(operatorId) {
     const api = await this._getApi()
     if (api && typeof api.getOperatorBankAccounts === 'function') {
@@ -944,6 +1160,307 @@ export class BisonOperatorOnboarding extends HTMLElement {
 
     const response = await this._fetchOperatorBankAccountsBuiltIn(operatorId)
     return this._extractOperatorBankAccounts(response)
+  }
+
+  async _setOperatorBankAccountDefault(operatorId, bankAccountId) {
+    return this._setOperatorBankAccountDefaultBuiltIn(operatorId, bankAccountId)
+  }
+
+  async _addOperatorManualBankAccount(operatorId, manualBankAccountData) {
+    return this._addOperatorManualBankAccountBuiltIn(operatorId, manualBankAccountData)
+  }
+
+  async _unlinkOperatorBankAccount(operatorId, bankAccountId) {
+    return this._unlinkOperatorBankAccountBuiltIn(operatorId, bankAccountId)
+  }
+
+  _getActionErrorMessage(error, fallback) {
+    const errors = Array.isArray(error?.data?.errors) ? error.data.errors : []
+    const firstError = errors.find((item) => typeof item === 'string' && item.trim())
+    if (firstError) return firstError.trim()
+
+    const apiMessage = typeof error?.data?.message === 'string' ? error.data.message.trim() : ''
+    if (apiMessage) return apiMessage
+
+    const errorMessage = typeof error?.message === 'string' ? error.message.trim() : ''
+    if (errorMessage) return errorMessage
+
+    return fallback
+  }
+
+  resetBankDefaultActionState() {
+    this._bankDefaultActionSeq += 1
+    if (this._bankToastTimer) {
+      clearTimeout(this._bankToastTimer)
+      this._timers.delete(this._bankToastTimer)
+      this._bankToastTimer = null
+    }
+
+    if (this.state?.ui?.bank) {
+      this.state.ui.bank.pendingDefaultId = ''
+      this.state.ui.bank.pendingDefaultPhase = ''
+      this.state.ui.bank.actionToast = null
+    }
+  }
+
+  resetBankDeleteModalState() {
+    this._bankDeleteSeq += 1
+
+    if (this.state?.ui?.bank) {
+      this.state.ui.bank.removingAccountId = ''
+      this.state.ui.bank.deleteModal = {
+        isOpen: false,
+        bankAccountId: '',
+        bankName: '',
+        accountLabel: '',
+        isSubmitting: false,
+        errorMessage: '',
+      }
+    }
+  }
+
+  waitForUiDelay(delay) {
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        this._timers.delete(timer)
+        resolve()
+      }, delay)
+      this._timers.add(timer)
+    })
+  }
+
+  queueBankActionToastDismiss(requestId, delay = 2400) {
+    if (this._bankToastTimer) {
+      clearTimeout(this._bankToastTimer)
+      this._timers.delete(this._bankToastTimer)
+    }
+
+    const timer = setTimeout(() => {
+      this._timers.delete(timer)
+      if (this._bankToastTimer === timer) this._bankToastTimer = null
+      if (requestId !== this._bankDefaultActionSeq || !this.isConnected || !this._isOpen) return
+      this.state.ui.bank.actionToast = null
+      this.render()
+    }, delay)
+
+    this._bankToastTimer = timer
+    this._timers.add(timer)
+  }
+
+  openBankDeleteModal(bankAccountId) {
+    const normalizedBankAccountId = String(bankAccountId || '').trim()
+    if (!normalizedBankAccountId) return
+
+    const bankUi = this.state.ui.bank
+    if (bankUi.pendingDefaultId || bankUi.removingAccountId) return
+
+    const account = this._operatorBankAccounts
+      .map((item) => this._mapOperatorBankAccount(item))
+      .find((item) => item && item.id === normalizedBankAccountId)
+
+    if (!account) {
+      bankUi.actionToast = {
+        tone: 'error',
+        message: 'We could not find that bank account.',
+      }
+      this.render()
+      this.queueBankActionToastDismiss(this._bankDefaultActionSeq)
+      return
+    }
+
+    bankUi.deleteModal = {
+      isOpen: true,
+      bankAccountId: normalizedBankAccountId,
+      bankName: account.institutionName,
+      accountLabel: `${account.accountName}${account.mask ? ` ••••${account.mask}` : ''}`,
+      isSubmitting: false,
+      errorMessage: '',
+    }
+    this.render()
+  }
+
+  closeBankDeleteModal(force = false) {
+    const deleteModal = this.state?.ui?.bank?.deleteModal
+    if (!deleteModal?.isOpen) return
+    if (deleteModal.isSubmitting && !force) return
+
+    this.state.ui.bank.deleteModal = {
+      isOpen: false,
+      bankAccountId: '',
+      bankName: '',
+      accountLabel: '',
+      isSubmitting: false,
+      errorMessage: '',
+    }
+  }
+
+  async confirmUnlinkOperatorBankAccount() {
+    const bankUi = this.state.ui.bank
+    const deleteModal = bankUi.deleteModal
+    if (!deleteModal.isOpen || deleteModal.isSubmitting) return
+
+    const bankAccountId = String(deleteModal.bankAccountId || '').trim()
+    if (!this._operatorId || !bankAccountId) {
+      deleteModal.errorMessage = 'Operator account not found. Please complete the operator lookup first.'
+      this.render()
+      return
+    }
+
+    this._bankDeleteSeq += 1
+    const requestId = this._bankDeleteSeq
+    deleteModal.isSubmitting = true
+    deleteModal.errorMessage = ''
+    this.render()
+
+    try {
+      await this._unlinkOperatorBankAccount(this._operatorId, bankAccountId)
+      if (requestId !== this._bankDeleteSeq || !this.isConnected || !this._isOpen) return
+
+      this.closeBankDeleteModal(true)
+      bankUi.removingAccountId = bankAccountId
+      this.render()
+
+      await this.waitForUiDelay(220)
+      if (requestId !== this._bankDeleteSeq || !this.isConnected || !this._isOpen) return
+
+      const filteredAccounts = this._operatorBankAccounts.filter(
+        (account) => this._getOperatorBankAccountId(account) !== bankAccountId
+      )
+      this._applyOperatorBankAccounts(filteredAccounts)
+      bankUi.removingAccountId = ''
+      this.render()
+
+      this._listOperatorBankAccounts(this._operatorId)
+        .then((accounts) => {
+          if (requestId !== this._bankDeleteSeq || !this.isConnected || !this._isOpen) return
+          this._applyOperatorBankAccounts(accounts)
+          this.render()
+        })
+        .catch(() => {
+          // Keep optimistic removal if refresh fails.
+        })
+    } catch (error) {
+      if (requestId !== this._bankDeleteSeq || !this.isConnected || !this._isOpen) return
+
+      deleteModal.isSubmitting = false
+      deleteModal.errorMessage = this._getActionErrorMessage(error, 'We could not unlink this bank account.')
+      this.render()
+    }
+  }
+
+  async setDefaultOperatorBankAccount(bankAccountId) {
+    const normalizedBankAccountId = String(bankAccountId || '').trim()
+    const bankUi = this.state.ui.bank
+    if (!normalizedBankAccountId) return
+    if (bankUi.pendingDefaultId) return
+
+    const targetAccount = Array.isArray(this._operatorBankAccounts)
+      ? this._operatorBankAccounts.find((account) => this._getOperatorBankAccountId(account) === normalizedBankAccountId)
+      : null
+
+    if (!targetAccount) {
+      bankUi.actionToast = {
+        tone: 'error',
+        message: 'We could not find that bank account.',
+      }
+      this.render()
+      this.queueBankActionToastDismiss(this._bankDefaultActionSeq)
+      return
+    }
+
+    if (!this._getBankAccountFlag(targetAccount.isVerified)) {
+      bankUi.actionToast = {
+        tone: 'error',
+        message: 'Only verified bank accounts can be set as default.',
+      }
+      this.render()
+      this.queueBankActionToastDismiss(this._bankDefaultActionSeq)
+      return
+    }
+
+    this._bankDefaultActionSeq += 1
+    const requestId = this._bankDefaultActionSeq
+    bankUi.pendingDefaultId = normalizedBankAccountId
+    bankUi.pendingDefaultPhase = 'actions-out'
+    bankUi.actionToast = null
+    this.render()
+
+    try {
+      await this.waitForUiDelay(160)
+      if (requestId !== this._bankDefaultActionSeq || !this.isConnected || !this._isOpen) return
+
+      bankUi.pendingDefaultPhase = 'spinner-in'
+      this.render()
+
+      const requestPromise = this._operatorId && normalizedBankAccountId
+        ? this._setOperatorBankAccountDefault(this._operatorId, normalizedBankAccountId)
+        : Promise.reject({
+            message: 'Operator account not found. Please complete the operator lookup first.',
+          })
+
+      await this.waitForUiDelay(160)
+      if (requestId !== this._bankDefaultActionSeq || !this.isConnected || !this._isOpen) return
+
+      bankUi.pendingDefaultPhase = 'spinner'
+      this.render()
+
+      await requestPromise
+      if (requestId !== this._bankDefaultActionSeq || !this.isConnected || !this._isOpen) return
+
+      bankUi.pendingDefaultPhase = 'spinner-out-success'
+      this.render()
+
+      await this.waitForUiDelay(160)
+      if (requestId !== this._bankDefaultActionSeq || !this.isConnected || !this._isOpen) return
+
+      const optimisticAccounts = this._operatorBankAccounts.map((account) => ({
+        ...account,
+        isDefault: this._getOperatorBankAccountId(account) === normalizedBankAccountId,
+      }))
+      this._applyOperatorBankAccounts(optimisticAccounts)
+      bankUi.pendingDefaultPhase = 'default-in'
+      this.render()
+
+      this._listOperatorBankAccounts(this._operatorId)
+        .then((accounts) => {
+          if (requestId !== this._bankDefaultActionSeq || !this.isConnected || !this._isOpen) return
+          this._applyOperatorBankAccounts(accounts)
+          this.render()
+        })
+        .catch(() => {
+          // Keep the optimistic default selection if the refresh request fails.
+        })
+
+      await this.waitForUiDelay(180)
+      if (requestId !== this._bankDefaultActionSeq || !this.isConnected || !this._isOpen) return
+
+      bankUi.pendingDefaultId = ''
+      bankUi.pendingDefaultPhase = ''
+      this.render()
+    } catch (error) {
+      if (requestId !== this._bankDefaultActionSeq || !this.isConnected || !this._isOpen) return
+
+      bankUi.pendingDefaultPhase = 'spinner-out-fail'
+      this.render()
+
+      await this.waitForUiDelay(160)
+      if (requestId !== this._bankDefaultActionSeq || !this.isConnected || !this._isOpen) return
+
+      bankUi.pendingDefaultPhase = 'actions-in'
+      bankUi.actionToast = {
+        tone: 'error',
+        message: this._getActionErrorMessage(error, 'We could not set this bank account as default.'),
+      }
+      this.render()
+      this.queueBankActionToastDismiss(requestId)
+
+      await this.waitForUiDelay(180)
+      if (requestId !== this._bankDefaultActionSeq || !this.isConnected || !this._isOpen) return
+
+      bankUi.pendingDefaultId = ''
+      bankUi.pendingDefaultPhase = ''
+      this.render()
+    }
   }
 
   async _fetchOperatorBankAccounts(force = false) {
@@ -965,12 +1482,7 @@ export class BisonOperatorOnboarding extends HTMLElement {
         const accounts = await this._listOperatorBankAccounts(operatorId)
         if (operatorId !== this._operatorId) return this._operatorBankAccounts
 
-        this._operatorBankAccounts = Array.isArray(accounts) ? accounts : []
-
-        const firstAccount = this._operatorBankAccounts[0] || null
-        this._linkedBankAccount = this._mapOperatorBankAccount(firstAccount)
-        this.state.savedAt.bank = firstAccount ? (firstAccount.createdAt || new Date().toISOString()) : null
-        this.state.data.bank.connectedViaPlaid = Boolean(firstAccount)
+        this._applyOperatorBankAccounts(accounts)
 
         return this._operatorBankAccounts
       } catch (_err) {
@@ -1944,9 +2456,15 @@ export class BisonOperatorOnboarding extends HTMLElement {
     this._lastOpenSection = null
     this._setupModalHeight = null
     this.cancelAccordionHeightSync()
+    this._welcomeSaveRequestId += 1
+    this.clearWelcomeFeedbackTimers()
+    this.resetBankDefaultActionState()
+    this.resetBankDeleteModalState()
     this.state.openSection = null
     this.state.ui.welcome.step = 1
     this.state.ui.welcome.direction = 1
+    this.state.ui.welcome.isSaving = false
+    this.state.ui.welcome.toast = null
 
     if (this._kybStatusPromise && this._kybStatus === null && this._isStatusLoading) {
       // KYB status is still loading — render without the modal content until
@@ -1971,7 +2489,21 @@ export class BisonOperatorOnboarding extends HTMLElement {
   }
 
   close() {
+    const deleteModal = this.state?.ui?.bank?.deleteModal
+    if (deleteModal?.isOpen) {
+      if (deleteModal.isSubmitting) return
+      this.closeBankDeleteModal(true)
+      this.render()
+      return
+    }
+
     if (!this._isOpen || this._isClosing) return
+    this._welcomeSaveRequestId += 1
+    this.clearWelcomeFeedbackTimers()
+    this.resetBankDefaultActionState()
+    this.resetBankDeleteModalState()
+    this.state.ui.welcome.isSaving = false
+    this.state.ui.welcome.toast = null
     this._isClosing = true
     this._modalTransitioning = false
     this.render()
@@ -2014,7 +2546,26 @@ export class BisonOperatorOnboarding extends HTMLElement {
         business: { errors: {}, touched: {}, submitAttempted: false, isSaving: false },
         officer: { errors: {}, touched: {}, submitAttempted: false, isSaving: false },
         volume: { errors: {}, touched: {}, submitAttempted: false, isSaving: false },
-        bank: { errors: {}, touched: {}, submitAttempted: false, isSaving: false },
+        bank: {
+          errors: {},
+          touched: {},
+          submitAttempted: false,
+          isSaving: false,
+          saveError: null,
+          entryMode: 'choices',
+          pendingDefaultId: '',
+          pendingDefaultPhase: '',
+          actionToast: null,
+          removingAccountId: '',
+          deleteModal: {
+            isOpen: false,
+            bankAccountId: '',
+            bankName: '',
+            accountLabel: '',
+            isSubmitting: false,
+            errorMessage: '',
+          },
+        },
         ownerEditor: {
           mode: null,
           editingId: '',
@@ -2040,6 +2591,8 @@ export class BisonOperatorOnboarding extends HTMLElement {
           step: 1,
           direction: 1,
           selectedMethods: [],
+          isSaving: false,
+          toast: null,
         },
       },
     }
@@ -2097,6 +2650,99 @@ export class BisonOperatorOnboarding extends HTMLElement {
   closeWelcomeModal() {
     this.state.ui.welcome.isOpen = false
     this.persistWelcomeState()
+  }
+
+  clearWelcomeFeedbackTimers() {
+    if (this._welcomeToastTimer) {
+      clearTimeout(this._welcomeToastTimer)
+      this._timers.delete(this._welcomeToastTimer)
+      this._welcomeToastTimer = null
+    }
+
+    if (this._welcomeAdvanceTimer) {
+      clearTimeout(this._welcomeAdvanceTimer)
+      this._timers.delete(this._welcomeAdvanceTimer)
+      this._welcomeAdvanceTimer = null
+    }
+  }
+
+  queueWelcomeToastDismiss(requestId, delay = 2200) {
+    if (this._welcomeToastTimer) {
+      clearTimeout(this._welcomeToastTimer)
+      this._timers.delete(this._welcomeToastTimer)
+    }
+
+    const timer = setTimeout(() => {
+      this._timers.delete(timer)
+      if (this._welcomeToastTimer === timer) this._welcomeToastTimer = null
+      if (requestId !== this._welcomeSaveRequestId || !this.isConnected || !this._isOpen) return
+      this.state.ui.welcome.toast = null
+      this.render()
+    }, delay)
+
+    this._welcomeToastTimer = timer
+    this._timers.add(timer)
+  }
+
+  persistWelcomeMethodsAndAdvance(methods) {
+    const welcome = this.state.ui.welcome
+    if (welcome.isSaving) return
+
+    this._welcomeSaveRequestId += 1
+    const requestId = this._welcomeSaveRequestId
+    this.clearWelcomeFeedbackTimers()
+    welcome.toast = null
+
+    if (!this._operatorId) {
+      welcome.isSaving = false
+      welcome.toast = {
+        tone: 'error',
+        message: 'Operator account not found. Please complete the operator lookup first.',
+      }
+      this.render()
+      this.queueWelcomeToastDismiss(requestId)
+      return
+    }
+
+    welcome.isSaving = true
+    this.render()
+
+    this._putOperatorPaymentMethods(methods)
+      .then(() => {
+        if (requestId !== this._welcomeSaveRequestId || !this.isConnected || !this._isOpen) return
+
+        welcome.isSaving = false
+        welcome.toast = {
+          tone: 'success',
+          message: 'Payment methods saved.',
+        }
+        this.render()
+
+        const timer = setTimeout(() => {
+          this._timers.delete(timer)
+          if (this._welcomeAdvanceTimer === timer) this._welcomeAdvanceTimer = null
+          if (requestId !== this._welcomeSaveRequestId || !this.isConnected || !this._isOpen) return
+
+          welcome.toast = null
+          welcome.step = 2
+          welcome.direction = 1
+          this.render()
+        }, 900)
+
+        this._welcomeAdvanceTimer = timer
+        this._timers.add(timer)
+      })
+      .catch((err) => {
+        if (requestId !== this._welcomeSaveRequestId || !this.isConnected || !this._isOpen) return
+
+        welcome.isSaving = false
+        welcome.toast = {
+          tone: 'error',
+          message: err?.data?.message || err?.message || 'Unable to save payment methods.',
+        }
+        this.render()
+        this.queueWelcomeToastDismiss(requestId)
+      })
   }
 
   transitionWelcomeToSetup() {
@@ -2542,7 +3188,10 @@ export class BisonOperatorOnboarding extends HTMLElement {
     }
     if (formName === 'officer') this.state.data.officer[field] = value
     if (formName === 'volume') this.state.data.volume[field] = value
-    if (formName === 'bank') this.state.data.bank[field] = value
+    if (formName === 'bank') {
+      this.state.data.bank[field] = value
+      this.state.ui.bank.saveError = null
+    }
     if (formName === 'owner') this.state.ui.ownerEditor.form[field] = value
     this.clearFieldError(formName, field)
     this.persist()
@@ -2566,8 +3215,10 @@ export class BisonOperatorOnboarding extends HTMLElement {
     if (formName === 'volume') return validateVolume(this.state.data.volume)
     if (formName === 'bank')
       return validateBank({
+        accountHolderName: this.state.data.bank.accountHolderName,
         routingNumber: this.state.data.bank.routingNumber,
         accountNumber: this.state.data.bank.accountNumber,
+        confirmAccountNumber: this.state.data.bank.confirmAccountNumber,
         accountType: this.state.data.bank.accountType,
       })
     if (formName === 'owner') return validateOwner(this.state.ui.ownerEditor.form)
@@ -2774,6 +3425,55 @@ export class BisonOperatorOnboarding extends HTMLElement {
         const payload = this._buildVolumePayload()
         await this._kybPost('processing-volume', payload)
         this.state.savedAt.volume = new Date().toISOString()
+      } else if (formName === 'bank') {
+        if (!this._operatorId) {
+          throw {
+            message: 'Operator account not found. Please complete the operator lookup first.',
+          }
+        }
+
+        const manualBankSnapshot = {
+          accountHolderName: this.state.data.bank.accountHolderName,
+          accountHolderType: this.state.data.bank.accountHolderType,
+          routingNumber: this.state.data.bank.routingNumber,
+          accountNumber: this.state.data.bank.accountNumber,
+          accountType: this.state.data.bank.accountType,
+        }
+        const createResponse = await this._addOperatorManualBankAccount(this._operatorId, {
+          ...manualBankSnapshot,
+          initiateVerification: true,
+        })
+
+        const createdBankAccount = this._extractOperatorBankAccount(createResponse)
+        const optimisticBankAccount = this._buildOptimisticManualBankAccount(manualBankSnapshot, createdBankAccount)
+        const existingAccounts = Array.isArray(this._operatorBankAccounts) ? this._operatorBankAccounts : []
+        const optimisticBankAccountId = this._getOperatorBankAccountId(optimisticBankAccount)
+        const nextAccounts = optimisticBankAccountId
+          ? [
+              ...existingAccounts.filter((account) => this._getOperatorBankAccountId(account) !== optimisticBankAccountId),
+              optimisticBankAccount,
+            ]
+          : [...existingAccounts, optimisticBankAccount]
+        this._applyOperatorBankAccounts(nextAccounts)
+
+        this._listOperatorBankAccounts(this._operatorId)
+          .then((accounts) => {
+            if (!this.isConnected || !this._isOpen) return
+            this._applyOperatorBankAccounts(accounts)
+            this.render()
+          })
+          .catch(() => {
+            // Keep the optimistic linked state if the follow-up refresh fails.
+          })
+
+        this.state.data.bank = {
+          ...defaultBank(),
+          connectedViaPlaid: this.state.data.bank.connectedViaPlaid,
+        }
+        meta.entryMode = 'choices'
+        meta.errors = {}
+        meta.touched = {}
+        meta.submitAttempted = false
       }
 
       const prevStatuses = this.getSectionStatuses()
@@ -2783,8 +3483,9 @@ export class BisonOperatorOnboarding extends HTMLElement {
       this.maybeAutoAdvanceOpenSection(prevStatuses)
       this.render()
       this._fetchKybStatus()
-    } catch (_err) {
+    } catch (error) {
       meta.isSaving = false
+      meta.saveError = this._getActionErrorMessage(error, 'We could not link this bank account.')
       this.render()
     }
   }
@@ -2883,6 +3584,7 @@ export class BisonOperatorOnboarding extends HTMLElement {
     }
 
     if (action === 'welcome-toggle-method') {
+      if (this.state.ui.welcome.isSaving) return
       const methodId = target.getAttribute('data-method-id')
       if (!methodId) return
 
@@ -2892,6 +3594,7 @@ export class BisonOperatorOnboarding extends HTMLElement {
       } else {
         this.state.ui.welcome.selectedMethods = [...selected, methodId]
       }
+      this.state.ui.welcome.toast = null
       this.persistWelcomeState()
       this.render()
       return
@@ -2900,19 +3603,12 @@ export class BisonOperatorOnboarding extends HTMLElement {
     if (action === 'welcome-continue') {
       const methods = this.state.ui.welcome.selectedMethods
       if (methods.length === 0) return
-      if (this._operatorId) {
-        this._putOperatorPaymentMethods(methods).catch(() => {
-          // Best-effort — don't block the transition on failure
-        })
-      }
-      this.transitionWelcomeToSetup()
+      this.persistWelcomeMethodsAndAdvance(methods)
       return
     }
 
     if (action === 'welcome-start-verification') {
-      this.state.activeTab = 'verification'
-      this.closeWelcomeModal()
-      this.render()
+      this.transitionWelcomeToSetup()
       return
     }
 
@@ -2927,6 +3623,31 @@ export class BisonOperatorOnboarding extends HTMLElement {
       if (!tab) return
       this.state.activeTab = tab
       this.render()
+      return
+    }
+
+    if (action === 'bank-account-set-default') {
+      const bankAccountId = target.getAttribute('data-bank-account-id')
+      if (!bankAccountId) return
+      this.setDefaultOperatorBankAccount(bankAccountId)
+      return
+    }
+
+    if (action === 'bank-account-remove') {
+      const bankAccountId = target.getAttribute('data-bank-account-id')
+      if (!bankAccountId) return
+      this.openBankDeleteModal(bankAccountId)
+      return
+    }
+
+    if (action === 'bank-delete-cancel') {
+      this.closeBankDeleteModal()
+      this.render()
+      return
+    }
+
+    if (action === 'bank-delete-confirm') {
+      this.confirmUnlinkOperatorBankAccount()
       return
     }
 
@@ -3014,6 +3735,42 @@ export class BisonOperatorOnboarding extends HTMLElement {
       if (!field) return
       const current = this.state.ui.passwordVisibility[field]
       this.state.ui.passwordVisibility[field] = !current
+      this.render()
+      return
+    }
+
+    if (action === 'manual-bank-set-holder-type') {
+      const value = String(target.getAttribute('data-value') || '').trim()
+      if (!value) return
+      this.updateFormField('bank', 'accountHolderType', value)
+      this.render()
+      return
+    }
+
+    if (action === 'manual-bank-set-account-type') {
+      const value = String(target.getAttribute('data-value') || '').trim()
+      if (!value) return
+      this.updateFormField('bank', 'accountType', value)
+      this.render()
+      return
+    }
+
+    if (action === 'bank-show-manual-entry') {
+      this.captureOpenAccordionHeight(this.state.openSection)
+      this.state.ui.bank.entryMode = 'manual'
+      this.state.ui.bank.saveError = null
+      this.render()
+      return
+    }
+
+    if (action === 'bank-show-entry-options') {
+      if (this.state.ui.bank.isSaving) return
+      this.captureOpenAccordionHeight(this.state.openSection)
+      this.state.ui.bank.entryMode = 'choices'
+      this.state.ui.bank.saveError = null
+      this.state.ui.bank.errors = {}
+      this.state.ui.bank.touched = {}
+      this.state.ui.bank.submitAttempted = false
       this.render()
       return
     }
@@ -3284,6 +4041,11 @@ export class BisonOperatorOnboarding extends HTMLElement {
   }
 
   icon(name, className = 'icon') {
+    const attrs = `${this.testId(`icon-${name}`)} class="${className}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"`
+    if (name === 'unlink') {
+      return `<svg ${attrs}><path d="m18.84 12.25 1.72-1.71h-.02a5.004 5.004 0 0 0-.12-7.07 5.006 5.006 0 0 0-6.95 0l-1.72 1.71"></path><path d="m5.17 11.75-1.71 1.71a5.004 5.004 0 0 0 .12 7.07 5.006 5.006 0 0 0 6.95 0l1.71-1.71"></path><line x1="8" y1="2" x2="8" y2="5"></line><line x1="2" y1="8" x2="5" y2="8"></line><line x1="16" y1="19" x2="16" y2="22"></line><line x1="19" y1="16" x2="22" y2="16"></line></svg>`
+    }
+
     const cdnName = this.getCdnIconName(name)
     const cachedSvg = this._iconCache.get(cdnName)
     if (cachedSvg) {
@@ -3302,7 +4064,6 @@ export class BisonOperatorOnboarding extends HTMLElement {
 
     this.requestLucideIcon(name)
 
-    const attrs = `${this.testId(`icon-${name}`)} class="${className}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"`
     if (name === 'building2') {
       return `<svg ${attrs}><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"></path><path d="M6 12H4a2 2 0 0 0-2 2v8h4"></path><path d="M18 9h2a2 2 0 0 1 2 2v11h-4"></path><path d="M10 6h4"></path><path d="M10 10h4"></path><path d="M10 14h4"></path><path d="M10 18h4"></path></svg>`
     }
@@ -3327,8 +4088,14 @@ export class BisonOperatorOnboarding extends HTMLElement {
     if (name === 'check-circle') {
       return `<svg ${attrs}><path d="M9 12l2 2 4-4"></path><circle cx="12" cy="12" r="10"></circle></svg>`
     }
+    if (name === 'shield-check') {
+      return `<svg ${attrs}><path d="M20 13c0 5-3.5 7.5-8 9-4.5-1.5-8-4-8-9V6l8-3 8 3z"></path><path d="m9 12 2 2 4-4"></path></svg>`
+    }
     if (name === 'check') {
       return `<svg ${attrs}><polyline points="20 6 9 17 4 12"></polyline></svg>`
+    }
+    if (name === 'star') {
+      return `<svg ${attrs}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>`
     }
     if (name === 'alert-circle') {
       return `<svg ${attrs}><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>`
@@ -4435,7 +5202,8 @@ export class BisonOperatorOnboarding extends HTMLElement {
   }
 
   renderBankForm(readOnly) {
-    const controlsDisabled = readOnly || this._isPlaidLinkInProgress || this._isBankAccountsLoading
+    const meta = this.state.ui.bank
+    const controlsDisabled = readOnly || this._isPlaidLinkInProgress || this._isBankAccountsLoading || meta.isSaving
     const linked = this._linkedBankAccount
 
     if (this._isBankAccountsLoading && !linked) {
@@ -4473,21 +5241,209 @@ export class BisonOperatorOnboarding extends HTMLElement {
 
     if (readOnly) return ''
 
-    return `
-      <div class="form-stack bank-form-stack" ${this.testId('bank-form')}>
+    const form = this.state.data.bank
+    const error = (field) => this.getVisibleError(meta, field)
+    const holderType = String(form.accountHolderType || 'business').trim() || 'business'
+    const accountType = String(form.accountType || 'checking').trim() || 'checking'
+    const accountHolderName = form.accountHolderName || ''
+    const holderTypeOptions = [
+      { value: 'business', label: 'Business' },
+      { value: 'individual', label: 'Individual' },
+    ]
+    const accountTypeOptions = [
+      { value: 'checking', label: 'Checking' },
+      { value: 'savings', label: 'Savings' },
+    ]
+    const entryMode = meta.entryMode === 'manual' ? 'manual' : 'choices'
+    const renderChoiceButtons = (options, selectedValue, action, testIdPrefix) =>
+      options.map((option) => `
         <button
-          ${this.testId('plaid-connect-button')}
+          ${this.testId(`${testIdPrefix}-${option.value}`)}
+          class="manual-choice-pill ${selectedValue === option.value ? 'is-selected' : ''}"
           type="button"
-          class="plaid-connect-btn"
-          data-action="connect-via-plaid"
+          data-action="${escapeHTML(action)}"
+          data-value="${escapeHTML(option.value)}"
+          aria-pressed="${selectedValue === option.value ? 'true' : 'false'}"
           ${controlsDisabled ? 'disabled' : ''}
         >
-          <div class="plaid-icon-wrap" ${this.testId('plaid-icon-wrap')}>${this._isPlaidLinkInProgress ? this.icon('loader', 'icon-6 spin') : this.icon('landmark', 'icon-6')}</div>
-          <div class="plaid-copy" ${this.testId('plaid-copy')}>
-            <p class="plaid-title" ${this.testId('plaid-title')}>${this._isPlaidLinkInProgress ? 'Connecting...' : 'Connect bank via Plaid'}</p>
-            <p class="plaid-desc" ${this.testId('plaid-desc')}>Secure, instant verification</p>
-          </div>
+          ${escapeHTML(option.label)}
         </button>
+      `).join('')
+    const choiceScreenMarkup = `
+        <div class="bank-entry-screen bank-entry-screen-choices" ${this.testId('bank-entry-screen-choices')}>
+          <div class="bank-entry-choice-grid" ${this.testId('bank-entry-choice-grid')}>
+          <button
+            ${this.testId('plaid-connect-button')}
+            type="button"
+            class="bank-entry-choice-card"
+            data-action="connect-via-plaid"
+            ${controlsDisabled ? 'disabled' : ''}
+          >
+            <div class="bank-entry-choice-icon" ${this.testId('plaid-icon-wrap')}>
+              ${this._isPlaidLinkInProgress ? this.icon('loader', 'icon-6 spin') : this.icon('landmark', 'icon-6')}
+            </div>
+            <div class="bank-entry-choice-copy" ${this.testId('plaid-copy')}>
+              <p class="bank-entry-choice-title" ${this.testId('plaid-title')}>
+                ${this._isPlaidLinkInProgress ? 'Connecting...' : 'Connect bank via Plaid'}
+              </p>
+              <p class="bank-entry-choice-desc" ${this.testId('plaid-desc')}>
+                Secure, instant verification
+              </p>
+            </div>
+          </button>
+
+          <button
+            ${this.testId('bank-entry-choice-manual')}
+            type="button"
+            class="bank-entry-choice-card bank-entry-choice-card-secondary"
+            data-action="bank-show-manual-entry"
+            ${controlsDisabled ? 'disabled' : ''}
+          >
+            <div class="bank-entry-choice-icon bank-entry-choice-icon-secondary" ${this.testId('bank-entry-choice-manual-icon')}>
+              ${this.icon('pencil', 'icon-6')}
+            </div>
+            <div class="bank-entry-choice-copy" ${this.testId('bank-entry-choice-manual-copy')}>
+              <p class="bank-entry-choice-title" ${this.testId('bank-entry-choice-manual-title')}>
+                Enter Manually
+              </p>
+              <p class="bank-entry-choice-desc" ${this.testId('bank-entry-choice-manual-desc')}>
+                Routing and account number entry
+              </p>
+            </div>
+          </button>
+        </div>
+      </div>
+    `
+    const manualScreenMarkup = `
+      <div class="bank-entry-screen manual-bank-entry" ${this.testId('bank-manual-entry')}>
+        <div class="manual-bank-panel" aria-busy="${meta.isSaving ? 'true' : 'false'}" ${this.testId('bank-manual-panel')}>
+          <div class="manual-bank-panel-header" ${this.testId('bank-manual-panel-header')}>
+            <button
+              ${this.testId('bank-manual-back')}
+              class="manual-bank-back"
+              type="button"
+              data-action="bank-show-entry-options"
+              ${controlsDisabled ? 'disabled' : ''}
+            >
+              Back
+            </button>
+            <div>
+              <h5 class="manual-bank-panel-title" ${this.testId('bank-manual-panel-title')}>Enter Bank Details</h5>
+              <p class="manual-bank-panel-subtitle" ${this.testId('bank-manual-panel-subtitle')}>
+                Verification via micro-deposits (1-3 business days)
+              </p>
+            </div>
+          </div>
+
+          ${meta.saveError
+            ? `<div class="info-box info-box-error manual-bank-error" role="alert" ${this.testId('bank-manual-error')}>
+                 ${this.icon('alert-circle', 'icon-4')}
+                 <p ${this.testId('bank-manual-error-copy')}>${escapeHTML(meta.saveError)}</p>
+               </div>`
+            : ''}
+
+          ${this.renderField({
+            form: 'bank',
+            field: 'accountHolderName',
+            label: 'Account Holder Name',
+            controlHTML: this.renderTextInput({
+              form: 'bank',
+              field: 'accountHolderName',
+              value: accountHolderName,
+              placeholder: 'Legal business or individual name',
+              disabled: controlsDisabled,
+              error: !!error('accountHolderName'),
+            }),
+            error: error('accountHolderName'),
+            fieldTestId: 'field-bank-account-holder-name',
+          })}
+
+          <div class="field" ${this.testId('field-bank-account-holder-type')}>
+            <label class="field-label" ${this.testId('label-bank-account-holder-type')}>Account Holder Type</label>
+            <div class="manual-choice-grid" ${this.testId('bank-account-holder-type-options')}>
+              ${renderChoiceButtons(holderTypeOptions, holderType, 'manual-bank-set-holder-type', 'bank-account-holder-type')}
+            </div>
+          </div>
+
+          ${this.renderField({
+            form: 'bank',
+            field: 'routingNumber',
+            label: 'Routing Number',
+            controlHTML: this.renderTextInput({
+              form: 'bank',
+              field: 'routingNumber',
+              value: form.routingNumber,
+              placeholder: '123456789',
+              formatter: 'routing',
+              disabled: controlsDisabled,
+              error: !!error('routingNumber'),
+            }),
+            error: error('routingNumber'),
+          })}
+
+          ${this.renderField({
+            form: 'bank',
+            field: 'accountNumber',
+            label: 'Account Number',
+            controlHTML: this.renderTextInput({
+              form: 'bank',
+              field: 'accountNumber',
+              value: form.accountNumber,
+              placeholder: 'Enter account number',
+              disabled: controlsDisabled,
+              error: !!error('accountNumber'),
+            }),
+            error: error('accountNumber'),
+          })}
+
+          ${this.renderField({
+            form: 'bank',
+            field: 'confirmAccountNumber',
+            label: 'Confirm Account Number',
+            controlHTML: this.renderTextInput({
+              form: 'bank',
+              field: 'confirmAccountNumber',
+              value: form.confirmAccountNumber || '',
+              placeholder: 'Re-enter account number',
+              disabled: controlsDisabled,
+              error: !!error('confirmAccountNumber'),
+            }),
+            error: error('confirmAccountNumber'),
+            fieldTestId: 'field-bank-confirm-account-number',
+          })}
+
+          <div class="field" ${this.testId('field-bank-account-type-pill')}>
+            <label class="field-label" ${this.testId('label-bank-account-type-pill')}>Account Type</label>
+            <div class="manual-choice-grid" ${this.testId('bank-account-type-options')}>
+              ${renderChoiceButtons(accountTypeOptions, accountType, 'manual-bank-set-account-type', 'bank-account-type')}
+            </div>
+          </div>
+
+          <div class="info-box manual-bank-info" ${this.testId('bank-manual-info')}>
+            ${this.icon('alert-circle', 'icon-4 manual-bank-info-icon')}
+            <p ${this.testId('bank-manual-info-copy')}>
+              After submitting, two small deposits will be sent to your bank account within 1-3 business days.
+              You'll need to enter a verification code from those deposits to complete the linking process.
+            </p>
+          </div>
+
+          <button
+            ${this.testId('bank-manual-submit')}
+            class="btn btn-primary full-width manual-bank-submit"
+            type="button"
+            data-action="save-form"
+            data-form="bank"
+            ${controlsDisabled ? 'disabled' : ''}
+          >
+            ${meta.isSaving ? `${this.icon('loader', 'icon-4 spin')}<span>Linking bank account...</span>` : 'Link Bank Account'}
+          </button>
+        </div>
+      </div>
+    `
+
+    return `
+      <div class="form-stack bank-form-stack" ${this.testId('bank-form')}>
+        ${entryMode === 'manual' ? manualScreenMarkup : choiceScreenMarkup}
       </div>
     `
   }
@@ -4848,8 +5804,18 @@ export class BisonOperatorOnboarding extends HTMLElement {
   }
 
   renderBankAccountTab(statuses) {
-    const linked = this._linkedBankAccount
-    const hasBankConnected = !!linked
+    void statuses
+    const bankUi = this.state.ui.bank
+    const bankAccounts = this._operatorBankAccounts
+      .map((account) => this._mapOperatorBankAccount(account))
+      .filter(Boolean)
+    const hasBankConnected = bankAccounts.length > 0
+    const hasDefaultBankAccount = bankAccounts.some((account) => account.isDefault)
+    const pendingDefaultId = String(bankUi.pendingDefaultId || '').trim()
+    const pendingDefaultPhase = String(bankUi.pendingDefaultPhase || '').trim()
+    const bankActionToast = bankUi.actionToast
+    const removingAccountId = String(bankUi.removingAccountId || '').trim()
+    const deleteModal = bankUi.deleteModal
     const savedMethods = this._kybStatus?.selectedPaymentMethods
     const paymentStatuses = PAYMENT_METHOD_STATUSES['new-account']
     const paymentRows = PAYMENT_METHODS.filter((method) =>
@@ -4879,6 +5845,121 @@ export class BisonOperatorOnboarding extends HTMLElement {
       `
     }).join('')
 
+    const bankCards = bankAccounts.map((account, index) => {
+      const accountKey = account.id || `account-${index + 1}`
+      const isPendingDefault = pendingDefaultId === accountKey
+      const isRemovingAccount = removingAccountId === accountKey
+      const areBankActionsDisabled = !!pendingDefaultId || this._isBankAccountsLoading || !!removingAccountId || !!deleteModal.isSubmitting
+      const verifiedChipMarkup = account.isVerified
+        ? `<span class="bank-account-chip bank-account-chip-verified" ${this.testId(`bank-account-verified-${accountKey}`)}>
+             ${this.icon('shield-check', 'icon-3')}
+             Verified
+           </span>`
+        : ''
+      const verifyButtonMarkup = account.isVerified
+        ? ''
+        : `<button
+             ${this.testId(`bank-account-verify-${accountKey}`)}
+             class="bank-account-verify-btn"
+             type="button"
+             data-action="bank-account-verify"
+             data-bank-account-id="${escapeHTML(accountKey)}"
+             ${areBankActionsDisabled ? 'disabled' : ''}
+           >
+             Verify
+           </button>`
+      const setDefaultButtonMarkup = account.isVerified
+        ? `<button
+             ${this.testId(`bank-account-set-default-${accountKey}`)}
+             class="icon-btn icon-btn-primary"
+             type="button"
+             data-action="bank-account-set-default"
+             data-bank-account-id="${escapeHTML(accountKey)}"
+             aria-label="Set ${escapeHTML(account.institutionName)} as default bank account"
+             ${areBankActionsDisabled ? 'disabled' : ''}
+           >
+             ${this.icon('star', 'icon-4')}
+           </button>`
+        : ''
+      const actionsMarkup = `<div class="bank-account-actions" ${this.testId(`bank-account-actions-${accountKey}`)}>
+                   ${verifyButtonMarkup}
+                   ${setDefaultButtonMarkup}
+                   <button
+                     ${this.testId(`bank-account-remove-${accountKey}`)}
+                     class="icon-btn icon-btn-error"
+                     type="button"
+                     data-action="bank-account-remove"
+                     data-bank-account-id="${escapeHTML(accountKey)}"
+                     aria-label="Unlink ${escapeHTML(account.institutionName)} bank account"
+                     ${areBankActionsDisabled ? 'disabled' : ''}
+                   >
+                     ${this.icon('unlink', 'icon-4')}
+                   </button>
+                 </div>`
+      const spinnerMarkup = `<span class="bank-account-spinner" ${this.testId(`bank-account-spinner-${accountKey}`)}>
+                   ${this.icon('loader', 'icon-4 spin')}
+                 </span>`
+      const defaultMarkup = `<div class="bank-account-side-group" ${this.testId(`bank-account-side-group-${accountKey}`)}>
+                   ${verifyButtonMarkup}
+                   <span class="bank-account-chip bank-account-chip-default" ${this.testId(`bank-account-default-${accountKey}`)}>Default</span>
+                 </div>`
+      let sideContent = defaultMarkup
+      let sideSurfaceClass = 'bank-account-side-surface'
+
+      if (account.isDefault) {
+        if (isPendingDefault && pendingDefaultPhase === 'default-in') {
+          sideSurfaceClass += ' bank-account-side-enter-left'
+        }
+      } else if (isPendingDefault) {
+        if (pendingDefaultPhase === 'actions-out') {
+          sideContent = actionsMarkup
+          sideSurfaceClass += ' bank-account-side-exit-right'
+        } else if (pendingDefaultPhase === 'actions-in') {
+          sideContent = actionsMarkup
+          sideSurfaceClass += ' bank-account-side-enter-left'
+        } else {
+          sideContent = spinnerMarkup
+          if (pendingDefaultPhase === 'spinner-in') {
+            sideSurfaceClass += ' bank-account-side-enter-left'
+          } else if (pendingDefaultPhase === 'spinner-out-success' || pendingDefaultPhase === 'spinner-out-fail') {
+            sideSurfaceClass += ' bank-account-side-exit-right'
+          }
+        }
+      } else {
+        sideContent = actionsMarkup
+      }
+
+      return `
+        <div class="connected-card bank-account-card ${isRemovingAccount ? 'bank-account-card-removing' : ''}" ${this.testId(`bank-account-card-${accountKey}`)}>
+          <div class="connected-main" ${this.testId(`bank-account-main-${accountKey}`)}>
+            <div class="connected-icon" ${this.testId(`bank-account-icon-${accountKey}`)}>${this.icon('landmark', 'icon-5')}</div>
+            <div class="connected-copy" ${this.testId(`bank-account-copy-${accountKey}`)}>
+              <p class="connected-title" ${this.testId(`bank-account-title-${accountKey}`)}>${escapeHTML(account.institutionName)}</p>
+              <p class="connected-meta" ${this.testId(`bank-account-meta-${accountKey}`)}>${escapeHTML(account.accountName)}${account.mask ? ` ••••${escapeHTML(account.mask)}` : ''}</p>
+              <div class="connected-meta-row" ${this.testId(`bank-account-meta-row-${accountKey}`)}>
+                ${account.connectedAt ? `<p class="connected-date" ${this.testId(`bank-account-date-${accountKey}`)}>Added ${escapeHTML(account.connectedAt)}</p>` : ''}
+                ${verifiedChipMarkup}
+              </div>
+            </div>
+          </div>
+          <div class="connected-side" ${this.testId(`bank-account-side-${accountKey}`)}>
+            <div class="${sideSurfaceClass}" ${this.testId(`bank-account-side-surface-${accountKey}`)}>
+              ${sideContent}
+            </div>
+          </div>
+        </div>
+      `
+    }).join('')
+
+    const bankActionToastHTML = bankActionToast?.message
+      ? `<div class="bank-action-toast-layer" ${this.testId('bank-action-toast-layer')}>
+           <div class="bank-action-toast bank-action-toast-${escapeHTML(bankActionToast.tone || 'error')}" role="alert" aria-live="polite" ${this.testId('bank-action-toast')}>
+             <span class="bank-action-toast-icon" ${this.testId('bank-action-toast-icon')}>${this.icon('alert-circle', 'icon-4')}</span>
+             <span class="bank-action-toast-copy" ${this.testId('bank-action-toast-copy')}>${escapeHTML(bankActionToast.message)}</span>
+           </div>
+         </div>`
+      : ''
+
     return `
       <div class="bank-tab-stack" ${this.testId('bank-tab')}>
         ${
@@ -4893,19 +5974,30 @@ export class BisonOperatorOnboarding extends HTMLElement {
                 </div>
               </div>`
             : hasBankConnected
-            ? `<div class="connected-card" ${this.testId('bank-connected-card')}>
-                <div class="connected-main" ${this.testId('bank-connected-main')}>
-                  <div class="connected-icon" ${this.testId('bank-connected-icon')}>${this.icon('landmark', 'icon-5')}</div>
-                  <div class="connected-copy" ${this.testId('bank-connected-copy')}>
-                    <p class="connected-title" ${this.testId('bank-connected-title')}>${linked ? escapeHTML(linked.institutionName) : 'Bank Account'}</p>
-                    <p class="connected-meta" ${this.testId('bank-connected-meta')}>${linked ? `${escapeHTML(linked.accountName)}${linked.mask ? ` ••••${escapeHTML(linked.mask)}` : ''}` : 'Linked bank account'}</p>
-                    ${linked?.connectedAt ? `<p class="connected-date" ${this.testId('bank-connected-date')}>Added ${escapeHTML(linked.connectedAt)}</p>` : ''}
-                  </div>
+            ? `<div class="bank-account-wrap" ${this.testId('bank-account-wrap')}>
+                ${bankActionToastHTML}
+                ${
+                  hasDefaultBankAccount
+                    ? ''
+                    : `<div class="info-box info-box-warning bank-alert" ${this.testId('bank-no-default-banner')}>
+                         ${this.icon('alert-circle', 'icon-5')}
+                         <div class="bank-alert-copy" ${this.testId('bank-no-default-copy-wrap')}>
+                           <p class="bank-alert-title" ${this.testId('bank-no-default-title')}>No default bank account</p>
+                           <p class="bank-alert-text" ${this.testId('bank-no-default-text')}>
+                             Please set a default bank account to receive payments from your working interest owners.
+                           </p>
+                         </div>
+                       </div>`
+                }
+                <div class="connected-list" ${this.testId('bank-account-list')}>
+                  ${bankCards}
                 </div>
               </div>
-              <p class="help-text" ${this.testId('bank-connected-help')}>
-                Deposits from your working interest owners are sent to this account.
-              </p>`
+              ${hasDefaultBankAccount
+                ? `<p class="help-text" ${this.testId('bank-connected-help')}>
+                     Deposits from your working interest owners are sent to your default bank account.
+                   </p>`
+                : ''}`
             : `<div class="bank-empty" ${this.testId('bank-empty')}>
                 ${this.icon('landmark', 'icon-8 muted-icon')}
                 <h3 class="bank-empty-title" ${this.testId('bank-empty-title')}>No bank account connected</h3>
@@ -4929,12 +6021,63 @@ export class BisonOperatorOnboarding extends HTMLElement {
     `
   }
 
+  renderBankDeleteModal() {
+    const deleteModal = this.state.ui.bank.deleteModal
+    if (!deleteModal.isOpen) return ''
+
+    const accountName = deleteModal.bankName || 'this bank account'
+    const accountLabel = deleteModal.accountLabel ? `<p class="bank-delete-account" ${this.testId('bank-delete-account')}>${escapeHTML(deleteModal.accountLabel)}</p>` : ''
+
+    return `
+      <div class="bo-submodal-layer" ${this.testId('bank-delete-modal-layer')}>
+        <div class="bo-submodal-backdrop" ${this.testId('bank-delete-modal-backdrop')} data-action="bank-delete-cancel"></div>
+        <div class="bo-submodal" role="dialog" aria-modal="true" aria-labelledby="bank-delete-title" ${this.testId('bank-delete-modal')}>
+          <div class="bo-submodal-header" ${this.testId('bank-delete-modal-header')}>
+            <div class="bo-submodal-icon" ${this.testId('bank-delete-modal-icon')}>${this.icon('unlink', 'icon-5')}</div>
+            <div class="bo-submodal-copy" ${this.testId('bank-delete-modal-copy')}>
+              <h3 class="bo-submodal-title" id="bank-delete-title" ${this.testId('bank-delete-title')}>Unlink bank account?</h3>
+              <p class="bo-submodal-text" ${this.testId('bank-delete-text')}>
+                This will unlink ${escapeHTML(accountName)} from the operator.
+              </p>
+              ${accountLabel}
+            </div>
+          </div>
+
+          ${deleteModal.errorMessage ? `<p class="bank-delete-error" ${this.testId('bank-delete-error')}>${escapeHTML(deleteModal.errorMessage)}</p>` : ''}
+
+          <div class="bo-submodal-actions" ${this.testId('bank-delete-actions')}>
+            <button
+              class="btn btn-ghost"
+              type="button"
+              data-action="bank-delete-cancel"
+              ${deleteModal.isSubmitting ? 'disabled' : ''}
+              ${this.testId('bank-delete-cancel')}
+            >
+              Cancel
+            </button>
+            <button
+              class="btn btn-danger"
+              type="button"
+              data-action="bank-delete-confirm"
+              ${deleteModal.isSubmitting ? 'disabled' : ''}
+              ${this.testId('bank-delete-confirm')}
+            >
+              ${deleteModal.isSubmitting ? `${this.icon('loader', 'icon-4 spin')}<span>Unlinking...</span>` : 'Yes, unlink bank account'}
+            </button>
+          </div>
+        </div>
+      </div>
+    `
+  }
+
   renderWelcomeModal() {
     const welcome = this.state.ui.welcome
     if (!welcome.isOpen) return ''
 
     const step = welcome.step === 2 ? 2 : 1
     const selectedMethods = welcome.selectedMethods
+    const isSaving = !!welcome.isSaving
+    const toast = welcome.toast
     const stepClass = step === 2 ? (welcome.direction > 0 ? 'welcome-step-forward' : 'welcome-step-backward') : ''
     const entryClass = this._welcomeAnimateIn ? 'welcome-animate-in' : ''
 
@@ -4947,6 +6090,9 @@ export class BisonOperatorOnboarding extends HTMLElement {
           data-action="welcome-toggle-method"
           data-method-id="${escapeHTML(method.id)}"
           class="welcome-method-card ${isSelected ? 'selected' : ''}"
+          aria-pressed="${isSelected ? 'true' : 'false'}"
+          aria-disabled="${isSaving ? 'true' : 'false'}"
+          ${isSaving ? 'disabled' : ''}
         >
           ${
             isSelected
@@ -4964,6 +6110,15 @@ export class BisonOperatorOnboarding extends HTMLElement {
         </button>
       `
     }).join('')
+
+    const toastHTML = toast?.message
+      ? `<div class="welcome-toast welcome-toast-${escapeHTML(toast.tone || 'success')}" role="${toast.tone === 'error' ? 'alert' : 'status'}" aria-live="polite" ${this.testId('welcome-toast')}>
+          <span class="welcome-toast-icon" ${this.testId('welcome-toast-icon')}>${
+            toast.tone === 'error' ? this.icon('alert-circle', 'icon-4') : this.icon('check-circle', 'icon-4')
+          }</span>
+          <span class="welcome-toast-copy" ${this.testId('welcome-toast-copy')}>${escapeHTML(toast.message)}</span>
+        </div>`
+      : ''
 
     const stepsHTML = WELCOME_VERIFICATION_STEPS.map((item, index) => {
       return `
@@ -5004,15 +6159,21 @@ export class BisonOperatorOnboarding extends HTMLElement {
                     Payment methods are configured during verification.
                   </p>
 
+                  ${toastHTML}
+
                   <div class="welcome-actions" ${this.testId('welcome-actions-step-1')}>
                     <button
                       ${this.testId('welcome-continue-button')}
                       type="button"
                       class="btn btn-primary full-width"
                       data-action="welcome-continue"
-                      ${selectedMethods.length === 0 ? 'disabled' : ''}
+                      ${selectedMethods.length === 0 || isSaving ? 'disabled' : ''}
                     >
-                      Continue →
+                      ${
+                        isSaving
+                          ? `${this.icon('loader', 'icon-4 spin')}<span>Saving...</span>`
+                          : 'Continue →'
+                      }
                     </button>
                   </div>
                 </div>`
@@ -5246,6 +6407,93 @@ export class BisonOperatorOnboarding extends HTMLElement {
           animation: boModalOut 260ms cubic-bezier(0.4, 0, 0.2, 1) both;
         }
 
+        .bo-submodal-layer {
+          position: absolute;
+          inset: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 1rem;
+          z-index: 3;
+        }
+
+        .bo-submodal-backdrop {
+          position: absolute;
+          inset: 0;
+          background: rgb(15 42 57 / 0.28);
+          backdrop-filter: blur(2px);
+        }
+
+        .bo-submodal {
+          position: relative;
+          width: min(100%, 28rem);
+          border-radius: 1rem;
+          border: 1px solid var(--color-border);
+          background: #fff;
+          box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.22);
+          padding: 1.25rem;
+          display: flex;
+          flex-direction: column;
+          gap: 1rem;
+          animation: boSubmodalIn 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+
+        .bo-submodal-header {
+          display: flex;
+          align-items: flex-start;
+          gap: 0.875rem;
+        }
+
+        .bo-submodal-icon {
+          width: 2.5rem;
+          height: 2.5rem;
+          border-radius: 9999px;
+          background: rgb(221 82 75 / 0.08);
+          color: var(--color-error);
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+        }
+
+        .bo-submodal-copy {
+          min-width: 0;
+        }
+
+        .bo-submodal-title {
+          margin: 0;
+          color: var(--color-headline);
+          font-size: 1rem;
+          font-weight: 600;
+        }
+
+        .bo-submodal-text {
+          margin: 0.375rem 0 0;
+          color: var(--color-secondary);
+          font-size: 0.875rem;
+          line-height: 1.45;
+        }
+
+        .bank-delete-account {
+          margin: 0.5rem 0 0;
+          color: var(--color-headline);
+          font-size: 0.8125rem;
+          font-weight: 500;
+        }
+
+        .bank-delete-error {
+          margin: 0;
+          color: var(--color-error);
+          font-size: 0.8125rem;
+          line-height: 1.4;
+        }
+
+        .bo-submodal-actions {
+          display: flex;
+          justify-content: flex-end;
+          gap: 0.75rem;
+        }
+
         .bo-modal-header {
           padding: 1rem 1.25rem;
           border-bottom: 1px solid var(--color-border);
@@ -5437,6 +6685,11 @@ export class BisonOperatorOnboarding extends HTMLElement {
           gap: 0.25rem;
         }
 
+        .welcome-method-card:disabled {
+          cursor: not-allowed;
+          opacity: 0.7;
+        }
+
         .welcome-method-card.selected {
           border-color: var(--color-primary);
           background: rgb(76 123 99 / 0.05);
@@ -5487,6 +6740,40 @@ export class BisonOperatorOnboarding extends HTMLElement {
           text-align: center;
           color: var(--color-secondary);
           font-size: 0.75rem;
+        }
+
+        .welcome-toast {
+          margin-top: 0.875rem;
+          border-radius: var(--radius-md);
+          border: 1px solid transparent;
+          padding: 0.75rem 0.875rem;
+          display: flex;
+          align-items: flex-start;
+          gap: 0.625rem;
+          font-size: 0.8125rem;
+          line-height: 1.4;
+        }
+
+        .welcome-toast-success {
+          background: rgb(76 123 99 / 0.08);
+          border-color: rgb(76 123 99 / 0.16);
+          color: var(--color-primary);
+        }
+
+        .welcome-toast-error {
+          background: rgb(221 82 75 / 0.08);
+          border-color: rgb(221 82 75 / 0.16);
+          color: var(--color-error);
+        }
+
+        .welcome-toast-icon {
+          flex-shrink: 0;
+          display: inline-flex;
+          margin-top: 0.0625rem;
+        }
+
+        .welcome-toast-copy {
+          color: inherit;
         }
 
         .welcome-actions {
@@ -6224,6 +7511,11 @@ export class BisonOperatorOnboarding extends HTMLElement {
           border-color: rgb(245 158 11 / 0.2);
         }
 
+        .info-box-error {
+          background: rgb(221 82 75 / 0.05);
+          border-color: rgb(221 82 75 / 0.18);
+        }
+
         .icon-box {
           display: flex;
           align-items: flex-start;
@@ -6268,6 +7560,16 @@ export class BisonOperatorOnboarding extends HTMLElement {
 
         .btn-primary:hover:not(:disabled) {
           background: rgb(76 123 99 / 0.9);
+        }
+
+        .btn-danger {
+          background: var(--color-error);
+          color: #fff;
+          border-color: var(--color-error);
+        }
+
+        .btn-danger:hover:not(:disabled) {
+          background: rgb(221 82 75 / 0.9);
         }
 
         .btn-ghost {
@@ -6467,6 +7769,90 @@ export class BisonOperatorOnboarding extends HTMLElement {
           gap: 1.5rem;
         }
 
+        .bank-entry-screen {
+          animation: bankEntryScreenIn 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+
+        .bank-entry-choice-grid {
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: 1rem;
+        }
+
+        .bank-entry-choice-card {
+          width: 100%;
+          min-height: 12.5rem;
+          border: 2px dashed var(--color-border);
+          border-radius: var(--radius-md);
+          background: transparent;
+          padding: 2rem 1.5rem;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 0.75rem;
+          text-align: center;
+          cursor: pointer;
+          transition:
+            border-color var(--duration-normal),
+            background-color var(--duration-normal),
+            transform var(--duration-normal),
+            box-shadow var(--duration-normal);
+        }
+
+        .bank-entry-choice-card:hover:not(:disabled) {
+          border-color: rgb(76 123 99 / 0.35);
+          background: rgb(76 123 99 / 0.04);
+          box-shadow: 0 12px 24px rgb(15 42 57 / 0.06);
+          transform: translateY(-1px);
+        }
+
+        .bank-entry-choice-card:disabled {
+          cursor: not-allowed;
+          opacity: 0.6;
+        }
+
+        .bank-entry-choice-card-secondary:hover:not(:disabled) {
+          border-color: rgb(15 42 57 / 0.2);
+          background: rgb(15 42 57 / 0.03);
+        }
+
+        .bank-entry-choice-icon {
+          width: 3rem;
+          height: 3rem;
+          border-radius: 9999px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: rgb(76 123 99 / 0.1);
+          color: var(--color-primary);
+          flex-shrink: 0;
+        }
+
+        .bank-entry-choice-icon-secondary {
+          background: rgb(15 42 57 / 0.08);
+          color: var(--color-headline);
+        }
+
+        .bank-entry-choice-copy {
+          min-width: 0;
+          text-align: center;
+        }
+
+        .bank-entry-choice-title {
+          margin: 0;
+          color: var(--color-headline);
+          font-size: 1rem;
+          font-weight: 600;
+        }
+
+        .bank-entry-choice-desc {
+          margin: 0.25rem 0 0;
+          color: var(--color-secondary);
+          font-size: 0.875rem;
+          line-height: 1.5;
+        }
+
         .plaid-connect-btn {
           width: 100%;
           border: 2px dashed var(--color-border);
@@ -6511,6 +7897,143 @@ export class BisonOperatorOnboarding extends HTMLElement {
           margin: 0.25rem 0 0;
           font-size: 0.875rem;
           color: var(--color-secondary);
+        }
+
+        .manual-bank-entry {
+          display: flex;
+          flex-direction: column;
+          gap: 1rem;
+        }
+
+        .manual-bank-heading {
+          display: flex;
+          flex-direction: column;
+          gap: 0.25rem;
+        }
+
+        .manual-bank-title {
+          margin: 0;
+          color: var(--color-headline);
+          font-size: 1rem;
+          font-weight: 600;
+        }
+
+        .manual-bank-copy {
+          margin: 0;
+          color: var(--color-secondary);
+          font-size: 0.875rem;
+          line-height: 1.5;
+        }
+
+        .manual-bank-panel {
+          border: 1px solid rgb(232 232 232 / 0.9);
+          border-radius: 1rem;
+          background: rgb(250 250 250 / 0.88);
+          box-shadow: 0 16px 36px rgb(15 42 57 / 0.06);
+          padding: 1.25rem;
+          display: flex;
+          flex-direction: column;
+          gap: 1rem;
+        }
+
+        .manual-bank-panel-header {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 0.875rem;
+        }
+
+        .manual-bank-back {
+          border: 0;
+          background: transparent;
+          color: var(--color-secondary);
+          padding: 0;
+          font-size: 0.875rem;
+          font-weight: 500;
+          cursor: pointer;
+          transition: color var(--duration-normal);
+        }
+
+        .manual-bank-back:hover:not(:disabled) {
+          color: var(--color-headline);
+        }
+
+        .manual-bank-back:disabled {
+          cursor: not-allowed;
+          opacity: 0.6;
+        }
+
+        .manual-bank-panel-title {
+          margin: 0;
+          color: var(--color-headline);
+          font-size: 1rem;
+          font-weight: 600;
+        }
+
+        .manual-bank-panel-subtitle {
+          margin: 0.25rem 0 0;
+          color: var(--color-secondary);
+          font-size: 0.75rem;
+          line-height: 1.45;
+        }
+
+        .manual-choice-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 0.75rem;
+        }
+
+        .manual-choice-pill {
+          min-height: 2.9rem;
+          padding: 0.7rem 1rem;
+          border: 2px solid var(--color-border);
+          border-radius: 0.75rem;
+          background: #fff;
+          color: var(--color-secondary);
+          font-size: 0.875rem;
+          font-weight: 500;
+          text-transform: capitalize;
+          transition:
+            border-color var(--duration-fast) var(--ease-default),
+            background-color var(--duration-fast) var(--ease-default),
+            color var(--duration-fast) var(--ease-default);
+        }
+
+        .manual-choice-pill:hover:not(:disabled) {
+          border-color: rgb(76 123 99 / 0.3);
+        }
+
+        .manual-choice-pill.is-selected {
+          border-color: var(--color-primary);
+          background: rgb(76 123 99 / 0.05);
+          color: var(--color-primary);
+        }
+
+        .manual-choice-pill:disabled {
+          cursor: not-allowed;
+          opacity: 0.6;
+        }
+
+        .manual-bank-info {
+          border-color: var(--color-border);
+          background: var(--color-sidebar);
+        }
+
+        .manual-bank-info-icon {
+          color: var(--color-warning);
+          flex-shrink: 0;
+          margin-top: 0.0625rem;
+        }
+
+        .manual-bank-info p {
+          font-size: 0.75rem;
+          line-height: 1.55;
+        }
+
+        .manual-bank-submit {
+          min-height: 3rem;
+          font-size: 0.95rem;
+          font-weight: 600;
         }
 
         .divider-row {
@@ -6721,6 +8244,206 @@ export class BisonOperatorOnboarding extends HTMLElement {
 
         .connected-date {
           margin: 0.125rem 0 0;
+          color: var(--color-secondary);
+          font-size: 0.75rem;
+        }
+
+        .bank-account-wrap {
+          position: relative;
+          display: flex;
+          flex-direction: column;
+          gap: 0.75rem;
+        }
+
+        .connected-list {
+          display: flex;
+          flex-direction: column;
+          gap: 0.75rem;
+        }
+
+        .bank-account-card {
+          align-items: center;
+        }
+
+        .bank-account-card-removing {
+          pointer-events: none;
+          animation: bankCardRemove 220ms cubic-bezier(0.4, 0, 0.2, 1) both;
+        }
+
+        .bank-account-card .connected-main {
+          flex: 1;
+        }
+
+        .connected-side {
+          flex-shrink: 0;
+          display: flex;
+          flex-direction: column;
+          align-items: flex-end;
+          justify-content: center;
+          min-width: 5rem;
+        }
+
+        .bank-account-side-surface {
+          display: inline-flex;
+          align-items: center;
+          justify-content: flex-end;
+          min-width: 5rem;
+          will-change: opacity, transform;
+        }
+
+        .bank-account-actions {
+          display: flex;
+          flex-direction: row;
+          align-items: center;
+          gap: 0.25rem;
+        }
+
+        .bank-account-side-group {
+          display: flex;
+          flex-direction: row;
+          align-items: center;
+          gap: 0.5rem;
+        }
+
+        .bank-account-spinner {
+          color: var(--color-primary);
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-width: 1rem;
+          min-height: 1rem;
+        }
+
+        .bank-account-side-enter-left {
+          animation: bankSideInFromLeft 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+
+        .bank-account-side-exit-right {
+          animation: bankSideOutToRight 160ms cubic-bezier(0.4, 0, 0.2, 1) both;
+        }
+
+        .connected-meta-row {
+          margin-top: 0.25rem;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          flex-wrap: wrap;
+        }
+
+        .bank-account-chip {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.25rem;
+          padding: 0.125rem 0.5rem;
+          border-radius: 9999px;
+          border: 1px solid transparent;
+          font-size: 0.75rem;
+          font-weight: 500;
+          line-height: 1.2;
+          white-space: nowrap;
+        }
+
+        .bank-account-chip .icon-3 {
+          width: 0.75rem;
+          height: 0.75rem;
+        }
+
+        .bank-account-chip-verified {
+          background: rgb(34 197 94 / 0.08);
+          border-color: rgb(34 197 94 / 0.18);
+          color: var(--color-success);
+        }
+
+        .bank-account-chip-default {
+          background: rgb(95 110 120 / 0.08);
+          border-color: rgb(95 110 120 / 0.18);
+          color: var(--color-secondary);
+        }
+
+        .bank-account-verify-btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          padding: 0.25rem 0.625rem;
+          border-radius: 9999px;
+          border: 1px solid rgb(34 197 94 / 0.3);
+          background: #fff;
+          color: var(--color-success);
+          font-size: 0.75rem;
+          font-weight: 500;
+          line-height: 1.2;
+          white-space: nowrap;
+          cursor: pointer;
+          transition:
+            border-color var(--duration-normal),
+            background-color var(--duration-normal),
+            color var(--duration-normal);
+        }
+
+        .bank-account-verify-btn:hover:not(:disabled) {
+          border-color: rgb(34 197 94 / 0.42);
+          background: rgb(34 197 94 / 0.06);
+        }
+
+        .bank-account-verify-btn:disabled {
+          cursor: not-allowed;
+          opacity: 0.6;
+        }
+
+        .bank-alert-copy {
+          min-width: 0;
+        }
+
+        .bank-action-toast-layer {
+          position: absolute;
+          top: 0;
+          right: 0;
+          z-index: 2;
+          pointer-events: none;
+        }
+
+        .bank-action-toast {
+          max-width: min(20rem, calc(100vw - 3rem));
+          border-radius: var(--radius-md);
+          border: 1px solid rgb(221 82 75 / 0.18);
+          background: #fff;
+          box-shadow: 0 12px 28px rgb(15 23 42 / 0.14);
+          color: var(--color-headline);
+          display: inline-flex;
+          align-items: flex-start;
+          gap: 0.5rem;
+          padding: 0.75rem 0.875rem;
+          animation: bankToastIn 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+
+        .bank-action-toast-icon {
+          color: var(--color-error);
+          flex-shrink: 0;
+          display: inline-flex;
+          margin-top: 0.0625rem;
+        }
+
+        .bank-action-toast-copy {
+          color: inherit;
+          font-size: 0.8125rem;
+          line-height: 1.4;
+        }
+
+        .bank-alert .icon-5 {
+          color: var(--color-warning);
+          flex-shrink: 0;
+          margin-top: 0.125rem;
+        }
+
+        .bank-alert-title {
+          margin: 0;
+          color: var(--color-headline);
+          font-size: 0.875rem;
+          font-weight: 600;
+        }
+
+        .bank-alert-text {
+          margin: 0.25rem 0 0;
           color: var(--color-secondary);
           font-size: 0.75rem;
         }
@@ -6938,6 +8661,72 @@ export class BisonOperatorOnboarding extends HTMLElement {
           }
         }
 
+        @keyframes bankSideInFromLeft {
+          from {
+            opacity: 0;
+            transform: translateX(-16px);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(0);
+          }
+        }
+
+        @keyframes bankSideOutToRight {
+          from {
+            opacity: 1;
+            transform: translateX(0);
+          }
+          to {
+            opacity: 0;
+            transform: translateX(16px);
+          }
+        }
+
+        @keyframes bankToastIn {
+          from {
+            opacity: 0;
+            transform: translateY(-8px) scale(0.98);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+
+        @keyframes bankEntryScreenIn {
+          from {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        @keyframes bankCardRemove {
+          from {
+            opacity: 1;
+            transform: translateX(0);
+          }
+          to {
+            opacity: 0;
+            transform: translateX(18px);
+          }
+        }
+
+        @keyframes boSubmodalIn {
+          from {
+            opacity: 0;
+            transform: translateY(10px) scale(0.98);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+
         @keyframes spin {
           from {
             transform: rotate(0deg);
@@ -7069,6 +8858,10 @@ export class BisonOperatorOnboarding extends HTMLElement {
           .half-width {
             width: 50%;
           }
+
+          .bank-entry-choice-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
         }
 
         @media (max-width: 639px) {
@@ -7181,6 +8974,7 @@ export class BisonOperatorOnboarding extends HTMLElement {
       const modalTitle = showingWelcome ? 'Accept Payments' : 'Operator Banking Setup'
       let modalStyleAttr = ''
       let modalBodyContent = this.renderWelcomeModal()
+      let submodalMarkup = ''
 
       if (!showingWelcome) {
         if (!this._setupModalHeight) {
@@ -7194,6 +8988,7 @@ export class BisonOperatorOnboarding extends HTMLElement {
         renderedProgress = progress
         shouldAnimateProgress = this.state.activeTab === 'verification' && (!isProgressComplete || this._verificationStatusStage === 'progress')
         modalBodyContent = this.renderSetupModalContent(statuses, statusMessages, progress, isProgressComplete, isVerified)
+        submodalMarkup = this.renderBankDeleteModal()
       }
 
       modalMarkup = `
@@ -7216,6 +9011,7 @@ export class BisonOperatorOnboarding extends HTMLElement {
               ${modalBodyContent}
             </div>
           </div>
+          ${submodalMarkup}
         </dialog>
       `
     }
